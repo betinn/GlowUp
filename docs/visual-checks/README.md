@@ -11,6 +11,10 @@ de propósito manchas, olheiras, olho vermelho e dentes amarelados. Nenhuma pess
 - `21-branco-do-olho.png`, `22-limite-dentes.png`: um traço largo que só muda a região da ferramenta.
 - `ui-limite-*.png`, `ui-celular-limite*.png`: busca com o aviso dos 6 MB, interruptor, traço fora, foto
   em grupo e boca fechada.
+- `ui-regiao-*.png`: a vista que voou até os olhos (`ui-regiao-olhos`), a boca (`ui-regiao-dentes`) e um rosto
+  da foto em grupo (`ui-regiao-grupo`), e o brilho sobre o alcance do pincel (`ui-regiao-brilho`).
+- `ui-auto-olhos.png`, `ui-manual-olhos.png`, `ui-celular-auto.png`: o seletor Automático e Manual, com a cor já
+  aplicada pelo Automático e o pincel de volta no Manual.
 
 Os anéis destas imagens vêm do detector real: o retrato procedural basta para ele. A borda e o pescoço
 foram ajustados em fotos reais de domínio público, que ficaram fora do repositório.

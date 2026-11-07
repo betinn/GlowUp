@@ -122,6 +122,18 @@ rostos achados.
   interruptor e "Procurar mais rostos" aparece, para o rosto que a primeira busca deixou de lado.
 - **Nada a limitar.** Sem rosto, sem dentes à mostra ou sem detector, o painel diz o motivo e o pincel fica
   livre.
+- **Foco.** Quando a região fica pronta, a vista voa até os olhos, ou até a boca em Dentes. Dois rostos
+  próximos entram juntos; numa foto de grupo vai o maior. Qualquer gesto na foto para o voo, e quem mexeu na
+  vista durante a busca fica com a vista que escolheu.
+- **Brilho.** Em seguida uma luz fria acende sobre o que o pincel alcança, com borda clara e uma faixa que
+  atravessa a tela, e apaga em pouco mais de um segundo. O aviso "O brilho mostra onde o pincel alcança"
+  fica um pouco mais. A luz é fria para nunca ser confundida com a marca laranja, que é o que se pintou, e
+  não aparece na exportação. Volta a tocar quando o interruptor liga.
+- **Automático e Manual.** Seletor no topo do painel. O Automático vem ligado: depois do brilho, a
+  ferramenta já aplica em todos os olhos ou dentes achados, numa etapa só, e os controles ajustam o efeito.
+  Sem pincel, arrastar move a foto. Manual mostra pincel, borracha e o interruptor, e parte do que o
+  Automático fez. Voltar ao Automático troca o que foi pintado pela região. Projeto reaberto com máscara
+  abre no Manual, para não apagar trabalho.
 
 ## Filtro em um rosto
 

@@ -87,6 +87,13 @@
 - [x] Pincel livre sem rosto, sem região, sem detector ou pelo interruptor
 - [x] Nada do rosto no projeto salvo
 
+## M13. Foco, brilho e modo automático
+
+- [x] Voo animado até os olhos ou a boca, com escolha entre todos os rostos e o maior
+- [x] Voo que cede a qualquer gesto, respeita movimento reduzido, recorte, giro e liquify
+- [x] Brilho sobre o alcance do pincel, fora da exportação e diferente da marca do pincel
+- [x] Automático e Manual, com o automático aplicado numa etapa e a máscara salva como pintada
+
 ## Metas medidas
 
 Foto gerada de 12 MP (4000 x 3000), Chromium com aceleração, em uma placa dedicada (`node scripts/perf.mjs`):
@@ -163,3 +170,19 @@ gzip, e o detector continua fora do precache.
 A cobertura dos dentes usa uma estimativa por brilho e cor, não um contorno feito à mão. Rosto muito virado
 leva o contorno do olho mais distante para fora do lugar. Isto também é teste de fumaça, com poucas fotos e
 poucos tons de pele.
+
+### Foco, brilho e modo automático
+
+SwiftShader no e2e, retrato procedural de 1500 x 1875, tela de 1280 x 800.
+
+| O que foi medido | Resultado |
+| --- | --- |
+| Zoom de chegada, olhos | 1,9 vez, com os dois olhos em 60% da largura livre |
+| Zoom de chegada, Dentes | 4,0 vezes |
+| Foto com dois rostos que ocupam a foto inteira | vai para um rosto, 2,3 vezes |
+| Voo e brilho | 650 ms e 1,1 s, aviso por 2,6 s |
+| JS da primeira visita em gzip | 27,2 KB, eram 27,3 KB |
+| Chunk do editor em gzip | 37,4 KB, eram 34,8 KB |
+
+O brilho custa uma leitura de textura a mais por pixel, só enquanto toca. O detector continua fora do
+precache e só baixa quando uma ferramenta de olhos ou dentes abre.
