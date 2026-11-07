@@ -287,7 +287,7 @@ export class Engine {
   /** Live change of where the filter applies. Call `commit` when the gesture ends. */
   setFilterArea(patch: Pick<FilterState, 'masked' | 'feather'>): void {
     this.track('Filtro');
-    Object.assign(this.doc.filter, patch);
+    this.doc.filter = { ...this.doc.filter, ...patch };
     this.ctx?.invalidate('global');
     this.requestRender();
   }
@@ -298,10 +298,11 @@ export class Engine {
     if (!masks) return;
     this.commit();
     const { w, h } = masks;
+    const filter = clone(this.doc.filter);
     const previous = await masks.read(FILTER_MASK);
     const pack = (bytes: Uint8Array | null) => (bytes ? encodeTile(bytes, w, h) : null);
-    const before = { mask: pack(previous), filter: clone(this.doc.filter) };
-    const after = { mask: pack(data), filter: { ...clone(this.doc.filter), ...patch } };
+    const before = { mask: pack(previous), filter };
+    const after = { mask: pack(data), filter: { ...filter, ...patch } };
     const apply = (state: typeof before) => {
       if (state.mask) masks.write(FILTER_MASK, decodeTile(state.mask, w, h));
       else masks.clear(FILTER_MASK);

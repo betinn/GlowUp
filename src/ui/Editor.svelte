@@ -4,7 +4,7 @@
   import { Autosave, loadOriginal, loadProject, unpack } from '../core/project';
   import { nextPaint } from '../core/progress';
   import { readFile, SourceImage } from '../core/source';
-  import type { LayerId } from '../core/doc';
+  import { FILTER_MASK, type LayerId } from '../core/doc';
   import { syncFilter } from '../presets/apply';
   import { ensureDocTools } from '../tools/activate';
   import { GROUPS, TOOLS, toolById, type GroupId } from '../tools/catalog';
@@ -32,6 +32,7 @@
   };
   const loadCropOverlay = () => import('./CropOverlay.svelte');
   const loadBlurOverlay = () => import('./BlurOverlay.svelte');
+  const loadFaceOverlay = () => import('./FaceOverlay.svelte');
 
   let canvas = $state<HTMLCanvasElement>();
   let ready = $state(false);
@@ -87,6 +88,8 @@
         const bytes = await unpack(blob);
         const store = e.masks!;
         if (bytes.length === store.w * store.h) store.write(id, bytes);
+        // A mask made for another screen size is lost, and a filter with no mask would just vanish.
+        else if (id === FILTER_MASK) e.doc.filter = { ...e.doc.filter, masked: false, reach: undefined };
         ui.opening?.task.report((i + 1) / masks.length, `${i + 1} de ${masks.length}`);
       }
       if (record.field && e.field) {
@@ -178,6 +181,7 @@
     ui.compareScope = 'all';
     ui.exportOpen = false;
     ui.painting = false;
+    ui.faceChoosing = false;
   });
 
   function updateViewport() {
@@ -289,6 +293,7 @@
       e.zoomBy(e.canvas.clientWidth / 2, e.canvas.clientHeight / 2, 0.8);
     } else if (key === 'escape') {
       if (ui.exportOpen) ui.exportOpen = false;
+      else if (ui.faceChoosing) ui.faceChoosing = false;
       else if (ui.splitOn) ui.splitOn = false;
       else void selectTool(null);
     }
@@ -316,6 +321,11 @@
     {#if ui.tool === 'blur'}
       {#await loadBlurOverlay() then { default: BlurOverlay }}
         <BlurOverlay />
+      {/await}
+    {/if}
+    {#if ui.faceChoosing}
+      {#await loadFaceOverlay() then { default: FaceOverlay }}
+        <FaceOverlay />
       {/await}
     {/if}
   {/if}

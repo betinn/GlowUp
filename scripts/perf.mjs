@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * Measures brush, liquify and export on a generated 12 MP photo, on this machine's GPU.
+ * Measures brush, liquify, the search for faces and export on a generated 12 MP photo, on this
+ * machine's GPU. The photo has no face, so the search goes through every level: the worst case.
  * Needs a running preview server: npm run preview -- --port 4173
  * Usage: node scripts/perf.mjs
  */
@@ -113,6 +114,22 @@ console.log('brush (Suavizar):', await frames(page, () => stroke(page)));
 await page.locator('[data-group=shape]').click();
 await page.waitForTimeout(600);
 console.log('liquify:', await frames(page, () => stroke(page)));
+
+await page.locator('[data-group=looks]').click();
+await page.locator('[data-tool=filters]').click();
+await page.locator('[data-filter=prata]').click();
+await page.waitForTimeout(600);
+t = Date.now();
+await page.getByRole('radio', { name: 'Escolher rosto' }).click();
+await page.getByText('Não achei rosto nesta foto.').waitFor({ timeout: 120000 });
+console.log('load detector and search, no face:', Date.now() - t, 'ms');
+await page.getByRole('slider', { name: 'Borda', exact: true }).evaluate((el) => {
+  el.value = '40';
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+  el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
+});
+await page.waitForTimeout(600);
+console.log('brush (filter area, soft edge):', await frames(page, () => stroke(page)));
 
 await page.getByTestId('export-open').click();
 t = Date.now();

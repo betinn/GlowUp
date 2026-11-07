@@ -10,6 +10,7 @@ const brushes = new Map<string, BrushSettings>();
 
 const HEAL_BRUSH: Partial<BrushSettings> = { size: 0.012, hardness: 0.55, flow: 1 };
 const LIQUIFY_BRUSH: Partial<BrushSettings> = { size: 0.07, hardness: 0.5 };
+const FILTER_BRUSH: Partial<BrushSettings> = { size: 0.04, hardness: 0.3, flow: 1 };
 
 function brushFor(id: string, defaults: Partial<BrushSettings> | undefined): BrushSettings {
   let b = brushes.get(id);
@@ -19,6 +20,9 @@ function brushFor(id: string, defaults: Partial<BrushSettings> | undefined): Bru
   }
   return b;
 }
+
+/** The brush that touches up the area of a filter. */
+export const filterBrush = () => brushFor('filter-area', FILTER_BRUSH);
 
 export function resetToolMemory(): void {
   brushes.clear();

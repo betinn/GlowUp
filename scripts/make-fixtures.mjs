@@ -4,6 +4,7 @@
  *  - tests/fixtures/portrait.png: procedural portrait with pores, blemishes, dark circles,
  *    red-eye pupils and yellowish teeth, so every retouch tool has something to act on.
  *  - tests/fixtures/gradient.png: ramps and patches to spot banding, clipping and color shifts.
+ *  - tests/fixtures/group.png: two procedural portraits side by side, for choosing a face.
  * Plain Node, with a small PNG writer. Deterministic: same bytes on every run.
  */
 
@@ -308,6 +309,19 @@ function gradient(W, H) {
   return rgb;
 }
 
+/** Copies of the portrait side by side. */
+function group(pw, ph, count) {
+  const one = portrait(pw, ph);
+  const W = pw * count;
+  const rgb = new Uint8Array(W * ph * 3);
+  for (let y = 0; y < ph; y++) {
+    for (let i = 0; i < count; i++) {
+      rgb.set(one.subarray(y * pw * 3, (y + 1) * pw * 3), (y * W + i * pw) * 3);
+    }
+  }
+  return rgb;
+}
+
 mkdirSync(OUT, { recursive: true });
 const PW = 1500;
 const PH = 1875;
@@ -315,4 +329,5 @@ writePng(`${OUT}/portrait.png`, PW, PH, portrait(PW, PH));
 writePng(`${OUT}/gradient.png`, 1024, 768, gradient(1024, 768));
 writeFileSync(`${OUT}/portrait.json`, `${JSON.stringify({ blemishes: blemishSpots }, null, 2)}
 `);
+writePng(`${OUT}/group.png`, 1200, 750, group(600, 750, 2));
 console.log('fixtures ok');

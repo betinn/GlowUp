@@ -46,6 +46,8 @@ export const ui = $state({
   compareHold: false,
   compareScope: 'all' as CompareScope,
   filterName: '',
+  /** Rings are on the faces, waiting for a tap. */
+  faceChoosing: false,
   exportOpen: false,
   showHint: true,
 });
