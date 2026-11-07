@@ -4,7 +4,9 @@ Editor de retoque de fotos que roda inteiro no navegador. Pincéis manuais, ajus
 e exportação em resolução total, tudo processado na GPU do aparelho de quem usa.
 
 - **Nada sai do aparelho.** Não há backend, API nem upload. O servidor só entrega arquivos estáticos.
-- **Sem IA.** Nada de modelos nem detecção facial: é processamento de imagem clássico em shaders.
+- **IA só para achar rostos, no seu aparelho.** Quando você pede para aplicar um filtro em um rosto,
+  um detector roda no navegador e diz onde há rostos. Ele nunca diz quem é a pessoa, e nada disso é
+  salvo. O resto é processamento de imagem clássico em shaders.
 - **Não destrutivo.** A original fica intacta. Cada edição é uma operação que pode ser desfeita,
   ajustada ou apagada.
 
@@ -42,6 +44,10 @@ profundidade), sardas procedurais.
 **Geral:** 40 filtros em 10 categorias com intensidade e favoritos, receitas prontas e suas,
 11 ajustes, desfoque radial e tilt-shift, recorte com rotação, espelho, endireitar e proporções,
 antes/depois (segurar ou dividir, com a foto original ou só sem o filtro), exportação em JPG, PNG e WebP.
+
+Um filtro vale para a foto toda ou para um rosto escolhido: um anel aparece em cada rosto, um toque
+escolhe, e pincel e borracha acertam a área. Sem rosto na foto, a área é pintada à mão. O detector
+baixa só na primeira vez que alguém pede, cerca de 6 MB, do próprio site.
 
 Solte a foto em qualquer lugar da tela, inclusive no editor. Abrir e exportar mostram a porcentagem e o
 passo atual, com a própria foto revelando na tela.
@@ -91,6 +97,7 @@ passo atual, com a própria foto revelando na tela.
 | `src/core/pipeline` | contextos de render, cadeia de estágios, pull-push |
 | `src/core/history` | pilha de desfazer e codec de tiles |
 | `src/core` | documento, geometria, pincel, máscaras, exportação, projetos |
+| `src/core/face` | busca de rostos em tiles, máscara do rosto e detector carregado sob demanda |
 | `src/tools/<ferramenta>` | shader, lógica e painel de cada ferramenta, carregados sob demanda |
 | `src/presets` | LUTs procedurais, receitas e miniaturas |
 | `src/ui` | interface em Svelte |
@@ -108,6 +115,8 @@ Algumas decisões do pipeline:
 - Manchas viram operações independentes de resolução: uma membrana suave preenche o buraco e a
   textura fina vem de uma área vizinha escolhida automaticamente.
 - A exportação usa o mesmo pipeline, em tiles com margem, e não deixa emendas.
+- O filtro pode ter máscara própria, presa à foto original: ela acompanha o liquify e vale igual no
+  preview, no zoom, na exportação e no projeto salvo.
 
 O motivo de cada escolha está em [docs/DECISIONS.md](docs/DECISIONS.md), e a identidade visual em
 [docs/DESIGN.md](docs/DESIGN.md).
@@ -146,3 +155,9 @@ navegador saber codificar o formato: quando não sabe, a opção não aparece.
 
 Código sob [MIT](LICENSE). Fontes Instrument Serif e Instrument Sans sob SIL Open Font License,
 distribuídas via Fontsource.
+
+## Licenças de terceiros
+
+O detector de rostos usa `@mediapipe/tasks-vision` e o modelo `face_landmarker.task`, ambos sob
+Apache 2.0. O aviso e o texto da licença estão em [`public/third-party.txt`](public/third-party.txt)
+e seguem junto com o site.

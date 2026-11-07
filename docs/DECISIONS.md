@@ -43,7 +43,7 @@ Registro curto das decisões em aberto: o que foi escolhido e por quê.
 | 25 | Liquify aplicado depois das camadas | A maquiagem acompanha o rosto deformado. |
 | 26 | Sardas procedurais no shader em vez de carimbos gravados | Densidade, tamanho e variação continuam ajustáveis depois de pintar. |
 | 27 | Maquiagem compartilha um shader, com uma pasta por produto | Mesma matemática de mistura, com paletas e pincéis próprios. |
-| 28 | Receitas guardam ajustes, filtro e parâmetros, sem máscara | Sem detecção facial não há onde pintar sozinho. Elas valem para o que já foi pintado e para o que vier. |
+| 28 | Receitas guardam ajustes, filtro e parâmetros, sem máscara | A detecção de rosto existe só para limitar o filtro, nunca para pintar retoques sozinha. Receitas valem para o que já foi pintado e para o que vier. Aplicar uma receita troca o filtro e mantém a área escolhida, e uma receita salva nunca leva a área de uma foto. |
 
 ## Dados e entrega
 
@@ -69,3 +69,19 @@ Registro curto das decisões em aberto: o que foi escolhido e por quê.
 | 41 | Barra e número movidos pelo relógio, não pelos quadros | Passos da GPU bloqueiam a página. Com a mesma fonte os dois nunca discordam, e o brilho em CSS segue animado no compositor durante o bloqueio. |
 | 42 | Área de soltar global, fim do arraste detectado por silêncio de 600 ms | Sem isso, soltar no editor trocava a página pelo arquivo. `dragleave` não é confiável entre navegadores e não existe ao apertar Esc. |
 | 43 | Comparar filtro renderiza o quadro sem filtro em um buffer extra, criado só enquanto a comparação está aberta | Comparar com o original misturaria retoques com o filtro. São 32 MB a mais em foto de 2048 px, pagos só durante o uso. |
+
+## Filtro em um rosto
+
+| # | Decisão | Motivo |
+| --- | --- | --- |
+| 44 | Detecção de rosto com MediaPipe Face Landmarker, só para limitar o filtro | A regra era sem IA e sem detecção. Ela mudou apenas para isso, porque filtro em um rosto de foto com várias pessoas pede saber onde cada rosto está. `picojs` foi recusado por não declarar licença. Detecção em servidor quebraria a promessa de nada sair do aparelho. |
+| 45 | Dizer que há um rosto e onde, nunca de quem é | Nenhum descritor, nenhuma comparação entre rostos. O contorno fica em memória, só para a foto aberta. O projeto guarda apenas a máscara, que é uma área como a pintada à mão. |
+| 46 | Biblioteca, WebAssembly e modelo servidos pelo próprio site | Nada de CDN: a CSP continua sem origens externas e a foto não depende de terceiros. O custo é `'wasm-unsafe-eval'` em `script-src`. Os três cartões de modelo e a biblioteca são Apache 2.0, com aviso em `public/third-party.txt`. |
+| 47 | Detector baixa só no primeiro pedido e fica fora do precache | A primeira visita continua leve: 27,3 KB de JS em gzip, contra 26,6 KB antes. O primeiro uso transfere 6,13 MB com brotli, medidos na rede. Sem brotli no servidor, cerca de 7,6 MB em gzip. |
+| 48 | Busca em tiles: foto toda, depois 1/2, 1/4 e 1/8 do lado maior, com metade de sobreposição | O detector olha a imagem em 128 px e foi feito para rosto perto da câmera. Em 7 fotos reais de grupo, a passada única achou 0 rosto. Com tiles achou 24 de 24, 29 de 29 e 23 de 23. |
+| 49 | A busca desce um nível enquanto nada foi achado ou o nível trouxe rosto novo | Selfie termina em 0,3 s sem pagar pelos tiles finos. O botão "Procurar mais rostos" cobre rosto pequeno ao lado de rosto grande. |
+| 50 | Detector na thread principal, com delegate CPU | Um tile leva cerca de 20 ms e a página pinta entre tiles, então um worker traria complexidade sem ganho visível. CPU evita disputar a GPU com o editor. O delegate GPU não foi medido. |
+| 51 | WebAssembly baixado pelo Glowup e entregue ao runtime pelo hook `instantiateWasm` | Dá porcentagem real em bytes e um único download. O hook `wasmBinary` não existe neste build. Sem compilação em streaming, que aqui custou menos de 0,5 s. Versão fixada em 1.2.2 porque isso depende do runtime. |
+| 52 | Máscara do filtro em R8, no espaço da foto original, lida na posição já deformada | O shader lê a máscara em `iuv + d`, o mesmo ponto de onde vem a cor, então ela acompanha o liquify de graça. Por usar UV da imagem, preview, zoom e tiles de exportação leem o mesmo valor. |
+| 53 | Máscara do rosto: `FACE_OVAL` preenchido, leve desvanecer pescoço abaixo, desfoque e guided filter em CPU | Roda uma vez por toque, sobre o recorte do rosto, e pode ser testada com Vitest. O guided filter cola a borda no contorno real da foto. O desvanecer segue a direção da testa ao queixo e evita o corte duro no pescoço com filtro preto e branco. |
+| 54 | Borda ajustada na hora de renderizar, por níveis de mip | Vale também para o que foi pintado à mão, responde na hora e não exige guardar o contorno no projeto. É relativa ao tamanho da área, para não apagar um rosto pequeno. |

@@ -102,6 +102,22 @@ Duas comparações, cada uma com uma pergunta:
 Tocar divide a foto, segurar mostra o antes. A divisão fica enquanto a pessoa experimenta outros
 filtros, para comparar sem perder o lugar. Ela nasce no centro da foto, não da tela, e não sai dela.
 
+## Filtro em um rosto
+
+Depois de escolher um filtro, o painel pergunta onde ele vale: "Foto toda" ou "Escolher rosto".
+
+- **Primeira vez.** O cartão de progresso mostra o download real do detector e avisa que acontece uma
+  vez só e que a foto não sai do aparelho. Nas seguintes, só "Procurando rostos".
+- **Anéis.** Um anel oval em cada rosto, nunca menor que um dedo. Um toque escolhe. O filtro continua
+  na foto toda até esse toque, e `Esc` volta atrás. Os anéis acompanham zoom, recorte, giro e liquify.
+- **Retoque.** Escolhido o rosto, a foto passa a aceitar pincel e borracha, e "Borda" controla a
+  suavidade. "Trocar rosto" mostra os anéis de novo.
+- **Sem rosto, ou sem detector.** O aviso diz o que fazer e o pincel já está na mão. "Pintar a área"
+  leva ao mesmo lugar quando o rosto certo não ganhou anel.
+
+O detector erra de dois jeitos que a interface assume: pode pôr anel em uma mão, que a pessoa
+simplesmente não toca, e pode deixar passar rosto de perfil, que ela pinta.
+
 ## Layout
 
 Mobile primeiro. A tela é a foto.
@@ -126,6 +142,7 @@ Exemplos:
 - Exportação: "Prontinho. Tá na sua pasta."
 - Erro de arquivo: "Não consegui abrir esse arquivo. Tenta um JPG, PNG ou WebP?"
 - Sem WebGL2: "Este navegador não acende a luz: falta WebGL2."
+- Escolher rosto: "Toque no rosto que recebe o filtro." e "Não achei rosto nesta foto. Pinte a área com o pincel."
 
 ## Acessibilidade
 
