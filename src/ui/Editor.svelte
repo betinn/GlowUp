@@ -13,7 +13,7 @@
   import Icon from './Icon.svelte';
   import Onboarding from './Onboarding.svelte';
   import Stage from './Stage.svelte';
-  import { changeBrushSize, resetToolMemory, selectTool } from './actions';
+  import { changeBrushSize, resetToolMemory, selectTool, toggleMark } from './actions';
   import { comparePress, holdCompare, toggleCompare } from './compare';
   import { reveal, rise } from './motion';
   import { cancelOpening, finishOpening } from './open';
@@ -53,6 +53,7 @@
   const canRedo = $derived((ui.rev, ready && engine().history.canRedo));
   const undoTitle = $derived(canUndo ? `Desfazer: ${engine().history.undoLabel}` : 'Desfazer');
   const redoTitle = $derived(canRedo ? `Refazer: ${engine().history.redoLabel}` : 'Refazer');
+  const marking = $derived((ui.rev, ready && engine().showMask && engine().mode === 'mask'));
 
   let off: (() => void) | null = null;
 
@@ -278,9 +279,7 @@
       e.brush.erase = false;
       bump();
     } else if (key === 'm') {
-      e.showMask = !e.showMask;
-      e.requestRender();
-      bump();
+      toggleMark();
     } else if (key === 'y') {
       toggleCompare('all');
     } else if (key === '\\' && !ev.repeat) {
@@ -402,6 +401,13 @@
           </button>
         {/each}
       </nav>
+    </div>
+  {/if}
+
+  {#if marking}
+    <div class="marking" data-testid="mark-chip" in:reveal={{ duration: 200, y: -6 }}>
+      <span>Marca do pincel ligada</span>
+      <button type="button" onclick={toggleMark}>Ver o resultado</button>
     </div>
   {/if}
 
@@ -675,6 +681,42 @@
       opacity: 0.25;
       pointer-events: none;
     }
+  }
+
+  /* The mark covers the result, so the photo says so too, even with the panel folded. */
+  .marking {
+    position: absolute;
+    left: 50%;
+    top: calc(var(--bar-h) + var(--safe-top) + 10px);
+    translate: -50% 0;
+    z-index: 15;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 2px 4px 2px 14px;
+    border-radius: 999px;
+    background: rgb(11 11 12 / 0.82);
+    border: 1px solid var(--safe);
+    font-size: 13px;
+    white-space: nowrap;
+    transition: opacity var(--t-mid) var(--ease-swift);
+  }
+
+  .marking button {
+    min-height: 36px;
+    padding: 0 12px;
+    border-radius: 999px;
+    color: var(--safe);
+    font-size: 13px;
+  }
+
+  .marking button:hover {
+    background: rgb(255 184 119 / 0.12);
+  }
+
+  .painting .marking {
+    opacity: 0.12;
+    pointer-events: none;
   }
 
   /* Short jobs get a small note, and only if they last long enough to be noticed. */

@@ -71,6 +71,15 @@ export async function selectTool(id: string | null): Promise<void> {
   bump();
 }
 
+/** Turns the mark of the touched area on or off. Only a brush with a mask has one. */
+export function toggleMark(): void {
+  const e = engine();
+  if (e.mode !== 'mask') return;
+  e.showMask = !e.showMask;
+  e.requestRender();
+  bump();
+}
+
 /** Brush slider range: exponential, so small sizes get fine control. */
 export const SIZE_MIN = 0.002;
 export const SIZE_MAX = 0.2;

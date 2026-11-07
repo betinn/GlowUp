@@ -73,6 +73,7 @@ export class Engine {
   brush: BrushSettings = { ...DEFAULT_BRUSH };
   liquifyMode = 'push';
   liquifyStrength = 0.6;
+  /** Paints the mark of the touched area over the photo. Every tool opens with it off. */
   showMask = false;
   exporting = false;
   /** Changes whenever the liquify field changes, so autosave knows when to write it. */
@@ -179,6 +180,7 @@ export class Engine {
     this.heal = null;
     this.mode = 'none';
     this.activeLayer = null;
+    this.showMask = false;
     this.split = -1;
     this.compareBase = 'original';
     this.unfilteredFresh = false;
@@ -216,6 +218,7 @@ export class Engine {
   setTool(mode: ToolMode, layer: LayerId | null = null): void {
     this.mode = mode;
     this.activeLayer = layer;
+    this.showMask = false;
     if (this.pipeline) this.pipeline.active = layer;
     this.requestRender();
     this.emit('change');
@@ -543,6 +546,9 @@ export class Engine {
       await this.finishHeal(s.healDabs, s.travelled < 6);
       return;
     }
+    // A tool can read the whole mask, so what a stroke touched last is redone over the whole frame.
+    this.ctx?.invalidate('local');
+    this.requestRender();
     const layer = s.layer;
     const wasPainted = s.wasPainted;
     const entry: HistoryEntry & { tiles: MaskTile[] } = {

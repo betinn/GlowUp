@@ -60,7 +60,7 @@ passo atual, com a própria foto revelando na tela.
 | `[`, `]` | diminuir e aumentar o pincel |
 | `Shift+[`, `Shift+]` | dureza |
 | `B`, `E` | pincel, borracha |
-| `M` | mostrar a área pintada |
+| `M` | ligar e desligar a marca do pincel |
 | `\` (segurar) | ver o antes |
 | `Y` | dividir antes e depois |
 | Espaço (segurar) | arrastar a foto |

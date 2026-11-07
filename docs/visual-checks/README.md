@@ -5,8 +5,8 @@ de propósito manchas, olheiras, olho vermelho e dentes amarelados. Nenhuma pess
 
 - `NN-*.png`: antes e depois de cada ferramenta.
 - `ui-*.png`: telas da interface no desktop e no celular, incluindo soltar a foto (`ui-soltar*`),
-  progresso (`ui-abrindo`, `ui-exportando`, `ui-exportado`), comparação de filtro (`*filtro-comparar`)
-  e filtro em um rosto (`ui-rosto-*`, `ui-celular-rosto`).
+  progresso (`ui-abrindo`, `ui-exportando`, `ui-exportado`), comparação de filtro (`*filtro-comparar`),
+  filtro em um rosto (`ui-rosto-*`, `ui-celular-rosto`) e marca do pincel (`ui-marca-ligada`, `ui-celular-marca`).
 - `20-filtro-rosto.png`: filtro em um dos dois rostos de `tests/fixtures/group.png`.
 
 Os anéis destas imagens vêm do detector real: o retrato procedural basta para ele. A borda e o pescoço

@@ -111,6 +111,31 @@ export async function compare(page: Page, name: string, title: string, before: B
   await other.close();
 }
 
+/** Mean difference between two images of the same size, in 8-bit levels. */
+export async function meanDiff(page: Page, a: Buffer, b: Buffer): Promise<number> {
+  const other = await page.context().newPage();
+  const diff = await other.evaluate(
+    async ([x, y]) => {
+      const load = async (s: string) => {
+        const img = new Image();
+        img.src = `data:image/png;base64,${s}`;
+        await img.decode();
+        const c = new OffscreenCanvas(img.width, img.height);
+        const g = c.getContext('2d')!;
+        g.drawImage(img, 0, 0);
+        return g.getImageData(0, 0, img.width, img.height).data;
+      };
+      const [p, q] = await Promise.all([load(x), load(y)]);
+      let sum = 0;
+      for (let i = 0; i < p.length; i++) sum += Math.abs(p[i] - q[i]);
+      return sum / p.length;
+    },
+    [a.toString('base64'), b.toString('base64')],
+  );
+  await other.close();
+  return diff;
+}
+
 export function expectNoErrors(errors: string[]): void {
   expect(errors, errors.join('\n')).toEqual([]);
 }
