@@ -41,7 +41,8 @@ const RULES = [
   },
   {
     name: 'email',
-    re: /[A-Za-z0-9._%+-]+@(?!example\.(?:com|org)\b|glowup\.invalid\b|anthropic\.com\b)[A-Za-z0-9-]+\.[A-Za-z]{2,}\b/,
+    // The GitHub noreply address links a commit to its author without exposing a mailbox.
+    re: /[A-Za-z0-9._%+-]+@(?!example\.(?:com|org)\b|glowup\.invalid\b|anthropic\.com\b|users\.noreply\.github\.com\b)[A-Za-z0-9-]+\.[A-Za-z]{2,}\b/,
   },
   {
     name: 'ipv4',
