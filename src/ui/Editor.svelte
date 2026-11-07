@@ -107,6 +107,7 @@
       },
       view: bump,
       busy: (label) => (ui.busy = label),
+      error: (message) => toast(message),
     };
     off = e.on(events);
     window.addEventListener('pagehide', saveNow);

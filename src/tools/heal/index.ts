@@ -14,7 +14,7 @@ import type { RenderContext } from '../../core/pipeline/context';
 import { shader } from '../../core/pipeline/pipeline';
 import { pullPush } from '../../core/pipeline/pullpush';
 import { BLUR_FRAG, DAB_FRAG, REGION_FRAG } from '../../core/shaders/small';
-import { findBlemish, pickOffset, type Patch } from './detect';
+import { findBlemish, hasStrongEdge, pickOffset, type Patch } from './detect';
 
 const SEED_FRAG = `
 in vec2 vUv;
@@ -198,6 +198,8 @@ export function createHeal(glc: GLContext): HealController {
         const patch = await readPatch(glc, ctx, first.u, first.v, half, size);
         const toPatch = size / (half * 2);
         const spot = findBlemish(patch, brushPx * toPatch * 1.1);
+        // A touch on a contour has nothing to fix, and a fill there would smear it.
+        if (!spot && hasStrongEdge(patch, brushPx * toPatch)) return null;
         if (spot) {
           edge = Math.min(hardness, 0.3);
           const px = (spot.x - size / 2 + 0.5) / toPatch;

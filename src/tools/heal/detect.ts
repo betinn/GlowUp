@@ -101,6 +101,24 @@ export function findBlemish(p: Patch, searchRadius: number): Spot | null {
   return { x: sx / area, y: sy / area, r };
 }
 
+/** True when a strong contour crosses the brush, such as hair over skin. Healing there smears it. */
+export function hasStrongEdge(p: Patch, radius: number): boolean {
+  const { w, h } = p;
+  const cx = (w - 1) / 2;
+  const cy = (h - 1) / 2;
+  let lo = 1;
+  let hi = 0;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (Math.hypot(x - cx, y - cy) > radius) continue;
+      const v = lum(p, (y * w + x) * 4);
+      lo = Math.min(lo, v);
+      hi = Math.max(hi, v);
+    }
+  }
+  return hi - lo > 0.22;
+}
+
 /**
  * Chooses where to borrow texture from. Candidates sit on rings around the target and are scored
  * by how well their surroundings match the target's ring, and by how calm their inside is, so

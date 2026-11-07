@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findBlemish, pickOffset, type Patch } from '../../src/tools/heal/detect';
+import { findBlemish, hasStrongEdge, pickOffset, type Patch } from '../../src/tools/heal/detect';
 
 function skin(size: number, paint?: (x: number, y: number) => [number, number, number] | null): Patch {
   const data = new Uint8Array(size * size * 4);
@@ -37,6 +37,15 @@ describe('blemish detection', () => {
   it('refuses long edges, which are not blemishes', () => {
     const edge = skin(96, (x) => (x > 48 ? [60, 40, 30] : null));
     expect(findBlemish(edge, 30)).toBeNull();
+  });
+});
+
+describe('contours', () => {
+  it('sees hair crossing the brush, and calm skin as calm', () => {
+    const hair = skin(96, (x) => (x > 60 ? [50, 40, 35] : null));
+    expect(hasStrongEdge(hair, 20)).toBe(true);
+    expect(hasStrongEdge(hair, 8)).toBe(false);
+    expect(hasStrongEdge(skin(96), 20)).toBe(false);
   });
 });
 

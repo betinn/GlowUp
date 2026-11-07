@@ -564,6 +564,7 @@ export class Engine {
     this.glc.drainPool();
     this.emit('busy', null);
     if (!op) {
+      this.emit('error', 'Aqui tem um contorno. Aproxime e pinte só a mancha.');
       this.requestRender();
       return;
     }
