@@ -3,3 +3,5 @@
 *.jpg binary
 *.webp binary
 *.woff2 binary
+*.task binary
+*.wasm binary

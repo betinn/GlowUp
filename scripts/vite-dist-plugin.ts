@@ -4,7 +4,9 @@ import { join, relative, sep } from 'node:path';
 import { brotliCompressSync, constants, gzipSync } from 'node:zlib';
 import type { Plugin } from 'vite';
 
-const COMPRESSIBLE = /\.(js|mjs|css|html|svg|json|webmanifest|txt)$/;
+const COMPRESSIBLE = /\.(js|mjs|css|html|svg|json|webmanifest|txt|wasm|task)$/;
+/** The face detector downloads only when someone asks for it, so it stays out of the precache. */
+const ON_DEMAND = /(^|\/)(detector-|vision_wasm_internal|face_landmarker)/;
 
 function walk(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -30,7 +32,7 @@ export function glowupDist(): Plugin {
       const files = walk(outDir).filter((f) => !/\.(br|gz)$/.test(f));
       const urls = files
         .map((f) => relative(outDir, f).split(sep).join('/'))
-        .filter((f) => f !== 'sw.js' && !f.endsWith('.woff'));
+        .filter((f) => f !== 'sw.js' && !f.endsWith('.woff') && !ON_DEMAND.test(f));
       const version = createHash('sha256').update(urls.join('|')).digest('hex').slice(0, 12);
       const template = readFileSync('scripts/sw-template.js', 'utf8');
       writeFileSync(
