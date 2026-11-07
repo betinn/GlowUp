@@ -30,7 +30,7 @@ export function glowupDist(): Plugin {
       const files = walk(outDir).filter((f) => !/\.(br|gz)$/.test(f));
       const urls = files
         .map((f) => relative(outDir, f).split(sep).join('/'))
-        .filter((f) => f !== 'sw.js');
+        .filter((f) => f !== 'sw.js' && !f.endsWith('.woff'));
       const version = createHash('sha256').update(urls.join('|')).digest('hex').slice(0, 12);
       const template = readFileSync('scripts/sw-template.js', 'utf8');
       writeFileSync(

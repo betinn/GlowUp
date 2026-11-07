@@ -1,0 +1,81 @@
+/** UI actions that coordinate the engine, tool chunks and shared state. */
+
+import { DEFAULT_BRUSH, type BrushSettings } from '../core/brush';
+import { ensureField, ensureHeal, ensureLayerTool } from '../tools/activate';
+import { toolById, type ToolMeta } from '../tools/catalog';
+import { bump, engine, toast, ui } from './state.svelte';
+
+/** Brush settings are remembered per tool during the session. */
+const brushes = new Map<string, BrushSettings>();
+
+const HEAL_BRUSH: Partial<BrushSettings> = { size: 0.012, hardness: 0.55, flow: 1 };
+const LIQUIFY_BRUSH: Partial<BrushSettings> = { size: 0.07, hardness: 0.5 };
+
+function brushFor(id: string, defaults: Partial<BrushSettings> | undefined): BrushSettings {
+  let b = brushes.get(id);
+  if (!b) {
+    b = { ...DEFAULT_BRUSH, ...defaults };
+    brushes.set(id, b);
+  }
+  return b;
+}
+
+export function resetToolMemory(): void {
+  brushes.clear();
+}
+
+export async function selectTool(id: string | null): Promise<void> {
+  const e = engine();
+  e.commit();
+  const meta: ToolMeta | undefined = id ? toolById(id) : undefined;
+  if (ui.tool === 'crop' && id !== 'crop') e.setCropEditing(false);
+  ui.tool = id;
+  ui.toolModule = null;
+  ui.showHint = true;
+  try {
+    switch (meta?.kind) {
+      case 'mask': {
+        const mod = await ensureLayerTool(e, meta.layer!);
+        if (ui.tool !== id) return;
+        e.brush = brushFor(meta.id, mod.brush);
+        e.setTool('mask', meta.layer!);
+        ui.toolModule = mod;
+        break;
+      }
+      case 'heal':
+        await ensureHeal(e);
+        e.brush = brushFor('heal', HEAL_BRUSH);
+        e.setTool('heal');
+        break;
+      case 'liquify':
+        await ensureField(e);
+        e.brush = brushFor('liquify', LIQUIFY_BRUSH);
+        e.setTool('liquify');
+        break;
+      case 'crop':
+        e.setTool('none');
+        e.setCropEditing(true);
+        break;
+      default:
+        e.setTool('none');
+    }
+  } catch (err) {
+    console.error(err);
+    toast('Essa ferramenta não carregou. Confere a conexão e tenta de novo.');
+    ui.tool = null;
+  }
+  bump();
+}
+
+/** Brush slider range: exponential, so small sizes get fine control. */
+export const SIZE_MIN = 0.002;
+export const SIZE_MAX = 0.2;
+
+export const sizeToSlider = (s: number) => (Math.log(s / SIZE_MIN) / Math.log(SIZE_MAX / SIZE_MIN)) * 100;
+export const sliderToSize = (v: number) => SIZE_MIN * (SIZE_MAX / SIZE_MIN) ** (v / 100);
+
+export function changeBrushSize(factor: number): void {
+  const e = engine();
+  e.brush.size = Math.min(SIZE_MAX, Math.max(SIZE_MIN, e.brush.size * factor));
+  bump();
+}

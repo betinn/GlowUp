@@ -1,0 +1,39 @@
+/** Loads tool chunks on demand and registers them with the engine. */
+
+import type { Engine } from '../core/engine';
+import type { LayerId } from '../core/doc';
+import { loaders } from './catalog';
+import type { ToolModule } from './types';
+
+const modules = new Map<LayerId, ToolModule>();
+
+export async function ensureLayerTool(engine: Engine, id: LayerId): Promise<ToolModule> {
+  let mod = modules.get(id);
+  if (!mod) {
+    mod = (await loaders[id]()).default;
+    modules.set(id, mod);
+  }
+  engine.registerTool(mod.pass, mod.defaults);
+  return mod;
+}
+
+export async function ensureHeal(engine: Engine): Promise<void> {
+  if (engine.heal) return;
+  const { createHeal } = await import('./heal/index');
+  engine.registerHeal(createHeal(engine.glc));
+}
+
+export async function ensureField(engine: Engine): Promise<void> {
+  if (engine.field) return;
+  const { createField } = await import('./liquify/index');
+  engine.registerField(createField(engine.glc, engine.doc.width, engine.doc.height));
+}
+
+/** Loads everything a saved document needs before its first render. */
+export async function ensureDocTools(engine: Engine): Promise<void> {
+  const { doc } = engine;
+  const ids = Object.keys(doc.layers) as LayerId[];
+  await Promise.all(ids.map((id) => ensureLayerTool(engine, id)));
+  if (doc.heals.length) await ensureHeal(engine);
+  if (doc.hasField) await ensureField(engine);
+}

@@ -1,0 +1,199 @@
+:root {
+  --ink: #0b0b0c;
+  --ink-2: #131315;
+  --ink-3: #1d1d20;
+  --line: rgb(255 255 255 / 0.1);
+  --line-2: rgb(255 255 255 / 0.18);
+  --paper: #f4f1ec;
+  --paper-2: rgb(244 241 236 / 0.68);
+  --paper-3: rgb(244 241 236 / 0.5);
+  --safe: #ffb877;
+
+  --serif: 'Instrument Serif', 'Iowan Old Style', Georgia, serif;
+  --sans: 'Instrument Sans Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  --ease-reveal: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-swift: cubic-bezier(0.3, 0, 0.1, 1);
+  --t-fast: 140ms;
+  --t-mid: 260ms;
+  --t-slow: 520ms;
+
+  --bar-h: 56px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--safe);
+  outline-offset: 2px;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+.serif {
+  font-family: var(--serif);
+  font-style: italic;
+  font-weight: 400;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Pill button */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 999px;
+  border: 1px solid var(--line-2);
+  color: var(--paper);
+  background: transparent;
+  transition:
+    background var(--t-fast) var(--ease-swift),
+    border-color var(--t-fast) var(--ease-swift),
+    transform var(--t-fast) var(--ease-swift);
+}
+
+.btn:hover {
+  border-color: var(--paper-3);
+}
+
+.btn:active {
+  transform: scale(0.97);
+}
+
+.btn.primary {
+  background: var(--paper);
+  border-color: var(--paper);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.btn.primary:hover {
+  background: #fff;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* Square icon button */
+.icon-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  color: var(--paper);
+  transition:
+    background var(--t-fast) var(--ease-swift),
+    color var(--t-fast) var(--ease-swift),
+    transform var(--t-fast) var(--ease-swift);
+}
+
+.icon-btn:hover:not(:disabled) {
+  background: rgb(255 255 255 / 0.08);
+}
+
+.icon-btn:active:not(:disabled) {
+  transform: scale(0.92);
+}
+
+.icon-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.icon-btn.on {
+  color: var(--safe);
+}
+
+/* Slim scrollbars inside panels */
+.scroll {
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ink-3) transparent;
+}
+
+.scroll-x {
+  overflow-x: auto;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+}
+
+.scroll-x::-webkit-scrollbar {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}

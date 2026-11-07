@@ -81,7 +81,7 @@ for (const file of files) {
   check(file, readFileSync(file, 'utf8'), SKIP_RULES[base] ?? []);
 }
 
-let log = '';
+let log;
 try {
   log = git('log', '--all', '--format=%an <%ae>%n%B');
 } catch {
