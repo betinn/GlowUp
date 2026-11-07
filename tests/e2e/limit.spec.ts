@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { expectNoErrors, facePoint, imageRect, limitSettled, meanDiff, openEditor, paint, pickTool, PORTRAIT, scribble, setSlider, settle } from './helpers';
+import { expectNoErrors, facePoint, imageRect, limitSettled, meanDiff, openEditor, paint, pickTool, PORTRAIT, scribble, setSlider, settle, onSite } from './helpers';
 
 /** The real detector runs here too: the procedural portraits are enough to trigger it. */
 const GROUP = { w: 1200, h: 750 };
@@ -147,10 +147,10 @@ test.describe('limite do pincel', () => {
     seen = watch(page);
   });
 
-  test.afterEach(() => {
+  test.afterEach(({ baseURL }) => {
     expectNoErrors(seen.errors);
     // Nothing leaves the device: every request stays on this site.
-    expect(seen.requests.filter((u) => !/^(http:\/\/localhost:4173|data:|blob:)/.test(u))).toEqual([]);
+    expect(seen.requests.filter((u) => !onSite(u, baseURL!))).toEqual([]);
   });
 
   test('abrir a ferramenta baixa o detector, avisa, e o traço fica na íris', async ({ page }) => {
