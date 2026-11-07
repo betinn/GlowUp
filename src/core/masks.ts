@@ -70,6 +70,11 @@ export class MaskStore implements MaskProvider {
     return !!this.limit;
   }
 
+  /** The limit as a texture, for the view to show where the brush reaches. */
+  get limitTex(): Tex | null {
+    return this.limit?.tex ?? null;
+  }
+
   /** Paint lands only where `data` has something. Without data the brush is free. */
   setLimit(data: Uint8Array | null): void {
     if (this.limit) this.glc.destroyTex(this.limit.tex);

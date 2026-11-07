@@ -1,4 +1,5 @@
-// On-screen pass: zoom and pan, crop geometry, before/after split, mask overlay and dithering.
+// On-screen pass: zoom and pan, crop geometry, before/after split, mask overlay, the light over the
+// reach of the brush, and dithering. Exports never run it.
 in vec2 vUv;
 out vec4 outColor;
 
@@ -21,6 +22,10 @@ uniform bool uRoiOn;
 uniform vec4 uRoi;
 uniform sampler2D uRoiFinal;
 uniform sampler2D uRoiBefore;
+uniform sampler2D uLimit;
+uniform float uGlow;
+uniform float uSweep;
+uniform float uBand;
 
 vec3 sampleTex(sampler2D t, vec2 uv, vec2 duv) {
   // Two-by-two supersampling while minifying.
@@ -52,11 +57,23 @@ void main() {
   } else {
     c = before ? sampleTex(uBefore, uv, duv) : sampleTex(uFinal, uv, duv);
   }
+  vec2 muv = uv;
+  if (uHasField) muv += texture(uField, uv).xy;
   if (uOverlayMix > 0.0 && !before) {
-    vec2 muv = uv;
-    if (uHasField) muv += texture(uField, uv).xy;
     float m = textureLod(uOverlay, muv, 0.0).r;
     c = mix(c, uOverlayColor, m * uOverlayMix);
+  }
+  if (uGlow > 0.0 && !before) {
+    // Cool light, never the orange of the brush mark, with a band crossing the screen.
+    float m = textureLod(uLimit, muv, 0.0).r;
+    float d = (px.x + px.y) / (uCanvas.x + uCanvas.y);
+    float band = exp(-pow((d - uSweep) / 0.07, 2.0)) * uBand;
+    // Light is added, not mixed, so the colors under it stay readable. The soft edge of the limit
+    // turns into a bright line around what the brush can reach.
+    float rim = smoothstep(0.08, 0.3, m) * (1.0 - smoothstep(0.55, 0.9, m));
+    vec3 cool = vec3(0.78, 0.9, 1.0);
+    c += cool * m * uGlow * (0.22 + 0.55 * band);
+    c = mix(c, vec3(0.93, 0.98, 1.0), min(1.0, rim * uGlow * 1.4));
   }
   // Triangular dither hides banding from 16-bit buffers on an 8-bit display.
   float n = hash12(gl_FragCoord.xy) + hash12(gl_FragCoord.yx + 7.0) - 1.0;
