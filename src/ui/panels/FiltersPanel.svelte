@@ -80,9 +80,9 @@
   <div class="compare">
     <button type="button" class="btn" class:on={comparing} aria-pressed={comparing} data-testid="compare-filter" use:comparePress={'filter'}>
       <Icon name="compare" size={20} />
-      Comparar sem filtro
+      Comparar com original
     </button>
-    <span class="tip">Toque divide a foto. Segure para ver sem o filtro.</span>
+    <span class="tip">Toque divide a foto. Segure para ver o original.</span>
   </div>
   <Slider
     label="Intensidade"

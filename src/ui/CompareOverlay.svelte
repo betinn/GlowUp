@@ -26,7 +26,7 @@
 
   const box = $derived((ui.rev, photoBox()));
   const lineX = $derived(ui.splitX * box.width);
-  const beforeLabel = $derived(ui.compareScope === 'filter' ? 'Sem filtro' : 'Antes');
+  const beforeLabel = $derived(ui.compareScope === 'filter' ? 'Original' : 'Antes');
   const afterLabel = $derived(ui.compareScope === 'filter' ? ui.filterName : 'Depois');
 
   function set(v: number) {

@@ -97,7 +97,7 @@ Duas comparações, cada uma com uma pergunta:
 
 - O botão da barra superior responde "o que mudou desde a foto original?".
 - O botão do painel de filtros responde "o que este filtro faz?". O antes é a foto com todos os
-  retoques, só sem o filtro, e as etiquetas dizem "Sem filtro" e o nome do filtro.
+  retoques, só sem o filtro, e as etiquetas dizem "Original" e o nome do filtro.
 
 Tocar divide a foto, segurar mostra o antes. A divisão fica enquanto a pessoa experimenta outros
 filtros, para comparar sem perder o lugar. Ela nasce no centro da foto, não da tela, e não sai dela.

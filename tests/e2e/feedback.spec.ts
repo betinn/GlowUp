@@ -245,7 +245,7 @@ test.describe('resposta ao usuário', () => {
     await button.click();
     await page.mouse.move(2, 2);
     await settle(page, 1200);
-    await expect(page.getByTestId('compare-line')).toContainText('Sem filtro');
+    await expect(page.getByTestId('compare-line')).toContainText('Original');
     await expect(page.getByTestId('compare-line')).toContainText('Prata');
     const split = await photoShot(page);
     expect(await regionDiff(page, split, plain, 0, 0.42)).toBeLessThan(1.5);
@@ -271,7 +271,7 @@ test.describe('resposta ao usuário', () => {
 
     // Removing the filter ends the comparison that depends on it.
     await button.click();
-    await expect(page.getByTestId('compare-line')).toContainText('Sem filtro');
+    await expect(page.getByTestId('compare-line')).toContainText('Original');
     await page.locator('[data-filter=mel]').click();
     await expect(page.getByTestId('compare-line')).toHaveCount(0);
   });
