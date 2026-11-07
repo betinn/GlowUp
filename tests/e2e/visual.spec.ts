@@ -89,10 +89,10 @@ const CHECKS: Check[] = [
   },
   {
     name: '07-clarear-dentes',
-    title: 'Clarear: dentes',
+    title: 'Dentes: clarear',
     clip: MOUTH,
     run: async (page) => {
-      await pickTool(page, 'eyes', 'whiten');
+      await pickTool(page, 'makeup', 'whiten');
       await paint(page, [[-0.08, 0.232], [0.08, 0.232]]);
       await paint(page, [[-0.07, 0.247], [0.07, 0.247]]);
     },

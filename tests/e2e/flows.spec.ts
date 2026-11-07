@@ -298,7 +298,7 @@ test.describe('celular', () => {
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(e.message));
     await openEditor(page);
-    await page.locator('[data-group=eyes]').tap();
+    await page.locator('[data-group=makeup]').tap();
     await page.locator('[data-tool=whiten]').tap();
     await expect(page.getByRole('slider', { name: 'Tirar o amarelo' })).toBeAttached();
     await settle(page, 500);

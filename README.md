@@ -34,9 +34,9 @@ npm run dev
 **Pele:** manchas (healing com toque único automático), suavizar (Leve e Intenso), olheiras, tom de
 pele, iluminador.
 
-**Olhos e dentes:** clarear, olho vermelho, cor dos olhos, brilho no olhar.
+**Olhos:** branco do olho, olho vermelho, cor dos olhos, brilho no olhar.
 
-**Maquiagem e cabelo:** batom, blush, sombra, sobrancelha, contorno, cabelo (cor, escurecer,
+**Maquiagem e cabelo:** batom, dentes, blush, sombra, sobrancelha, contorno, cabelo (cor, escurecer,
 profundidade), sardas procedurais.
 
 **Forma:** liquify (empurrar, inflar, contrair, restaurar).

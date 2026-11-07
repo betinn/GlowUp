@@ -23,6 +23,7 @@ export const BUILTIN_PRESETS: RetouchPreset[] = [
       smooth: { mode: 'light', strength: 60, texture: 100 },
       undereye: { light: 55, tone: 65 },
       whiten: { whiten: 50, bright: 20 },
+      sclera: { whiten: 40, bright: 15 },
     },
   },
   {

@@ -8,6 +8,7 @@ export type LayerId =
   | 'skintone'
   | 'highlight'
   | 'whiten'
+  | 'sclera'
   | 'redeye'
   | 'eyecolor'
   | 'sparkle'
@@ -29,6 +30,7 @@ export const LAYER_ORDER: readonly LayerId[] = [
   'highlight',
   'freckles',
   'whiten',
+  'sclera',
   'redeye',
   'eyecolor',
   'sparkle',

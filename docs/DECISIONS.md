@@ -85,3 +85,9 @@ Registro curto das decisões em aberto: o que foi escolhido e por quê.
 | 52 | Máscara do filtro em R8, no espaço da foto original, lida na posição já deformada | O shader lê a máscara em `iuv + d`, o mesmo ponto de onde vem a cor, então ela acompanha o liquify de graça. Por usar UV da imagem, preview, zoom e tiles de exportação leem o mesmo valor. |
 | 53 | Máscara do rosto: `FACE_OVAL` preenchido, leve desvanecer pescoço abaixo, desfoque e guided filter em CPU | Roda uma vez por toque, sobre o recorte do rosto, e pode ser testada com Vitest. O guided filter cola a borda no contorno real da foto. O desvanecer segue a direção da testa ao queixo e evita o corte duro no pescoço com filtro preto e branco. |
 | 54 | Borda ajustada na hora de renderizar, por níveis de mip | Vale também para o que foi pintado à mão, responde na hora e não exige guardar o contorno no projeto. É relativa ao tamanho da área, para não apagar um rosto pequeno. |
+
+## Olhos, dentes e a marca do pincel
+
+| # | Decisão | Motivo |
+| --- | --- | --- |
+| 55 | `Clarear` virou duas ferramentas: `Dentes` em Make, ao lado do batom, e `Branco do olho` em Olhos | Dente dentro de "Olhos" não tinha rótulo honesto que coubesse na barra de grupos no celular. Cada ferramenta passa a ter um alvo só. A camada nova `sclera` usa o mesmo shader, para sliders e "Apagar o que pintei" não misturarem boca e olhos. Projetos antigos seguem em `whiten`, que agora se chama Dentes. |

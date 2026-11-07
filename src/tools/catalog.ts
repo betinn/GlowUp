@@ -32,12 +32,13 @@ export const TOOLS: ToolMeta[] = [
   { id: 'skintone', label: 'Tom de pele', group: 'skin', kind: 'mask', layer: 'skintone', hint: 'Pinte a área e ajuste matiz, saturação e luz.' },
   { id: 'highlight', label: 'Iluminador', group: 'skin', kind: 'mask', layer: 'highlight', hint: 'Passe nas maçãs, no nariz e no arco do cupido.' },
 
-  { id: 'whiten', label: 'Clarear', group: 'eyes', kind: 'mask', layer: 'whiten', hint: 'Dentes ou branco dos olhos. Vale para qualquer área.' },
+  { id: 'sclera', label: 'Branco do olho', group: 'eyes', kind: 'mask', layer: 'sclera', hint: 'Passe de leve no branco dos olhos, sem encostar na íris.' },
   { id: 'redeye', label: 'Olho vermelho', group: 'eyes', kind: 'mask', layer: 'redeye', hint: 'Pinte sobre a pupila vermelha.' },
   { id: 'eyecolor', label: 'Cor dos olhos', group: 'eyes', kind: 'mask', layer: 'eyecolor', hint: 'Pinte só a íris. A textura fica.' },
   { id: 'sparkle', label: 'Brilho no olhar', group: 'eyes', kind: 'mask', layer: 'sparkle', hint: 'Passe de leve na íris.' },
 
   { id: 'lips', label: 'Batom', group: 'makeup', kind: 'mask', layer: 'lips', hint: 'Pinte os lábios com calma. Dá para apagar as bordas.' },
+  { id: 'whiten', label: 'Dentes', group: 'makeup', kind: 'mask', layer: 'whiten', hint: 'Passe nos dentes. O escuro da boca fica como está.' },
   { id: 'blush', label: 'Blush', group: 'makeup', kind: 'mask', layer: 'blush', hint: 'Pincel grande e macio nas maçãs do rosto.' },
   { id: 'eyeshadow', label: 'Sombra', group: 'makeup', kind: 'mask', layer: 'eyeshadow', hint: 'Pinte a pálpebra.' },
   { id: 'brow', label: 'Sobrancelha', group: 'makeup', kind: 'mask', layer: 'brow', hint: 'Siga o desenho dos fios.' },
@@ -64,6 +65,7 @@ export const loaders: Record<LayerId, () => Promise<{ default: ToolModule }>> = 
   skintone: () => import('./skintone/index'),
   highlight: () => import('./highlight/index'),
   whiten: () => import('./whiten/index'),
+  sclera: () => import('./sclera/index'),
   redeye: () => import('./redeye/index'),
   eyecolor: () => import('./eyecolor/index'),
   sparkle: () => import('./sparkle/index'),
