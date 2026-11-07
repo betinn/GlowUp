@@ -14,13 +14,23 @@ import { Pipeline, shader } from './pipeline/pipeline';
 import { RenderContext } from './pipeline/context';
 import type { ToolPass } from './pipeline/types';
 import { SourceImage } from './source';
-import { clampView, fitView, outputToScreen, panBy, screenToOutput, viewScale, zoomAt, type Size, type ViewState, type Viewport } from './view';
+import { blendViews, clampView, fitView, outputToScreen, panBy, screenToOutput, viewScale, zoomAt, type Size, type ViewState, type Viewport } from './view';
 import VIEW_FRAG from './shaders/view.frag?raw';
 
 /** Mask key of the healing brush. It is a scratch mask and never reaches the render chain. */
 export const HEAL_MASK = 'heal' as unknown as LayerId;
 
 export type ToolMode = 'none' | 'mask' | 'heal' | 'liquify';
+
+/** How long the light over the reach of the brush lasts, in milliseconds. */
+export const REVEAL_MS = 1100;
+
+const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
+
+const smooth = (a: number, b: number, x: number) => {
+  const k = Math.min(1, Math.max(0, (x - a) / (b - a)));
+  return k * k * (3 - 2 * k);
+};
 
 /** What the before side of the comparison shows. */
 export type CompareBase = 'original' | 'unfiltered';
@@ -77,6 +87,8 @@ export class Engine {
   liquifyStrength = 0.6;
   /** Paints the mark of the touched area over the photo. Every tool opens with it off. */
   showMask = false;
+  /** The mask of the open tool comes from the detector: a drag moves the photo and paints nothing. */
+  brushOff = false;
   /** While set, strokes wait and the person reads this instead. */
   holdStroke: string | null = null;
   exporting = false;
@@ -94,6 +106,12 @@ export class Engine {
   /** -1 off, 0..1 split position over the canvas, 2 full before. */
   split = -1;
   compareBase: CompareBase = 'original';
+
+  /** Counts the moves of the view the person made, so a flight never undoes one. */
+  viewMoves = 0;
+  private flight: { frame: number; done: () => void } | null = null;
+  /** The light over the reach of the brush, while it plays. */
+  private reveal: { start: number; still: boolean; frame: number; done: () => void } | null = null;
 
   private readonly emptyField: Tex;
   /** Full-detail render of the visible area, used when zoomed past the preview resolution. */
@@ -170,6 +188,8 @@ export class Engine {
   }
 
   close(): void {
+    this.stopFlight();
+    this.stopReveal();
     cancelAnimationFrame(this.frame);
     this.needsRender = false;
     this.dropRoi();
@@ -225,8 +245,10 @@ export class Engine {
     this.mode = mode;
     this.activeLayer = layer;
     this.showMask = false;
+    this.brushOff = false;
     this.holdStroke = null;
     this.masks?.setLimit(null);
+    this.stopReveal();
     if (this.pipeline) this.pipeline.active = layer;
     this.requestRender();
     this.emit('change');
@@ -235,6 +257,52 @@ export class Engine {
   /** Limits the brush of the open tool. The next tool starts free. */
   setPaintLimit(data: Uint8Array | null): void {
     this.masks?.setLimit(data);
+    if (!data) this.stopReveal();
+  }
+
+  /**
+   * Lights up, for about a second, the pixels the brush can reach. Only the on-screen pass draws it,
+   * so exports never see it. `still` drops the moving band and keeps a plain fade. Resolves when it ends.
+   */
+  revealLimit(still: boolean): Promise<void> {
+    this.stopReveal();
+    if (!this.masks?.limitTex) return Promise.resolve();
+    return new Promise((done) => {
+      const tick = () => {
+        const r = this.reveal;
+        if (!r) return;
+        this.requestRender();
+        if (performance.now() - r.start >= REVEAL_MS) this.stopReveal();
+        else r.frame = requestAnimationFrame(tick);
+      };
+      this.reveal = { start: performance.now(), still, frame: requestAnimationFrame(tick), done };
+      this.requestRender();
+    });
+  }
+
+  get revealing(): boolean {
+    return !!this.reveal;
+  }
+
+  stopReveal(): void {
+    const r = this.reveal;
+    if (!r) return;
+    this.reveal = null;
+    cancelAnimationFrame(r.frame);
+    this.requestRender();
+    r.done();
+  }
+
+  /** Strength of the light and place of its band, from the time it started. */
+  private revealState(): { glow: number; sweep: number; still: boolean } {
+    const r = this.reveal;
+    if (!r || !this.masks?.limitTex) return { glow: 0, sweep: 0, still: true };
+    const t = Math.min(1, (performance.now() - r.start) / REVEAL_MS);
+    return {
+      glow: smooth(0, 0.15, t) * (1 - smooth(0.55, 1, t)),
+      sweep: -0.25 + 1.5 * easeInOut(Math.min(1, t / 0.85)),
+      still: r.still,
+    };
   }
 
   /** Live change of a tool parameter. Call `commit` when the gesture ends. */
@@ -275,6 +343,36 @@ export class Engine {
         this.ctx?.invalidate('prefix');
         this.requestRender();
       },
+    });
+  }
+
+  /**
+   * Replaces a whole layer mask with `data`, as one undo step. The result is a mask like any painted
+   * one: brush, eraser, sliders and the saved project treat it the same.
+   */
+  async fillLayer(id: LayerId, data: Uint8Array, label: string): Promise<void> {
+    const layer = this.doc.layers[id];
+    const masks = this.masks;
+    if (!layer || !masks) return;
+    this.commit();
+    const { w, h } = masks;
+    const previous = await masks.read(id);
+    const before = { mask: previous ? encodeTile(previous, w, h) : null, painted: layer.painted };
+    const after = { mask: encodeTile(data, w, h), painted: true };
+    const apply = (state: typeof before) => {
+      if (state.mask) masks.write(id, decodeTile(state.mask, w, h));
+      else masks.clear(id);
+      const current = this.doc.layers[id];
+      if (current) current.painted = state.painted;
+      this.ctx?.invalidate('prefix');
+      this.requestRender();
+    };
+    apply(after);
+    this.history.push({
+      label,
+      bytes: (before.mask?.length ?? 0) + after.mask.length + 64,
+      undo: () => apply(before),
+      redo: () => apply(after),
     });
   }
 
@@ -339,7 +437,10 @@ export class Engine {
     this.track('Recorte');
     this.doc.crop = crop;
     this.ctx?.invalidate('global');
-    if (!this.cropEditing) this.view = fitView();
+    if (!this.cropEditing) {
+      this.stopFlight();
+      this.view = fitView();
+    }
     this.requestRender();
     this.emit('view');
   }
@@ -420,6 +521,12 @@ export class Engine {
 
   /** Point of the photo as it was opened to CSS pixels on the canvas, past crop and liquify. */
   imageToCss(u: number, v: number): [number, number] {
+    const [s, t] = this.imageToShown(u, v);
+    return this.outputToCss(s, t);
+  }
+
+  /** Point of the photo as it was opened to output coordinates of the display crop, past liquify. */
+  imageToShown(u: number, v: number): [number, number] {
     let [x, y] = [u, v];
     if (this.field && this.doc.hasField) {
       // The field maps a shown position back to the photo. A few steps invert it closely enough.
@@ -429,8 +536,7 @@ export class Engine {
         y = v - dv;
       }
     }
-    const [s, t] = applyMat3(imageToOutput(this.displayCrop(), this.doc.width, this.doc.height), x, y);
-    return this.outputToCss(s, t);
+    return applyMat3(imageToOutput(this.displayCrop(), this.doc.width, this.doc.height), x, y);
   }
 
   cssToOutput(x: number, y: number): [number, number] {
@@ -462,7 +568,7 @@ export class Engine {
 
   beginStroke(x: number, y: number, pressure = 1): void {
     const masks = this.masks;
-    if (!masks || this.stroke || this.mode === 'none') return;
+    if (!masks || this.stroke || this.mode === 'none' || this.brushOff) return;
     if (this.holdStroke) {
       this.emit('error', this.holdStroke);
       return;
@@ -714,7 +820,53 @@ export class Engine {
     this.emit('view');
   }
 
+  /** Moves the view smoothly to `target`. Any move of the person stops it where it is. */
+  flyTo(target: ViewState, duration: number): Promise<void> {
+    this.stopFlight();
+    const from = { ...this.view };
+    const to = clampView(this.viewport, this.displaySize, target);
+    if (duration <= 0) {
+      this.view = to;
+      this.requestRender();
+      this.emit('view');
+      return Promise.resolve();
+    }
+    return new Promise((done) => {
+      const start = performance.now();
+      const tick = () => {
+        const f = this.flight;
+        if (!f) return;
+        const t = Math.min(1, (performance.now() - start) / duration);
+        this.view = clampView(this.viewport, this.displaySize, blendViews(from, to, easeInOut(t)));
+        this.requestRender();
+        this.emit('view');
+        if (t >= 1) this.stopFlight();
+        else f.frame = requestAnimationFrame(tick);
+      };
+      this.flight = { frame: requestAnimationFrame(tick), done };
+    });
+  }
+
+  get flying(): boolean {
+    return !!this.flight;
+  }
+
+  stopFlight(): void {
+    const f = this.flight;
+    if (!f) return;
+    this.flight = null;
+    cancelAnimationFrame(f.frame);
+    f.done();
+  }
+
+  /** A move of the view by the person: it wins over any flight. */
+  private moved(): void {
+    this.stopFlight();
+    this.viewMoves++;
+  }
+
   zoomBy(x: number, y: number, factor: number): void {
+    this.moved();
     const dpr = this.dpr;
     this.view = zoomAt(this.viewport, this.displaySize, this.view, x * dpr, y * dpr, factor);
     this.requestRender();
@@ -722,6 +874,7 @@ export class Engine {
   }
 
   panBy(dx: number, dy: number): void {
+    this.moved();
     const dpr = this.dpr;
     this.view = panBy(this.viewport, this.displaySize, this.view, dx * dpr, dy * dpr);
     this.requestRender();
@@ -729,6 +882,7 @@ export class Engine {
   }
 
   resetView(): void {
+    this.moved();
     this.view = fitView();
     this.requestRender();
     this.emit('view');
@@ -750,6 +904,7 @@ export class Engine {
   }
 
   setCropEditing(on: boolean): void {
+    this.stopFlight();
     this.cropEditing = on;
     this.view = fitView();
     this.requestRender();
@@ -862,6 +1017,7 @@ export class Engine {
     const showOverlay = !!overlay && (healing || (this.showMask && this.mode === 'mask'));
     const hasField = doc.hasField && !!this.field;
     const before = (c: RenderContext) => (this.compareBase === 'unfiltered' ? c.slot('unfiltered') : c.source);
+    const light = this.revealState();
     glc.run(
       glc.program(shader(VIEW_FRAG)),
       null,
@@ -881,6 +1037,10 @@ export class Engine {
         uHasField: hasField,
         uBackground: [0.043, 0.043, 0.047],
         uOverlayColor: [1, 0.72, 0.47],
+        uLimit: masks.limitTex ?? ctx.source,
+        uGlow: light.glow,
+        uSweep: light.sweep,
+        uBand: light.still ? 0 : 1,
         uRoiOn: !!this.roi,
         uRoi: this.roi?.ctx.regionUv ?? [0, 0, 1, 1],
         uRoiFinal: this.roi?.ctx.slot('final') ?? ctx.source,
