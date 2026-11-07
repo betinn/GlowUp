@@ -44,10 +44,11 @@ test.describe('marca do pincel', () => {
 
   test.afterEach(() => expectNoErrors(errors));
 
-  test('com qualquer pincel aberto, a foto já mostra o resultado', async ({ page }) => {
-    await openEditor(page);
-    const clip = photo(page);
-    for (const t of TOOLS.filter((tool) => tool.kind === 'mask')) {
+  // One test per tool, so they spread over the workers.
+  for (const t of TOOLS.filter((tool) => tool.kind === 'mask')) {
+    test(`${t.label}: com o pincel aberto, a foto já mostra o resultado`, async ({ page }) => {
+      await openEditor(page);
+      const clip = photo(page);
       await pickTool(page, t.group, t.id);
       const before = await page.screenshot({ clip });
       // Tools for eyes and teeth stay on their region, and the others can go anywhere.
@@ -57,10 +58,10 @@ test.describe('marca do pincel', () => {
       await page.keyboard.press('Escape');
       await settle(page, 400);
       const closed = await page.screenshot({ clip });
-      expect(await meanDiff(page, before, open), `${t.id} pintou`).toBeGreaterThan(0.003);
-      expect(await meanDiff(page, open, closed), `${t.id} aberta e fechada`).toBeLessThan(0.002);
-    }
-  });
+      expect(await meanDiff(page, before, open), 'pintou').toBeGreaterThan(0.003);
+      expect(await meanDiff(page, open, closed), 'aberta e fechada').toBeLessThan(0.002);
+    });
+  }
 
   test('a marca é uma opção com estado claro e não passa para a próxima ferramenta', async ({ page }) => {
     await openEditor(page);

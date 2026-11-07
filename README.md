@@ -26,9 +26,12 @@ npm run dev
 | `npm run build` | build estático em `dist/`, com `.br`, `.gz` e service worker |
 | `npm run preview` | serve o `dist/` com a mesma CSP do deploy |
 | `npm run check` | lint, typecheck e testes de unidade |
-| `npm run e2e` | fluxos, telas e validação visual (precisa de `npm run build` antes) |
+| `npm run e2e` | fluxos, telas e validação visual, na GPU e em paralelo (precisa de `npm run build` antes) |
 | `npm run fixtures` | regenera as imagens de teste procedurais |
 | `npm run scan` | varredura de higiene do repositório, do histórico e do `dist/` |
+
+O e2e roda na GPU do aparelho e em 75% dos núcleos. `E2E_GPU=0` volta ao SwiftShader, para máquina
+sem GPU, e `E2E_PORT` troca a porta do preview, para duas cópias do repositório testarem ao mesmo tempo.
 
 ## Ferramentas
 

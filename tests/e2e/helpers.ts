@@ -196,6 +196,9 @@ export async function meanDiff(page: Page, a: Buffer, b: Buffer, part?: Clip): P
   return diff;
 }
 
+/** A request to the site under test, or to data the page made itself. */
+export const onSite = (url: string, origin: string) => url.startsWith(`${origin}/`) || url === origin || /^(data|blob):/.test(url);
+
 export function expectNoErrors(errors: string[]): void {
   expect(errors, errors.join('\n')).toEqual([]);
 }

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { compare, expectNoErrors, facePoint, imageRect, meanDiff, openEditor, pickTool, PORTRAIT, setSlider, settle } from './helpers';
+import { compare, expectNoErrors, facePoint, imageRect, meanDiff, openEditor, pickTool, PORTRAIT, setSlider, settle, onSite } from './helpers';
 
 /** The real detector runs in these tests: the procedural portraits are enough to trigger it. */
 const GROUP = { w: 1200, h: 750 };
@@ -80,10 +80,10 @@ test.describe('escolher rosto', () => {
     seen = watch(page);
   });
 
-  test.afterEach(() => {
+  test.afterEach(({ baseURL }) => {
     expectNoErrors(seen.errors);
     // Nothing leaves the device: every request stays on this site.
-    expect(seen.requests.filter((u) => !/^(http:\/\/localhost:4173|data:|blob:)/.test(u))).toEqual([]);
+    expect(seen.requests.filter((u) => !onSite(u, baseURL!))).toEqual([]);
   });
 
   test('o detector só baixa quando pedem, e o rosto tocado recebe o filtro', async ({ page }) => {

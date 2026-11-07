@@ -121,3 +121,9 @@ Medido em 9 fotos reais de domínio público, fora do repositório, com 99 rosto
 | 71 | O Automático preenche a máscara da ferramenta com a mesma forma do limite, em uma etapa "Automático" no desfazer | A máscara fica igual a uma pintada à mão: sliders, comparar, exportar, receitas e projeto salvo não mudam, e nenhum ponto do rosto vai para o projeto. No Automático o pincel some e arrastar move a foto. Desfazer ou "Tirar o efeito" deixam "Aplicar de novo". |
 | 72 | Manual parte do que o Automático fez, com pincel, borracha e o interruptor de limite. Voltar ao Automático troca a máscara pela região, também em uma etapa | Refinar o automático com a borracha é o uso mais comum. Trocar a máscara inteira ao voltar é previsível, e o desfazer devolve o trabalho à mão. |
 | 73 | O modo fica guardado por ferramenta enquanto a foto está aberta. Máscara que já tem trabalho, como num projeto reaberto, abre no Manual | O Automático nunca apaga trabalho que a pessoa não viu acontecer. Sem rosto, sem região ou sem detector, o seletor não aparece e o pincel fica, como antes. |
+
+## Testes
+
+| # | Decisão | Motivo |
+| --- | --- | --- |
+| 74 | e2e na GPU real e em paralelo, com SwiftShader como opção | Os 81 testes levavam 14 min um por vez em SwiftShader, que roda os shaders na CPU. Na GPU e em 6 processos, 96 testes (o teste das 15 ferramentas virou um por ferramenta) levam 2,4 a 2,7 min, verdes em 3 rodadas seguidas. Os testes comparam quadros da mesma rodada, então a troca de GPU não muda os limites. Cada teste abre o próprio contexto do navegador, e nada é compartilhado entre eles. |
