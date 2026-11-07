@@ -9,7 +9,7 @@ Registro curto das decisões em aberto: o que foi escolhido e por quê.
 | 1 | UI em Svelte 5 (runes) | Runtime pequeno, transições nativas via Web Animations, compatíveis com CSP sem `unsafe-inline`. |
 | 2 | Sem biblioteca de animação | CSS e `svelte/transition` cobrem tudo. Zero KB extras. |
 | 3 | Fontes Instrument Serif e Instrument Sans via Fontsource (OFL) | Servidas pelo próprio site. A CSP sem origens externas continua valendo. |
-| 4 | Identidade de commit local no repositório (`Glowup`, domínio `.invalid`) | Repositório público: nenhum e-mail ou usuário pessoal no histórico. O trailer de coautoria usa um endereço genérico `noreply`. |
+| 4 | Commits com a conta do dono do repositório, pelo e-mail `noreply` do GitHub | Quem faz o commit é o autor, como em qualquer projeto. O endereço `noreply` liga o commit à conta sem expor o e-mail pessoal. Os commits até `ec760a9` saíram com a identidade genérica `Glowup`, de uma regra anterior que foi abandonada. |
 | 5 | Scanner de higiene próprio com nomes de produtos em ROT13 | Permite procurar os termos proibidos sem escrevê-los em nenhum arquivo. |
 | 6 | Interface e documentação em português do Brasil, código em inglês | O público fala português. Nomes em inglês seguem o ecossistema. |
 | 7 | Sem modo claro | Num quarto escuro a luz acesa é a foto. Era opcional e não acrescenta. |
