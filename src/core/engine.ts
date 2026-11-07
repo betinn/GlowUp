@@ -3,7 +3,7 @@
  * The UI talks to it through plain methods and listens to `onChange`.
  */
 
-import { GLContext, type Rect, type Tex } from './gl/context';
+import { GLContext, type Tex } from './gl/context';
 import { DEFAULT_BRUSH, StrokeInterpolator, type BrushSettings, type Dab } from './brush';
 import { clone, createDoc, type Adjustments, type BlurSettings, type EditDoc, type HealOp, type LayerId, type ParamValue } from './doc';
 import { applyMat3, outputSize, outputToImage, rotatedBounds, type Crop } from './geometry';
@@ -20,10 +20,6 @@ import VIEW_FRAG from './shaders/view.frag?raw';
 export const HEAL_MASK = 'heal' as unknown as LayerId;
 
 export type ToolMode = 'none' | 'mask' | 'heal' | 'liquify';
-
-export interface LiquifyStroke {
-  add(u: number, v: number): Rect | null;
-}
 
 /** What the liquify module provides once loaded. */
 export interface FieldController {
@@ -227,16 +223,6 @@ export class Engine {
     this.requestRender();
   }
 
-  setLayerEnabled(id: LayerId, enabled: boolean): void {
-    const layer = this.doc.layers[id];
-    if (!layer) return;
-    this.track('Camada');
-    layer.enabled = enabled;
-    this.ctx?.invalidate('prefix');
-    this.commit();
-    this.requestRender();
-  }
-
   /** Erases a whole layer. */
   async clearLayer(id: LayerId): Promise<void> {
     const layer = this.doc.layers[id];
@@ -321,14 +307,17 @@ export class Engine {
     const after = clone(this.doc);
     if (JSON.stringify(after) === JSON.stringify(pending.before)) return;
     const restore = (d: EditDoc) => {
-      // Mask flags and heals have their own entries, so only settings are restored here.
-      const painted = Object.fromEntries(Object.entries(this.doc.layers).map(([k, l]) => [k, l.painted]));
-      const heals = this.doc.heals;
-      const hasField = this.doc.hasField;
-      this.doc = clone(d);
-      this.doc.heals = heals;
-      this.doc.hasField = hasField;
-      for (const [k, l] of Object.entries(this.doc.layers)) l.painted = painted[k] ?? l.painted;
+      // Masks, heals and the field have their own entries, so only settings come from the snapshot.
+      const current = this.doc;
+      const next = clone(d);
+      next.heals = current.heals;
+      next.hasField = current.hasField;
+      for (const id of Object.keys(current.layers) as LayerId[]) {
+        const layer = next.layers[id];
+        if (layer) layer.painted = current.layers[id]!.painted;
+        else next.layers[id] = current.layers[id];
+      }
+      this.doc = next;
       this.onFilterRestore?.();
       this.ctx?.invalidate('prefix');
       this.emit('view');
@@ -572,6 +561,7 @@ export class Engine {
     this.emit('busy', 'Revelando…');
     const op = await heal.commit(ctx, dabs, this.brush.hardness, tap);
     masks.clear(HEAL_MASK);
+    this.glc.drainPool();
     this.emit('busy', null);
     if (!op) {
       this.requestRender();
@@ -607,6 +597,7 @@ export class Engine {
     healer.applyLast(ctx, this.doc, healed);
     this.glc.generateMips(healed);
     ctx.clearCache();
+    this.pipeline?.refreshGlobalLow(ctx, healed);
     ctx.invalidate('prefix');
   }
 
@@ -688,8 +679,10 @@ export class Engine {
   }
 
   private dropRoi(): void {
-    this.roi?.ctx.destroy();
+    if (!this.roi) return;
+    this.roi.ctx.destroy();
     this.roi = null;
+    this.glc.drainPool();
   }
 
   /**

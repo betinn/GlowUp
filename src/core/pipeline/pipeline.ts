@@ -4,9 +4,12 @@ import { imageToOutput, outputSize } from '../geometry';
 import COLOR_GLSL from '../shaders/color.glsl?raw';
 import DEVELOP_FRAG from '../shaders/develop.frag?raw';
 import FINISH_FRAG from '../shaders/finish.frag?raw';
-import { COPY_FRAG } from '../shaders/small';
+import { COPY_FRAG, REGION_FRAG } from '../shaders/small';
 import type { RenderContext } from './context';
 import type { Healer, MaskProvider, PassEnv, ToolPass } from './types';
+
+/** Long side of the shared low-pass image, in pixels. */
+const LOW_SIDE = 96;
 
 export const shader = (body: string) => `${GLSL_HEADER}${COLOR_GLSL}\n${body}`;
 
@@ -47,6 +50,8 @@ export class Pipeline {
   lut: Tex3D;
   lutMix = 0;
   active: LayerId | null = null;
+  /** Tiny low-pass of the whole photo, shared by every context so tiles agree on tone masks. */
+  private globalLow: Tex | null = null;
 
   constructor(
     private readonly glc: GLContext,
@@ -104,6 +109,25 @@ export class Pipeline {
     if (doc.heals.length && this.healer) this.healer.apply(ctx, doc, healed);
     this.glc.generateMips(healed);
     ctx.clearCache();
+    if (ctx.region.w === ctx.imageW && ctx.region.h === ctx.imageH) this.refreshGlobalLow(ctx, healed);
+  }
+
+  /** Call after the healed base of a whole-image context changes. */
+  refreshGlobalLow(ctx: RenderContext, healed: Tex): void {
+    const { glc } = this;
+    const k = LOW_SIDE / Math.max(ctx.w, ctx.h);
+    const w = Math.max(2, Math.round(ctx.w * k));
+    const h = Math.max(2, Math.round(ctx.h * k));
+    if (this.globalLow && (this.globalLow.w !== w || this.globalLow.h !== h)) {
+      glc.destroyTex(this.globalLow);
+      this.globalLow = null;
+    }
+    this.globalLow ??= glc.createTex(w, h, glc.caps.work);
+    glc.run(glc.program(shader(REGION_FRAG)), this.globalLow, {
+      uInput: healed,
+      uSrc: [0, 0, 1, 1],
+      uLod: Math.log2(Math.max(ctx.w, ctx.h) / LOW_SIDE),
+    });
   }
 
   /** Brings the context up to date with the document, redoing only what changed. */
@@ -157,14 +181,13 @@ export class Pipeline {
     const { glc } = this;
     const a = doc.adjust;
     const dev = ctx.slot('dev');
-    const healed = ctx.slot('healed');
     const hasField = doc.hasField && !!this.field;
     glc.run(
       glc.program(shader(DEVELOP_FRAG)),
       dev,
       {
         uInput: ctx.retouchedRef!,
-        uLow: healed,
+        uLow: this.globalLow ?? ctx.slot('healed'),
         uField: hasField ? this.field!.tex : this.emptyField,
         uLut: this.lut,
         uRegion: ctx.regionUv,
@@ -180,7 +203,6 @@ export class Pipeline {
         uVibrance: a.vibrance / 100,
         uSharpen: a.sharpen / 100,
         uSharpenRadius: Math.max(0.75, ctx.longSide / 2400),
-        uLowLod: Math.max(0, Math.log2(ctx.longSide / 48)),
         uLutMix: doc.filter.id ? this.lutMix : 0,
         uLutSize: this.lut.size,
       },

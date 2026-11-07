@@ -49,6 +49,8 @@
   const groupTools = $derived(TOOLS.filter((t) => t.group === ui.group));
   const canUndo = $derived((ui.rev, ready && engine().history.canUndo));
   const canRedo = $derived((ui.rev, ready && engine().history.canRedo));
+  const undoTitle = $derived(canUndo ? `Desfazer: ${engine().history.undoLabel}` : 'Desfazer');
+  const redoTitle = $derived(canRedo ? `Refazer: ${engine().history.redoLabel}` : 'Refazer');
 
   let off: (() => void) | null = null;
 
@@ -107,6 +109,8 @@
       busy: (label) => (ui.busy = label),
     };
     off = e.on(events);
+    window.addEventListener('pagehide', saveNow);
+    document.addEventListener('visibilitychange', saveNow);
     e.onFilterRestore = () => void syncFilter(e);
     canvas!.addEventListener('webglcontextlost', (ev) => {
       ev.preventDefault();
@@ -132,8 +136,14 @@
     }
   });
 
+  function saveNow() {
+    if (document.visibilityState === 'hidden') void autosave()?.flush();
+  }
+
   onDestroy(() => {
     off?.();
+    window.removeEventListener('pagehide', saveNow);
+    document.removeEventListener('visibilitychange', saveNow);
     setAutosave(null);
     ui.tool = null;
     ui.toolModule = null;
@@ -172,8 +182,7 @@
     ui.group = id;
     panelOpen = true;
     const list = TOOLS.filter((t) => t.group === id);
-    if (list.length === 1 || !desktop) void selectTool(list.length === 1 ? list[0].id : null);
-    else void selectTool(null);
+    void selectTool(list.length === 1 ? list[0].id : null);
   }
 
   function pickTool(id: string) {
@@ -289,8 +298,8 @@
     <button type="button" class="icon-btn" aria-label="Voltar para o início" onclick={leave}><Icon name="back" /></button>
     <span class="brand serif">Glowup</span>
     <div class="grow"></div>
-    <button type="button" class="icon-btn" aria-label="Desfazer" disabled={!canUndo} onclick={() => engine().undo()}><Icon name="undo" /></button>
-    <button type="button" class="icon-btn" aria-label="Refazer" disabled={!canRedo} onclick={() => engine().redo()}><Icon name="redo" /></button>
+    <button type="button" class="icon-btn" aria-label="Desfazer" title={undoTitle} disabled={!canUndo} onclick={() => engine().undo()}><Icon name="undo" /></button>
+    <button type="button" class="icon-btn" aria-label="Refazer" title={redoTitle} disabled={!canRedo} onclick={() => engine().redo()}><Icon name="redo" /></button>
     <button
       type="button"
       class="icon-btn"

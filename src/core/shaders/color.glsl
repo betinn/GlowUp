@@ -82,9 +82,9 @@ vec3 colorBlend(vec3 base, vec3 tint) {
   return labToRgb(vec3(b.x, t.y, t.z));
 }
 
-// Smooth bicubic sampling of a mip level with four bilinear taps: hides box-filter blockiness.
-vec4 bicubicLod(sampler2D tex, vec2 uv, float lod) {
-  vec2 size = vec2(textureSize(tex, int(ceil(lod))));
+// Smooth bicubic sampling of one mip level with four bilinear taps: hides box-filter blockiness.
+vec4 bicubicLevel(sampler2D tex, vec2 uv, float level) {
+  vec2 size = vec2(textureSize(tex, int(level)));
   vec2 st = uv * size - 0.5;
   vec2 i = floor(st);
   vec2 f = st - i;
@@ -96,8 +96,16 @@ vec4 bicubicLod(sampler2D tex, vec2 uv, float lod) {
   vec2 g1 = w2 + w3;
   vec2 h0 = (i - 0.5 + w1 / g0) / size + 0.5 / size;
   vec2 h1 = (i + 1.5 + w3 / g1) / size + 0.5 / size;
-  return g0.y * (g0.x * textureLod(tex, h0, lod) + g1.x * textureLod(tex, vec2(h1.x, h0.y), lod))
-       + g1.y * (g0.x * textureLod(tex, vec2(h0.x, h1.y), lod) + g1.x * textureLod(tex, h1, lod));
+  return g0.y * (g0.x * textureLod(tex, h0, level) + g1.x * textureLod(tex, vec2(h1.x, h0.y), level))
+       + g1.y * (g0.x * textureLod(tex, vec2(h0.x, h1.y), level) + g1.x * textureLod(tex, h1, level));
+}
+
+// Blurs by mip level: each integer level is sampled smoothly, then the two nearest are blended.
+vec4 bicubicLod(sampler2D tex, vec2 uv, float lod) {
+  float l0 = floor(lod);
+  float f = lod - l0;
+  vec4 a = bicubicLevel(tex, uv, l0);
+  return f < 0.002 ? a : mix(a, bicubicLevel(tex, uv, l0 + 1.0), f);
 }
 
 float hash12(vec2 p) {

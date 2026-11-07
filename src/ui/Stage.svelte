@@ -169,7 +169,9 @@
   }
 
   function keydown(ev: KeyboardEvent) {
-    if (ev.code === 'Space' && !(ev.target instanceof HTMLInputElement && ev.target.type !== 'range')) {
+    // Space keeps its normal meaning on buttons and fields.
+    const free = ev.target === document.body || ev.target === canvas;
+    if (ev.code === 'Space' && free) {
       spaceDown = true;
       ev.preventDefault();
     }

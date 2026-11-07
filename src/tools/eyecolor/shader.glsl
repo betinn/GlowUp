@@ -12,6 +12,6 @@ vec3 tool(vec3 c, float m) {
   // Darker fibers take less chroma, like real pigment.
   vec2 ab = t.yz * (0.45 + 0.75 * clamp(lab.x / 55.0, 0.0, 1.0));
   lab.yz = mix(lab.yz, ab, k);
-  lab.x += (t.x - lab.x) * 0.12 * k + uLift * 7.0 * k;
+  lab.x += (t.x - lab.x) * 0.26 * k + uLift * 7.0 * k;
   return labToRgb(lab);
 }

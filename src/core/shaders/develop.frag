@@ -19,7 +19,6 @@ uniform float uSaturation;
 uniform float uVibrance;
 uniform float uSharpen;
 uniform float uSharpenRadius;
-uniform float uLowLod;
 uniform float uLutMix;
 uniform float uLutSize;
 
@@ -59,7 +58,7 @@ void main() {
   }
 
   if (uHighlights != 0.0 || uShadows != 0.0) {
-    float low = luma(textureLod(uLow, uv, uLowLod).rgb);
+    float low = luma(bicubicLod(uLow, uRegion.xy + uv * uRegion.zw, 0.0).rgb);
     float l = max(luma(c), 1e-3);
     float wh = smoothstep(0.4, 0.95, low);
     float ws = 1.0 - smoothstep(0.08, 0.6, low);

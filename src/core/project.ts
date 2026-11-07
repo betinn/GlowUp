@@ -88,7 +88,7 @@ export async function unpack(blob: Blob): Promise<Uint8Array> {
 /** Saves the session in the background. Masks are read only when they changed. */
 export class Autosave {
   private timer: ReturnType<typeof setTimeout> | null = null;
-  private saving = false;
+  private running: Promise<void> | null = null;
   private again = false;
   private readonly savedRev = new Map<LayerId, number>();
   private masks: ProjectRecord['masks'] = {};
@@ -117,23 +117,35 @@ export class Autosave {
 
   schedule(): void {
     if (this.timer) clearTimeout(this.timer);
-    this.timer = setTimeout(() => void this.save(), 1500);
+    this.timer = setTimeout(() => void this.run(), 1500);
   }
 
+  /** Waits for any save in progress, then writes the latest state. */
   async flush(): Promise<void> {
     if (this.timer) clearTimeout(this.timer);
-    await this.save();
+    await this.running;
+    await this.run();
+  }
+
+  private run(): Promise<void> {
+    if (this.running) {
+      this.again = true;
+      return this.running;
+    }
+    this.running = this.save().finally(() => {
+      this.running = null;
+      if (this.again) {
+        this.again = false;
+        this.schedule();
+      }
+    });
+    return this.running;
   }
 
   private async save(): Promise<void> {
-    if (this.saving) {
-      this.again = true;
-      return;
-    }
     const { engine } = this;
     const { source, masks } = engine;
     if (!source || !masks || engine.stroking || engine.exporting) return;
-    this.saving = true;
     try {
       for (const id of masks.ids()) {
         const rev = masks.rev(id);
@@ -169,12 +181,6 @@ export class Autosave {
     } catch (err) {
       // Storage may be full or blocked in a private window. Editing continues without saving.
       console.warn('autosave', err);
-    } finally {
-      this.saving = false;
-      if (this.again) {
-        this.again = false;
-        this.schedule();
-      }
     }
   }
 

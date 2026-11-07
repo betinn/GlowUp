@@ -61,11 +61,6 @@ export class MaskStore implements MaskProvider {
     return [...this.masks.keys()];
   }
 
-  /** Stroke coverage so far, useful as an overlay during a stroke. */
-  get strokeTex(): Tex | null {
-    return this.stroke;
-  }
-
   private scratch(): { base: Tex; stroke: Tex } {
     this.base ??= this.glc.createTex(this.w, this.h, 'r8');
     this.stroke ??= this.glc.createTex(this.w, this.h, this.glc.caps.stroke);

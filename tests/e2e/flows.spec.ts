@@ -55,6 +55,7 @@ async function meanDiff(page: Page, a: Buffer, b: Buffer): Promise<number> {
 /** Largest mean difference along any single row or column: a tile seam shows up here. */
 async function worstLine(page: Page, a: Buffer, b: Buffer): Promise<number> {
   const other = await page.context().newPage();
+  other.on('console', (m) => console.log(m.text()));
   const worst = await other.evaluate(
     async ([x, y]) => {
       const load = async (s: string) => {
@@ -77,7 +78,10 @@ async function worstLine(page: Page, a: Buffer, b: Buffer): Promise<number> {
           cols[i] += v / p.h;
         }
       }
-      return Math.max(...rows, ...cols);
+      const r = rows.indexOf(Math.max(...rows));
+      const c = cols.indexOf(Math.max(...cols));
+      console.log(`worst row ${r}=${rows[r].toFixed(2)} col ${c}=${cols[c].toFixed(2)}`);
+      return Math.max(rows[r], cols[c]);
     },
     [a.toString('base64'), b.toString('base64')],
   );

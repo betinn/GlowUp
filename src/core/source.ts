@@ -8,7 +8,6 @@ export class SourceImage {
   private constructor(
     readonly bitmap: ImageBitmap,
     readonly blob: Blob,
-    readonly opaque: boolean,
   ) {}
 
   static async decode(blob: Blob): Promise<SourceImage> {
@@ -21,7 +20,7 @@ export class SourceImage {
       bitmap.close();
       throw new Error('image-too-large');
     }
-    return new SourceImage(bitmap, blob, blob.type === 'image/jpeg');
+    return new SourceImage(bitmap, blob);
   }
 
   get w() {

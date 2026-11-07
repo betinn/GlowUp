@@ -43,6 +43,8 @@ void main() {
   vec4 f = texture(uFill, vUv);
   vec3 membrane = f.rgb / max(f.a, 1e-3);
   vec3 detail = texture(uPatch, vUv).rgb - texture(uPatchLow, vUv).rgb;
+  // Texture is small by nature. Anything big is an edge from outside the skin: compress it.
+  detail = detail / (1.0 + abs(detail) * 9.0);
   float h = texture(uHole, vUv).r;
   outColor = vec4(mix(base, membrane + detail, h), 1.0);
 }
