@@ -8,6 +8,7 @@ import type { Engine } from './engine';
 
 const DB_NAME = 'glowup';
 const STORE = 'projects';
+const ORIGINALS = 'originals';
 const MAX_PROJECTS = 6;
 
 export interface ProjectSummary {
@@ -20,7 +21,6 @@ export interface ProjectSummary {
 }
 
 export interface ProjectRecord extends ProjectSummary {
-  original: Blob;
   doc: EditDoc;
   masks: Partial<Record<LayerId, Blob>>;
   field: Blob | null;
@@ -29,17 +29,20 @@ export interface ProjectRecord extends ProjectSummary {
 function open(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, 1);
-    req.onupgradeneeded = () => req.result.createObjectStore(STORE, { keyPath: 'id' });
+    req.onupgradeneeded = () => {
+      req.result.createObjectStore(STORE, { keyPath: 'id' });
+      req.result.createObjectStore(ORIGINALS);
+    };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
   });
 }
 
-async function tx<T>(mode: IDBTransactionMode, run: (s: IDBObjectStore) => IDBRequest<T>): Promise<T> {
+async function tx<T>(mode: IDBTransactionMode, run: (s: IDBObjectStore) => IDBRequest<T>, store = STORE): Promise<T> {
   const db = await open();
   return new Promise<T>((resolve, reject) => {
-    const t = db.transaction(STORE, mode);
-    const req = run(t.objectStore(STORE));
+    const t = db.transaction(store, mode);
+    const req = run(t.objectStore(store));
     t.oncomplete = () => {
       db.close();
       resolve(req.result);
@@ -59,7 +62,12 @@ export async function listProjects(): Promise<ProjectSummary[]> {
 }
 
 export const loadProject = (id: string) => tx<ProjectRecord | undefined>('readonly', (s) => s.get(id));
-export const deleteProject = (id: string) => tx('readwrite', (s) => s.delete(id));
+export const loadOriginal = (id: string) => tx<Blob | undefined>('readonly', (s) => s.get(id), ORIGINALS);
+
+export async function deleteProject(id: string): Promise<void> {
+  await tx('readwrite', (s) => s.delete(id));
+  await tx('readwrite', (s) => s.delete(id), ORIGINALS);
+}
 
 /** Deflates bytes when the browser can; a one-byte header says how they are stored. */
 export async function pack(data: Uint8Array): Promise<Blob> {
@@ -86,6 +94,8 @@ export class Autosave {
   private masks: ProjectRecord['masks'] = {};
   private field: Blob | null = null;
   private thumb: Blob | null = null;
+  private originalSaved = false;
+  private savedFieldRev = -1;
 
   constructor(
     private readonly engine: Engine,
@@ -97,6 +107,8 @@ export class Autosave {
       this.masks = { ...restored.masks };
       this.field = restored.field;
       this.thumb = restored.thumb;
+      this.originalSaved = true;
+      this.savedFieldRev = engine.fieldRev;
       for (const key of Object.keys(restored.masks) as LayerId[]) {
         this.savedRev.set(key, engine.masks?.rev(key) ?? 0);
       }
@@ -130,11 +142,15 @@ export class Autosave {
         if (bytes) this.masks[id] = await pack(bytes);
         this.savedRev.set(id, rev);
       }
-      if (engine.field && engine.doc.hasField) {
-        const data = engine.field.serialize();
-        this.field = await pack(new Uint8Array(data.buffer, data.byteOffset, data.byteLength));
-      } else if (!engine.doc.hasField) {
-        this.field = null;
+      if (this.savedFieldRev !== engine.fieldRev) {
+        this.savedFieldRev = engine.fieldRev;
+        const data = engine.field?.serialize();
+        this.field = data && engine.doc.hasField ? await pack(new Uint8Array(data.buffer, data.byteOffset, data.byteLength)) : null;
+      }
+      if (!this.originalSaved) {
+        // The original is written once. Later saves touch only the small edit stack.
+        await tx('readwrite', (s) => s.put(source.blob, this.id), ORIGINALS);
+        this.originalSaved = true;
       }
       this.thumb ??= await source.thumbnail(320);
       const record: ProjectRecord = {
@@ -144,7 +160,6 @@ export class Autosave {
         width: engine.doc.width,
         height: engine.doc.height,
         thumb: this.thumb,
-        original: source.blob,
         doc: engine.doc,
         masks: this.masks,
         field: this.field,

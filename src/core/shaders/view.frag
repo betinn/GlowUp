@@ -17,6 +17,10 @@ uniform float uOverlayMix;
 uniform bool uHasField;
 uniform vec3 uBackground;
 uniform vec3 uOverlayColor;
+uniform bool uRoiOn;
+uniform vec4 uRoi;
+uniform sampler2D uRoiFinal;
+uniform sampler2D uRoiBefore;
 
 vec3 sampleTex(sampler2D t, vec2 uv, vec2 duv) {
   // Two-by-two supersampling while minifying.
@@ -40,7 +44,14 @@ void main() {
   }
   vec2 duv = abs(fwidth(uv)) * uImageTexels;
   bool before = uSplit > 1.5 || (uSplit >= 0.0 && px.x < uSplitX);
-  vec3 c = before ? sampleTex(uBefore, uv, duv) : sampleTex(uFinal, uv, duv);
+  vec3 c;
+  vec2 roiUv = (uv - uRoi.xy) / uRoi.zw;
+  if (uRoiOn && all(greaterThanEqual(roiUv, vec2(0.0))) && all(lessThanEqual(roiUv, vec2(1.0)))) {
+    // Sharp version of the visible area, rendered from the original at its real resolution.
+    c = before ? texture(uRoiBefore, roiUv).rgb : texture(uRoiFinal, roiUv).rgb;
+  } else {
+    c = before ? sampleTex(uBefore, uv, duv) : sampleTex(uFinal, uv, duv);
+  }
   if (uOverlayMix > 0.0 && !before) {
     vec2 muv = uv;
     if (uHasField) muv += texture(uField, uv).xy;

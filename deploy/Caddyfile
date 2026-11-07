@@ -1,0 +1,32 @@
+# Glowup: static hosting example for Caddy 2.
+# Caddy obtains and renews the HTTPS certificate on its own.
+# Copy the contents of dist/ to the root below. The server only delivers files.
+
+example.com {
+	root * /var/www/glowup
+
+	# Precompressed siblings made at build time: the server never compresses at runtime.
+	file_server {
+		precompressed br gzip
+	}
+
+	# Single-page fallback.
+	try_files {path} /index.html
+
+	header {
+		Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' blob: data:; connect-src 'self'; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		Strict-Transport-Security "max-age=31536000"
+		Permissions-Policy "camera=(self), microphone=(), geolocation=()"
+		-Server
+	}
+
+	# Files with a hash in the name never change.
+	@hashed path /assets/*
+	header @hashed Cache-Control "public, max-age=31536000, immutable"
+
+	# Entry points must be checked on every visit.
+	@entry path / /index.html /sw.js /manifest.webmanifest
+	header @entry Cache-Control "no-cache"
+}

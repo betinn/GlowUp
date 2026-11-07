@@ -75,6 +75,8 @@ export class Engine {
   liquifyStrength = 0.6;
   showMask = false;
   exporting = false;
+  /** Changes whenever the liquify field changes, so autosave knows when to write it. */
+  fieldRev = 0;
   /** Id of the filter whose LUT is on the GPU. */
   loadedLut: string | null = null;
   /** Re-uploads the LUT after an undo changes the filter. */
@@ -88,6 +90,9 @@ export class Engine {
   split = -1;
 
   private readonly emptyField: Tex;
+  /** Full-detail render of the visible area, used when zoomed past the preview resolution. */
+  private roi: { ctx: RenderContext; key: string } | null = null;
+  private roiTimer: ReturnType<typeof setTimeout> | null = null;
   private frame = 0;
   private needsRender = false;
   private stroke: {
@@ -157,6 +162,7 @@ export class Engine {
   close(): void {
     cancelAnimationFrame(this.frame);
     this.needsRender = false;
+    this.dropRoi();
     this.ctx?.destroy();
     this.masks?.destroy();
     this.field?.destroy();
@@ -540,7 +546,9 @@ export class Engine {
   }
 
   private withFieldFlags(entry: HistoryEntry): HistoryEntry {
+    this.fieldRev++;
     const refresh = () => {
+      this.fieldRev++;
       this.doc.hasField = !this.field?.isEmpty();
       this.ctx?.invalidate('global');
       this.requestRender();
@@ -671,7 +679,73 @@ export class Engine {
   renderNow(): void {
     const { ctx, pipeline, masks } = this;
     if (!ctx || !pipeline || !masks || this.exporting) return;
+    const { dirty } = ctx;
+    if (dirty.healed || dirty.prefix || dirty.local || dirty.global) this.dropRoi();
     pipeline.update(ctx, this.doc);
+    this.drawView(ctx, masks);
+    if (this.roiTimer) clearTimeout(this.roiTimer);
+    this.roiTimer = setTimeout(() => this.refreshRoi(), 220);
+  }
+
+  private dropRoi(): void {
+    this.roi?.ctx.destroy();
+    this.roi = null;
+  }
+
+  /**
+   * When the view shows more detail than the preview holds, renders just the visible area
+   * from the original, once the view stops moving. The cost follows the screen, not the photo.
+   */
+  private refreshRoi(): void {
+    const { ctx, pipeline, source, masks, doc, viewport: vp } = this;
+    if (!ctx || !pipeline || !source || !masks || this.stroke || this.exporting) return;
+    const crop = this.displayCrop();
+    const out = outputSize(crop);
+    const k = viewScale(vp, out, this.view);
+    if (k <= ctx.region.scale * 1.2 || ctx.region.scale >= 1) {
+      if (this.roi) {
+        this.dropRoi();
+        this.drawView(ctx, masks);
+      }
+      return;
+    }
+    const m = outputToImage(crop, doc.width, doc.height);
+    let x0 = Infinity;
+    let y0 = Infinity;
+    let x1 = -Infinity;
+    let y1 = -Infinity;
+    for (const [cx, cy] of [
+      [vp.left, vp.top],
+      [vp.w - vp.right, vp.top],
+      [vp.left, vp.h - vp.bottom],
+      [vp.w - vp.right, vp.h - vp.bottom],
+    ] as const) {
+      const [s, t] = screenToOutput(vp, out, this.view, cx, cy);
+      const [u, v] = applyMat3(m, s, t);
+      x0 = Math.min(x0, u * doc.width);
+      y0 = Math.min(y0, v * doc.height);
+      x1 = Math.max(x1, u * doc.width);
+      y1 = Math.max(y1, v * doc.height);
+    }
+    const pad = 192;
+    const rx0 = Math.max(0, Math.floor((x0 - pad) / 256) * 256);
+    const ry0 = Math.max(0, Math.floor((y0 - pad) / 256) * 256);
+    const rx1 = Math.min(doc.width, Math.ceil(x1 + pad));
+    const ry1 = Math.min(doc.height, Math.ceil(y1 + pad));
+    if (rx1 <= rx0 || ry1 <= ry0) return;
+    const limit = Math.min(this.glc.caps.maxTexture, 3072);
+    const scale = Math.min(1, k, limit / Math.max(rx1 - rx0, ry1 - ry0));
+    if (scale <= ctx.region.scale * 1.1) return;
+    const key = [rx0, ry0, rx1, ry1, scale.toFixed(3)].join();
+    if (this.roi?.key === key) return;
+    this.dropRoi();
+    const tex = source.toTexture(this.glc, rx0, ry0, rx1 - rx0, ry1 - ry0, scale);
+    const roi = new RenderContext(this.glc, { x: rx0, y: ry0, w: rx1 - rx0, h: ry1 - ry0, scale }, doc.width, doc.height, tex);
+    const active = pipeline.active;
+    pipeline.active = null;
+    pipeline.update(roi, doc);
+    pipeline.active = active;
+    this.roi = { ctx: roi, key };
     this.drawView(ctx, masks);
   }
 
@@ -705,6 +779,10 @@ export class Engine {
         uHasField: hasField,
         uBackground: [0.043, 0.043, 0.047],
         uOverlayColor: [1, 0.72, 0.47],
+        uRoiOn: !!this.roi,
+        uRoi: this.roi?.ctx.regionUv ?? [0, 0, 1, 1],
+        uRoiFinal: this.roi?.ctx.slot('final') ?? ctx.source,
+        uRoiBefore: this.roi?.ctx.source ?? ctx.source,
       },
       null,
     );

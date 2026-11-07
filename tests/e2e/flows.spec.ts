@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { expectNoErrors, facePoint, imageRect, openEditor, paint, pickTool, scribble, settle } from './helpers';
+import { expectNoErrors, facePoint, imageRect, openEditor, paint, pickTool, scribble, setSlider, settle } from './helpers';
 
 /** Reads width and height from PNG or JPEG bytes. */
 function imageSize(b: Buffer): { w: number; h: number; type: string } {
@@ -50,6 +50,39 @@ async function meanDiff(page: Page, a: Buffer, b: Buffer): Promise<number> {
   );
   await other.close();
   return diff;
+}
+
+/** Largest mean difference along any single row or column: a tile seam shows up here. */
+async function worstLine(page: Page, a: Buffer, b: Buffer): Promise<number> {
+  const other = await page.context().newPage();
+  const worst = await other.evaluate(
+    async ([x, y]) => {
+      const load = async (s: string) => {
+        const img = new Image();
+        img.src = `data:image/png;base64,${s}`;
+        await img.decode();
+        const c = new OffscreenCanvas(img.width, img.height);
+        const g = c.getContext('2d')!;
+        g.drawImage(img, 0, 0);
+        return { d: g.getImageData(0, 0, img.width, img.height).data, w: img.width, h: img.height };
+      };
+      const [p, q] = await Promise.all([load(x), load(y)]);
+      const rows = new Float64Array(p.h);
+      const cols = new Float64Array(p.w);
+      for (let j = 0; j < p.h; j++) {
+        for (let i = 0; i < p.w; i++) {
+          const k = (j * p.w + i) * 4;
+          const v = (Math.abs(p.d[k] - q.d[k]) + Math.abs(p.d[k + 1] - q.d[k + 1]) + Math.abs(p.d[k + 2] - q.d[k + 2])) / 3;
+          rows[j] += v / p.w;
+          cols[i] += v / p.h;
+        }
+      }
+      return Math.max(...rows, ...cols);
+    },
+    [a.toString('base64'), b.toString('base64')],
+  );
+  await other.close();
+  return worst;
 }
 
 /** Screenshot of the photo only: panels change on their own and do not matter here. */
@@ -204,6 +237,32 @@ test.describe('fluxos', () => {
     await expect(page.getByRole('button', { name: 'Apagar receita Minha' })).toBeVisible();
     await pickTool(page, 'light', 'adjust');
     await expect(page.getByRole('slider', { name: 'Exposição' })).toHaveValue('6');
+  });
+
+  test('a grade de tiles não muda o resultado da exportação', async ({ page }) => {
+    await openEditor(page);
+    await pickTool(page, 'skin', 'smooth');
+    await paint(page, scribble(0, 0.05, 0.22, 0.25, 8));
+    await pickTool(page, 'skin', 'undereye');
+    await paint(page, [[-0.21, -0.012], [0.21, -0.012]]);
+    await pickTool(page, 'skin', 'highlight');
+    await paint(page, [[-0.1, 0.1], [0.1, 0.1]], 2);
+    await pickTool(page, 'shape', 'liquify');
+    await paint(page, [[-0.29, 0.14], [-0.24, 0.14]]);
+    await pickTool(page, 'light', 'adjust');
+    await setSlider(page, 'Sombras', 50);
+    await setSlider(page, 'Realces', -40);
+    await setSlider(page, 'Nitidez', 40);
+    await setSlider(page, 'Granulação', 20);
+    await pickTool(page, 'looks', 'filters');
+    await page.locator('[data-filter=mel]').click();
+    await settle(page, 400);
+    const whole = await exportFile(page, 'PNG');
+    await page.evaluate(() => localStorage.setItem('glowup.tile', '512'));
+    const tiled = await exportFile(page, 'PNG');
+    await page.evaluate(() => localStorage.removeItem('glowup.tile'));
+    expect(await meanDiff(page, whole, tiled)).toBeLessThan(0.6);
+    expect(await worstLine(page, whole, tiled)).toBeLessThan(2);
   });
 
   test('zoom mantém o pincel no lugar certo', async ({ page }) => {

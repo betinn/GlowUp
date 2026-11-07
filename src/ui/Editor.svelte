@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount, tick, untrack, type Component } from 'svelte';
   import { Engine, type EngineEvents } from '../core/engine';
-  import { Autosave, loadProject, unpack } from '../core/project';
+  import { Autosave, loadOriginal, loadProject, unpack } from '../core/project';
   import { SourceImage } from '../core/source';
   import type { LayerId } from '../core/doc';
   import { syncFilter } from '../presets/apply';
@@ -57,8 +57,9 @@
     ui.pending = null;
     if (pending?.projectId) {
       const record = await loadProject(pending.projectId);
-      if (!record) throw new Error('project-missing');
-      const source = await SourceImage.decode(record.original);
+      const original = await loadOriginal(pending.projectId);
+      if (!record || !original) throw new Error('project-missing');
+      const source = await SourceImage.decode(original);
       await e.open(source, record.doc);
       await ensureDocTools(e);
       for (const [id, blob] of Object.entries(record.masks) as [LayerId, Blob][]) {
@@ -336,7 +337,14 @@
           <div class="panel scroll" in:rise={{ duration: 240, y: 14 }}>
             {#key meta.id}
               <div in:reveal={{ duration: 340, y: 6 }}>
-                <p class="hint">{meta.hint}</p>
+                <div class="hint-row">
+                  <p class="hint">{meta.hint}</p>
+                  {#if !desktop}
+                    <button type="button" class="icon-btn fold" aria-label="Recolher controles" onclick={() => (panelOpen = false)}>
+                      <Icon name="close" size={18} />
+                    </button>
+                  {/if}
+                </div>
                 {#if meta.kind === 'mask' && ui.toolModule && meta.layer}
                   <MaskPanel layer={meta.layer} tool={ui.toolModule} />
                 {:else if meta.kind === 'heal'}
@@ -450,9 +458,24 @@
 
   .panel {
     order: -1;
-    max-height: 38dvh;
+    max-height: 34dvh;
     padding: 12px 16px 6px;
     border-bottom: 1px solid var(--line);
+  }
+
+  .hint-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .fold {
+    flex: none;
+    width: 36px;
+    height: 36px;
+    margin: -6px -8px 0 0;
+    color: var(--paper-2);
   }
 
   .hint {
@@ -524,9 +547,9 @@
 
   .group {
     flex: 1;
-    min-width: 58px;
+    min-width: 46px;
     min-height: 50px;
-    padding: 5px 2px 3px;
+    padding: 5px 0 3px;
   }
 
   .group.on {

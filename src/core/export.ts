@@ -22,6 +22,9 @@ const ALIGN = 256;
 const yieldToUi = () => new Promise<void>((r) => setTimeout(r));
 
 function tileSide(): number {
+  // Tests force small tiles to prove that the result does not depend on the tile grid.
+  const forced = Number(localStorage.getItem('glowup.tile'));
+  if (forced > 0) return forced;
   return matchMedia('(pointer: coarse)').matches ? 1280 : 2048;
 }
 
