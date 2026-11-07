@@ -1,12 +1,26 @@
 <script lang="ts">
-  /** Says where the brush stands: searching, kept on eyes or teeth, or free and why. */
-  import { facePick, limitTool, LIMIT_WORDS, setToolLimit, toolLimit } from '../facepick.svelte';
+  /**
+   * Says where the brush stands: searching, kept on eyes or teeth, or free and why. When the region
+   * was found, it also offers the automatic mode, which fills the mask from it.
+   */
+  import type { LayerId } from '../../core/doc';
+  import { facePick, limitTool, LIMIT_WORDS, PLACES, refillRegion, setToolLimit, setToolMode, toolLimit, type ToolMode } from '../facepick.svelte';
   import ProgressCard from '../ProgressCard.svelte';
-  import { engine } from '../state.svelte';
+  import { regionShow } from '../regionshow.svelte';
+  import Segment from '../Segment.svelte';
+  import { engine, ui } from '../state.svelte';
+
+  let { layer }: { layer: LayerId } = $props();
 
   const e = engine();
   const words = $derived(toolLimit.region ? LIMIT_WORDS[toolLimit.region] : null);
   const on = $derived(toolLimit.state === 'on');
+  const auto = $derived(toolLimit.mode === 'auto');
+  const filled = $derived((ui.rev, !!e.doc.layers[layer]?.painted));
+  const MODES = [
+    { value: 'auto', label: 'Automático' },
+    { value: 'manual', label: 'Manual' },
+  ];
   const note = $derived.by(() => {
     if (toolLimit.state === 'no-region') return `${words?.missing} O pincel está livre.`;
     if (toolLimit.state === 'no-face') return 'Não achei rosto nesta foto. O pincel está livre.';
@@ -29,13 +43,26 @@
     />
     <button type="button" class="btn" data-testid="limit-free" onclick={() => setToolLimit(e, false)}>Pintar livre</button>
   {:else if toolLimit.state === 'on' || toolLimit.state === 'off'}
-    <button type="button" class="switch" class:on role="switch" aria-checked={on} data-testid="limit-toggle" onclick={() => setToolLimit(e, !on)}>
-      <span>{words?.name}</span>
-      <span class="state">{on ? 'Ligado' : 'Desligado'}</span>
-      <span class="track" aria-hidden="true"></span>
-    </button>
-    {#if on && toolLimit.missed && facePick.more}
-      <button type="button" class="btn" data-testid="limit-more" onclick={() => retry(true)}>Procurar mais rostos</button>
+    <div data-testid="tool-mode" data-mode={toolLimit.mode}>
+      <Segment label="Modo" value={toolLimit.mode} options={MODES} onchange={(v) => setToolMode(e, v as ToolMode)} />
+    </div>
+    {#if auto}
+      {#if filled}
+        <p class="note" role="status">Aplicado {PLACES[toolLimit.region ?? 'iris']} que achei. Para retocar à mão, use Manual.</p>
+      {:else if regionShow.phase || !on}
+        <p class="note" role="status">Já aplico {PLACES[toolLimit.region ?? 'iris']}.</p>
+      {:else}
+        <button type="button" class="btn" data-testid="auto-apply" onclick={() => refillRegion(e)}>Aplicar de novo</button>
+      {/if}
+    {:else}
+      <button type="button" class="switch" class:on role="switch" aria-checked={on} data-testid="limit-toggle" onclick={() => setToolLimit(e, !on)}>
+        <span>{words?.name}</span>
+        <span class="state">{on ? 'Ligado' : 'Desligado'}</span>
+        <span class="track" aria-hidden="true"></span>
+      </button>
+      {#if on && toolLimit.missed && facePick.more}
+        <button type="button" class="btn" data-testid="limit-more" onclick={() => retry(true)}>Procurar mais rostos</button>
+      {/if}
     {/if}
   {:else}
     <p class="note" role="status">{note}</p>

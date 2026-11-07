@@ -42,18 +42,62 @@ export function facePoint(page: Page, x: number, y: number): [number, number] {
   return [r.x + r.w / 2 + x * r.h, r.y + r.h / 2 + y * r.h];
 }
 
-export async function pickTool(page: Page, group: string, tool: string): Promise<void> {
+export interface RegionOptions {
+  /** The view stays where a tool for eyes or teeth flew to. Otherwise the photo fits again. */
+  keepView?: boolean;
+  /** The automatic mode stays, with what it applied. Otherwise the tool goes to manual, with an empty mask. */
+  auto?: boolean;
+}
+
+export async function pickTool(page: Page, group: string, tool: string, options: RegionOptions = {}): Promise<void> {
   await page.locator(`[data-group=${group}]`).click();
   const button = page.locator(`[data-tool=${tool}]`);
   if ((await button.getAttribute('aria-pressed')) !== 'true') await button.click();
-  if (TOOLS.find((t) => t.id === tool)?.region) await limitSettled(page);
+  if (TOOLS.find((t) => t.id === tool)?.region) await limitSettled(page, options);
   await settle(page, 300);
 }
 
-/** The tools for eyes and teeth hold the brush until the detector answers. */
-export async function limitSettled(page: Page): Promise<void> {
+/**
+ * The tools for eyes and teeth hold the brush until the detector answers, then fly to the region, light
+ * it and fill it. Most tests paint by hand on the whole photo, so by default the fill is undone, the
+ * tool goes to manual and the view fits the photo again.
+ */
+export async function limitSettled(page: Page, { keepView = false, auto = false }: RegionOptions = {}): Promise<void> {
   await page.locator('[data-limit]').waitFor();
   await expect(page.locator('[data-limit=searching]')).toHaveCount(0, { timeout: 60_000 });
+  await showSettled(page);
+  // The words over the photo outlast the light by a little.
+  await expect(page.getByTestId('reach-chip')).toHaveCount(0, { timeout: 10_000 });
+  if (!auto && (await page.locator('[data-testid=tool-mode][data-mode=auto]').count())) {
+    await chooseMode(page, 'Manual');
+    const undo = page.getByRole('button', { name: 'Desfazer' });
+    if ((await undo.getAttribute('title')) === 'Desfazer: Automático') {
+      await undo.click();
+      await settle(page, 300);
+    }
+  }
+  if (!keepView) await fitPhoto(page);
+}
+
+export async function chooseMode(page: Page, mode: 'Automático' | 'Manual'): Promise<void> {
+  await page.getByRole('radiogroup', { name: 'Modo' }).getByRole('radio', { name: mode }).click();
+  await settle(page, 200);
+}
+
+/** The flight to the region and the light over it are over. */
+export async function showSettled(page: Page): Promise<void> {
+  await expect(page.locator('[data-region-show=idle]')).toHaveCount(1, { timeout: 15_000 });
+}
+
+/** Same as the key 0: the whole photo in view. */
+export async function fitPhoto(page: Page): Promise<void> {
+  await page.keyboard.press('0');
+  await settle(page, 300);
+}
+
+/** Zoom of the view, where 1 fits the photo. */
+export async function viewZoom(page: Page): Promise<number> {
+  return Number(await page.locator('[data-zoom]').getAttribute('data-zoom'));
 }
 
 export async function setSlider(page: Page, label: string, value: number): Promise<void> {
@@ -119,11 +163,18 @@ export async function compare(page: Page, name: string, title: string, before: B
   await other.close();
 }
 
-/** Mean difference between two images of the same size, in 8-bit levels. */
-export async function meanDiff(page: Page, a: Buffer, b: Buffer): Promise<number> {
+export interface Clip {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** Mean difference between two images of the same size, in 8-bit levels. `part` limits it to an area. */
+export async function meanDiff(page: Page, a: Buffer, b: Buffer, part?: Clip): Promise<number> {
   const other = await page.context().newPage();
   const diff = await other.evaluate(
-    async ([x, y]) => {
+    async ([x, y, area]) => {
       const load = async (s: string) => {
         const img = new Image();
         img.src = `data:image/png;base64,${s}`;
@@ -131,14 +182,15 @@ export async function meanDiff(page: Page, a: Buffer, b: Buffer): Promise<number
         const c = new OffscreenCanvas(img.width, img.height);
         const g = c.getContext('2d')!;
         g.drawImage(img, 0, 0);
-        return g.getImageData(0, 0, img.width, img.height).data;
+        const r = area ?? { x: 0, y: 0, width: img.width, height: img.height };
+        return g.getImageData(Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height)).data;
       };
-      const [p, q] = await Promise.all([load(x), load(y)]);
+      const [p, q] = await Promise.all([load(x as string), load(y as string)]);
       let sum = 0;
       for (let i = 0; i < p.length; i++) sum += Math.abs(p[i] - q[i]);
       return sum / p.length;
     },
-    [a.toString('base64'), b.toString('base64')],
+    [a.toString('base64'), b.toString('base64'), part ?? null] as const,
   );
   await other.close();
   return diff;
