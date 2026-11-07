@@ -8,6 +8,9 @@ de propósito manchas, olheiras, olho vermelho e dentes amarelados. Nenhuma pess
   progresso (`ui-abrindo`, `ui-exportando`, `ui-exportado`), comparação de filtro (`*filtro-comparar`),
   filtro em um rosto (`ui-rosto-*`, `ui-celular-rosto`) e marca do pincel (`ui-marca-ligada`, `ui-celular-marca`).
 - `20-filtro-rosto.png`: filtro em um dos dois rostos de `tests/fixtures/group.png`.
+- `21-branco-do-olho.png`, `22-limite-dentes.png`: um traço largo que só muda a região da ferramenta.
+- `ui-limite-*.png`, `ui-celular-limite*.png`: busca com o aviso dos 6 MB, interruptor, traço fora, foto
+  em grupo e boca fechada.
 
 Os anéis destas imagens vêm do detector real: o retrato procedural basta para ele. A borda e o pescoço
 foram ajustados em fotos reais de domínio público, que ficaram fora do repositório.

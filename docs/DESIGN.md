@@ -102,6 +102,27 @@ Duas comparações, cada uma com uma pergunta:
 Tocar divide a foto, segurar mostra o antes. A divisão fica enquanto a pessoa experimenta outros
 filtros, para comparar sem perder o lugar. Ela nasce no centro da foto, não da tela, e não sai dela.
 
+## Marca do pincel
+
+A foto mostra sempre o resultado real. A marca laranja de onde se pintou é uma opção, com interruptor
+rotulado no painel e tecla `M`. Ligada, ela cobre o resultado, então a própria foto avisa e oferece
+"Ver o resultado", o que vale também com o painel recolhido no celular. Cada ferramenta abre com a marca
+desligada.
+
+## Olhos e dentes
+
+Cor dos olhos, Olho vermelho, Brilho no olhar, Branco do olho e Dentes ficam na sua região, em todos os
+rostos achados.
+
+- **Primeira vez.** Ao abrir a ferramenta, o cartão de progresso aparece no topo do painel com o aviso dos
+  6 MB. O traço espera e um aviso explica. "Pintar livre" pula a espera.
+- **Interruptor.** "Só na íris", "Só no branco do olho" ou "Só nos dentes". Desligado vale para aquela
+  ferramenta enquanto a foto estiver aberta.
+- **Traço fora.** A parte de fora some sem erro. Se o traço inteiro cair fora, um aviso aponta o
+  interruptor e "Procurar mais rostos" aparece, para o rosto que a primeira busca deixou de lado.
+- **Nada a limitar.** Sem rosto, sem dentes à mostra ou sem detector, o painel diz o motivo e o pincel fica
+  livre.
+
 ## Filtro em um rosto
 
 Depois de escolher um filtro, o painel pergunta onde ele vale: "Foto toda" ou "Escolher rosto".

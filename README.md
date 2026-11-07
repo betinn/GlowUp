@@ -4,9 +4,10 @@ Editor de retoque de fotos que roda inteiro no navegador. Pincéis manuais, ajus
 e exportação em resolução total, tudo processado na GPU do aparelho de quem usa.
 
 - **Nada sai do aparelho.** Não há backend, API nem upload. O servidor só entrega arquivos estáticos.
-- **IA só para achar rostos, no seu aparelho.** Quando você pede para aplicar um filtro em um rosto,
-  um detector roda no navegador e diz onde há rostos. Ele nunca diz quem é a pessoa, e nada disso é
-  salvo. O resto é processamento de imagem clássico em shaders.
+- **IA só para achar rostos, no seu aparelho.** Quando você aplica um filtro em um rosto, ou abre uma
+  ferramenta de olhos ou de dentes, um detector roda no navegador e diz onde estão rostos, olhos e
+  bocas. Ele nunca diz quem é a pessoa, e nada disso é salvo: quem pinta é você. O resto é processamento
+  de imagem clássico em shaders.
 - **Não destrutivo.** A original fica intacta. Cada edição é uma operação que pode ser desfeita,
   ajustada ou apagada.
 
@@ -46,8 +47,12 @@ profundidade), sardas procedurais.
 antes/depois (segurar ou dividir, com a foto original ou só sem o filtro), exportação em JPG, PNG e WebP.
 
 Um filtro vale para a foto toda ou para um rosto escolhido: um anel aparece em cada rosto, um toque
-escolhe, e pincel e borracha acertam a área. Sem rosto na foto, a área é pintada à mão. O detector
-baixa só na primeira vez que alguém pede, cerca de 6 MB, do próprio site.
+escolhe, e pincel e borracha acertam a área. Sem rosto na foto, a área é pintada à mão.
+
+As ferramentas de olhos e de dentes ficam onde devem: o traço só marca a íris, o branco do olho ou os
+dentes, em todos os rostos achados, e um interruptor libera o pincel. Se o detector não acha rosto, a
+boca está fechada ou o download falha, o pincel fica livre. O detector baixa só na primeira vez que
+alguém abre uma dessas ferramentas ou escolhe um rosto, cerca de 6 MB, do próprio site.
 
 Solte a foto em qualquer lugar da tela, inclusive no editor. Abrir e exportar mostram a porcentagem e o
 passo atual, com a própria foto revelando na tela.
@@ -97,7 +102,7 @@ passo atual, com a própria foto revelando na tela.
 | `src/core/pipeline` | contextos de render, cadeia de estágios, pull-push |
 | `src/core/history` | pilha de desfazer e codec de tiles |
 | `src/core` | documento, geometria, pincel, máscaras, exportação, projetos |
-| `src/core/face` | busca de rostos em tiles, máscara do rosto e detector carregado sob demanda |
+| `src/core/face` | busca de rostos em tiles, máscara do rosto, limites de olhos e dentes e detector carregado sob demanda |
 | `src/tools/<ferramenta>` | shader, lógica e painel de cada ferramenta, carregados sob demanda |
 | `src/presets` | LUTs procedurais, receitas e miniaturas |
 | `src/ui` | interface em Svelte |

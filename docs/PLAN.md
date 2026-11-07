@@ -79,6 +79,14 @@
 - [x] Pincel, borracha e borda sobre a máscara, e pintura à mão quando não há rosto
 - [x] Máscara no develop, com liquify, comparação, zoom, exportação e projeto salvo
 
+## M12. Olhos e dentes pelo detector
+
+- [x] Clarear dividido em Dentes, em Make, e Branco do olho, em Olhos
+- [x] Marca do pincel como opção, com estado claro, e foto sempre com o resultado real
+- [x] Traço limitado à íris, ao branco do olho ou aos dentes, em todos os rostos achados
+- [x] Pincel livre sem rosto, sem região, sem detector ou pelo interruptor
+- [x] Nada do rosto no projeto salvo
+
 ## Metas medidas
 
 Foto gerada de 12 MP (4000 x 3000), Chromium com aceleração, em uma placa dedicada (`node scripts/perf.mjs`):
@@ -130,3 +138,28 @@ contados a olho.
 Rosto de perfil, de costas ou olhando para baixo escapa. Nesses casos a pessoa pinta a área. Abaixo de
 cerca de 1,2% do lado maior o rosto também escapa, por limite do tile mais fino. O total de fotos é
 pequeno e a amostra de tons de pele também: isto é um teste de fumaça, não uma medida de precisão.
+
+### Limite de olhos e dentes
+
+Mesmas fotos da tabela acima, com a aceleração da GPU, em foto já aberta. Primeira ferramenta inclui ligar
+o detector, sem o download. As seguintes reaproveitam a busca.
+
+| Foto | Primeira ferramenta pronta | Próximas ferramentas |
+| --- | --- | --- |
+| Retrato, 1 pessoa, 2400 x 3000 | 1,2 s | menos de 0,1 s |
+| Equipe, 6 pessoas, 4000 x 3200 | 2,3 s | cerca de 0,1 s |
+| Grupo, 23 pessoas, 8411 x 4731 | 3,7 s | menos de 0,1 s |
+
+Montar os três limites de uma foto levou de 17 a 81 ms. A primeira visita continua com 27,3 KB de JS em
+gzip, e o detector continua fora do precache.
+
+| O que foi olhado | Resultado |
+| --- | --- |
+| Olho e íris no lugar, 65 rostos a olho | 59 certos |
+| Contorno interno dos lábios, 45 sorrisos | mais de 20% dos dentes de fora em 9 |
+| Contorno levado 40% rumo ao externo, os mesmos 45 | mais de 20% dos dentes de fora em 5 |
+| Bocas com abertura abaixo de 3%, 20 olhadas | nenhum dente à mostra |
+
+A cobertura dos dentes usa uma estimativa por brilho e cor, não um contorno feito à mão. Rosto muito virado
+leva o contorno do olho mais distante para fora do lugar. Isto também é teste de fumaça, com poucas fotos e
+poucos tons de pele.
