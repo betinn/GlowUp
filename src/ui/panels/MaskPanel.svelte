@@ -29,6 +29,9 @@
     e.commit();
   }
 
+  /** The automatic mode has no brush: the detector draws the mask. */
+  const brushShown = $derived(!toolLimit.region || toolLimit.mode === 'manual');
+
   function visible(key: string) {
     return !(layer === 'hair' && key === 'color' && state?.params.mode !== 'color');
   }
@@ -37,7 +40,7 @@
 {#if state}
   <!-- First in the panel: on a phone it is short, and this says where the brush stands. -->
   {#if toolLimit.region}
-    <RegionLimit />
+    <RegionLimit {layer} />
   {/if}
   {#each tool.controls as c (c.key)}
     {#if visible(c.key)}
@@ -61,12 +64,14 @@
     {/if}
   {/each}
 
-  <hr />
-  <BrushControls />
+  {#if brushShown}
+    <hr />
+    <BrushControls />
+  {/if}
 
   {#if state.painted}
     <button type="button" class="clear" onclick={() => e.clearLayer(layer).then(bump)}>
-      <Icon name="trash" size={18} /> Apagar o que pintei
+      <Icon name="trash" size={18} /> {brushShown ? 'Apagar o que pintei' : 'Tirar o efeito'}
     </button>
   {/if}
 {/if}

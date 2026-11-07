@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { TOOLS } from '../../src/tools/catalog';
-import { expectNoErrors, facePoint, imageRect, meanDiff, openEditor, paint, pickTool, scribble, settle } from './helpers';
+import { expectNoErrors, facePoint, imageRect, limitSettled, meanDiff, openEditor, paint, pickTool, scribble, settle } from './helpers';
 
 /** Iris of the left eye of the fixture portrait, in its own coordinates. */
 const IRIS: [number, number] = [-0.155, -0.06];
@@ -139,7 +139,7 @@ test.describe('marca do pincel, celular', () => {
     await openEditor(page);
     await page.locator('[data-group=eyes]').tap();
     await page.locator('[data-tool=eyecolor]').tap();
-    await settle(page, 400);
+    await limitSettled(page);
     await toggle(page).tap();
     await expect(chip(page)).toBeVisible();
     await page.getByRole('button', { name: 'Recolher controles' }).tap();

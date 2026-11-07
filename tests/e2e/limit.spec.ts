@@ -175,7 +175,9 @@ test.describe('limite do pincel', () => {
     await expect(held).toBeVisible();
     expect(await canUndo(page)).toBe(false);
 
-    await expect(toggle(page)).toHaveAttribute('aria-checked', 'true', { timeout: 60_000 });
+    // The automatic mode would fill the iris: this test paints by hand.
+    await limitSettled(page);
+    await expect(toggle(page)).toHaveAttribute('aria-checked', 'true');
     await expect(toggle(page)).toContainText('Só na íris');
     expect(seen.requests.filter((u) => /\.wasm/.test(u)).length).toBe(1);
     expect(seen.requests.filter((u) => /\.task/.test(u)).length).toBe(1);

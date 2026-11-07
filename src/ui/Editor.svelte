@@ -15,8 +15,9 @@
   import Stage from './Stage.svelte';
   import { changeBrushSize, resetToolMemory, selectTool, toggleMark } from './actions';
   import { comparePress, holdCompare, toggleCompare } from './compare';
-  import { dropToolLimit, strokeOutside } from './facepick.svelte';
+  import { autoHint, dropToolLimit, strokeOutside } from './facepick.svelte';
   import { reveal, rise } from './motion';
+  import { regionShow } from './regionshow.svelte';
   import { cancelOpening, finishOpening } from './open';
   import MaskPanel from './panels/MaskPanel.svelte';
   import BrushControls from './BrushControls.svelte';
@@ -52,9 +53,26 @@
   const groupTools = $derived(TOOLS.filter((t) => t.group === ui.group));
   const canUndo = $derived((ui.rev, ready && engine().history.canUndo));
   const canRedo = $derived((ui.rev, ready && engine().history.canRedo));
-  const undoTitle = $derived(canUndo ? `Desfazer: ${engine().history.undoLabel}` : 'Desfazer');
-  const redoTitle = $derived(canRedo ? `Refazer: ${engine().history.redoLabel}` : 'Refazer');
+  // The label changes with each step, so it follows every change, not only canUndo.
+  const undoTitle = $derived((ui.rev, canUndo) ? `Desfazer: ${engine().history.undoLabel}` : 'Desfazer');
+  const redoTitle = $derived((ui.rev, canRedo) ? `Refazer: ${engine().history.redoLabel}` : 'Refazer');
+  /** For the tests, which cannot see the view itself. */
+  const zoom = $derived((ui.rev, ready ? engine().view.zoom.toFixed(2) : '1.00'));
   const marking = $derived((ui.rev, ready && engine().showMask && engine().mode === 'mask'));
+
+  /** The words under the light stay a little longer than the light, time enough to read them. */
+  let reachNote = $state(false);
+  let reachTimer: ReturnType<typeof setTimeout> | undefined;
+  $effect(() => {
+    if (regionShow.phase !== 'glow') return;
+    reachNote = true;
+    clearTimeout(reachTimer);
+    reachTimer = setTimeout(() => (reachNote = false), 2600);
+  });
+  $effect(() => {
+    void ui.tool;
+    reachNote = false;
+  });
 
   let off: (() => void) | null = null;
 
@@ -308,7 +326,8 @@
 
 <svelte:window onkeydown={keydown} onkeyup={keyup} />
 
-<div class="editor" class:painting={ui.painting} class:ready bind:clientWidth={w} bind:clientHeight={h}>
+<div class="editor" class:painting={ui.painting} class:ready data-region-show={regionShow.phase ?? 'idle'}
+  data-zoom={zoom} bind:clientWidth={w} bind:clientHeight={h}>
   <Stage bind:canvas />
 
   {#if ready}
@@ -374,7 +393,7 @@
             {#key meta.id}
               <div in:reveal={{ duration: 340, y: 6 }}>
                 <div class="hint-row">
-                  <p class="hint">{meta.hint}</p>
+                  <p class="hint">{autoHint() ?? meta.hint}</p>
                   {#if !desktop}
                     <button type="button" class="icon-btn fold" aria-label="Recolher controles" onclick={() => (panelOpen = false)}>
                       <Icon name="close" size={18} />
@@ -412,6 +431,10 @@
       <span>Marca do pincel ligada</span>
       <button type="button" onclick={toggleMark}>Ver o resultado</button>
     </div>
+  {/if}
+
+  {#if reachNote && !marking}
+    <div class="reach" role="status" data-testid="reach-chip" in:reveal={{ duration: 200, y: -6 }}>O brilho mostra onde o pincel alcança</div>
   {/if}
 
   {#if ui.busy}
@@ -703,6 +726,22 @@
     font-size: 13px;
     white-space: nowrap;
     transition: opacity var(--t-mid) var(--ease-swift);
+  }
+
+  .reach {
+    position: absolute;
+    left: 50%;
+    top: calc(var(--bar-h) + var(--safe-top) + 10px);
+    translate: -50% 0;
+    z-index: 15;
+    padding: 9px 14px;
+    border-radius: 999px;
+    background: rgb(11 11 12 / 0.82);
+    border: 1px solid rgb(219 240 255 / 0.7);
+    color: rgb(225 242 255);
+    font-size: 13px;
+    white-space: nowrap;
+    pointer-events: none;
   }
 
   .marking button {
