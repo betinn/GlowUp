@@ -134,6 +134,7 @@ export class MaskStore implements MaskProvider {
   }
 
   private async readTiles(src: Tex, tracker: TileTracker): Promise<MaskTile[]> {
+    if (tracker.empty) return [];
     // Tiles go past the stroke itself, so the read must cover them whole.
     const b = tracker.tileBounds;
     const { data, channels } = await this.glc.readAsync(src, b);
