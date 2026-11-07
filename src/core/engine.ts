@@ -21,6 +21,9 @@ export const HEAL_MASK = 'heal' as unknown as LayerId;
 
 export type ToolMode = 'none' | 'mask' | 'heal' | 'liquify';
 
+/** What the before side of the comparison shows. */
+export type CompareBase = 'original' | 'unfiltered';
+
 /** What the liquify module provides once loaded. */
 export interface FieldController {
   tex: Tex;
@@ -84,11 +87,14 @@ export class Engine {
   cropEditing = false;
   /** -1 off, 0..1 split position over the canvas, 2 full before. */
   split = -1;
+  compareBase: CompareBase = 'original';
 
   private readonly emptyField: Tex;
   /** Full-detail render of the visible area, used when zoomed past the preview resolution. */
   private roi: { ctx: RenderContext; key: string } | null = null;
   private roiTimer: ReturnType<typeof setTimeout> | null = null;
+  /** True while the unfiltered buffer matches the document. */
+  private unfilteredFresh = false;
   private frame = 0;
   private needsRender = false;
   private stroke: {
@@ -173,6 +179,8 @@ export class Engine {
     this.mode = 'none';
     this.activeLayer = null;
     this.split = -1;
+    this.compareBase = 'original';
+    this.unfilteredFresh = false;
     this.loadedLut = null;
     this.cropEditing = false;
   }
@@ -558,7 +566,7 @@ export class Engine {
   private async finishHeal(dabs: HealOp['dabs'], tap: boolean): Promise<void> {
     const { heal, ctx, masks } = this;
     if (!heal || !ctx || !masks || dabs.length === 0) return;
-    this.emit('busy', 'Revelando…');
+    this.emit('busy', 'Acertando a mancha…');
     const op = await heal.commit(ctx, dabs, this.brush.hardness, tap);
     masks.clear(HEAL_MASK);
     this.glc.drainPool();
@@ -650,6 +658,16 @@ export class Engine {
     this.requestRender();
   }
 
+  /** Chooses the before side. The unfiltered frame costs one more buffer, so it exists only while in use. */
+  setCompareBase(base: CompareBase): void {
+    if (this.compareBase === base) return;
+    this.compareBase = base;
+    this.unfilteredFresh = false;
+    this.dropRoi();
+    if (base === 'original') this.ctx?.dropSlot('unfiltered');
+    this.requestRender();
+  }
+
   setCropEditing(on: boolean): void {
     this.cropEditing = on;
     this.view = fitView();
@@ -672,8 +690,15 @@ export class Engine {
     const { ctx, pipeline, masks } = this;
     if (!ctx || !pipeline || !masks || this.exporting) return;
     const { dirty } = ctx;
-    if (dirty.healed || dirty.prefix || dirty.local || dirty.global) this.dropRoi();
+    if (dirty.healed || dirty.prefix || dirty.local || dirty.global) {
+      this.dropRoi();
+      this.unfilteredFresh = false;
+    }
     pipeline.update(ctx, this.doc);
+    if (this.compareBase === 'unfiltered' && !this.unfilteredFresh) {
+      pipeline.renderUnfiltered(ctx, this.doc);
+      this.unfilteredFresh = true;
+    }
     this.drawView(ctx, masks);
     if (this.roiTimer) clearTimeout(this.roiTimer);
     this.roiTimer = setTimeout(() => this.refreshRoi(), 220);
@@ -738,6 +763,7 @@ export class Engine {
     const active = pipeline.active;
     pipeline.active = null;
     pipeline.update(roi, doc);
+    if (this.compareBase === 'unfiltered') pipeline.renderUnfiltered(roi, doc);
     pipeline.active = active;
     this.roi = { ctx: roi, key };
     this.drawView(ctx, masks);
@@ -754,12 +780,13 @@ export class Engine {
     const healing = this.mode === 'heal' && !!this.stroke;
     const showOverlay = !!overlay && (healing || (this.showMask && this.mode === 'mask'));
     const hasField = doc.hasField && !!this.field;
+    const before = (c: RenderContext) => (this.compareBase === 'unfiltered' ? c.slot('unfiltered') : c.source);
     glc.run(
       glc.program(shader(VIEW_FRAG)),
       null,
       {
         uFinal: ctx.slot('final'),
-        uBefore: ctx.source,
+        uBefore: before(ctx),
         uOverlay: overlay ?? ctx.source,
         uField: hasField ? this.field!.tex : this.emptyField,
         uCanvas: [vp.w, vp.h],
@@ -776,7 +803,7 @@ export class Engine {
         uRoiOn: !!this.roi,
         uRoi: this.roi?.ctx.regionUv ?? [0, 0, 1, 1],
         uRoiFinal: this.roi?.ctx.slot('final') ?? ctx.source,
-        uRoiBefore: this.roi?.ctx.source ?? ctx.source,
+        uRoiBefore: this.roi ? before(this.roi.ctx) : ctx.source,
       },
       null,
     );

@@ -4,12 +4,6 @@ import { openEditor, paint, pickTool, scribble, setSlider, settle } from './help
 const shot = (name: string) => `docs/visual-checks/ui-${name}.png`;
 
 test.describe('telas, desktop', () => {
-  test('inicial', async ({ page }) => {
-    await page.goto('/');
-    await settle(page, 1500);
-    await page.screenshot({ path: shot('inicial') });
-  });
-
   test('onboarding', async ({ page }) => {
     await page.goto('/');
     await page.setInputFiles('[data-testid=file-input]', 'tests/fixtures/portrait.png');
@@ -71,12 +65,6 @@ test.describe('telas, desktop', () => {
 
 test.describe('telas, celular', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
-
-  test('inicial', async ({ page }) => {
-    await page.goto('/');
-    await settle(page, 1500);
-    await page.screenshot({ path: shot('celular-inicial') });
-  });
 
   test('editor', async ({ page }) => {
     await openEditor(page);

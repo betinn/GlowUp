@@ -4,7 +4,8 @@ Imagens geradas por `npm run e2e` sobre um retrato procedural (`scripts/make-fix
 de propósito manchas, olheiras, olho vermelho e dentes amarelados. Nenhuma pessoa real.
 
 - `NN-*.png`: antes e depois de cada ferramenta.
-- `ui-*.png`: telas da interface no desktop e no celular.
+- `ui-*.png`: telas da interface no desktop e no celular, incluindo soltar a foto (`ui-soltar*`),
+  progresso (`ui-abrindo`, `ui-exportando`, `ui-exportado`) e comparação de filtro (`*filtro-comparar`).
 
 O retrato é sintético, então estas imagens mostram o comportamento de cada ferramenta, não a aparência
 final em uma foto real. Os traços vêm de um script: pequenos excessos de tinta fora dos lábios ou do

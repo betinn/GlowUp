@@ -17,7 +17,7 @@ export interface DirtyFlags {
   global: boolean;
 }
 
-type Slot = 'healed' | 'checkpoint' | 'retouched' | 'dev' | 'final' | 'a' | 'b';
+type Slot = 'healed' | 'checkpoint' | 'retouched' | 'dev' | 'final' | 'unfiltered' | 'a' | 'b';
 
 /**
  * Buffers for one rendering of the document at one resolution.
@@ -71,6 +71,13 @@ export class RenderContext {
       this.slots.set(name, t);
     }
     return t;
+  }
+
+  /** Frees a buffer that is only needed for a while. */
+  dropSlot(name: Slot): void {
+    const t = this.slots.get(name);
+    if (t) this.glc.destroyTex(t);
+    this.slots.delete(name);
   }
 
   /** Reusable cache slot for tool helpers. Destroys the previous textures on a new key. */

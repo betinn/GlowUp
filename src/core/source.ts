@@ -3,6 +3,21 @@ import type { GLContext, Tex } from './gl/context';
 /** Largest side accepted for one decoded image. Bigger files are refused with a friendly message. */
 export const MAX_SOURCE_SIDE = 16384;
 
+/** Reads a file with real byte counts, which matter when it comes from a cloud drive or a slow card. */
+export async function readFile(file: File, onProgress: (fraction: number) => void): Promise<Blob> {
+  const reader = file.stream().getReader();
+  const chunks: Uint8Array<ArrayBuffer>[] = [];
+  let received = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    received += value.byteLength;
+    onProgress(received / Math.max(file.size, 1));
+  }
+  return new Blob(chunks, { type: file.type });
+}
+
 /** The original photo, kept untouched. Decoded once; regions are read on demand. */
 export class SourceImage {
   private constructor(

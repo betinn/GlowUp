@@ -41,7 +41,10 @@ profundidade), sardas procedurais.
 
 **Geral:** 40 filtros em 10 categorias com intensidade e favoritos, receitas prontas e suas,
 11 ajustes, desfoque radial e tilt-shift, recorte com rotação, espelho, endireitar e proporções,
-antes/depois (segurar ou dividir), exportação em JPG, PNG e WebP.
+antes/depois (segurar ou dividir, com a foto original ou só sem o filtro), exportação em JPG, PNG e WebP.
+
+Solte a foto em qualquer lugar da tela, inclusive no editor. Abrir e exportar mostram a porcentagem e o
+passo atual, com a própria foto revelando na tela.
 
 ## Atalhos
 

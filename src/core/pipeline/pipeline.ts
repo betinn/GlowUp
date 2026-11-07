@@ -177,7 +177,15 @@ export class Pipeline {
     }
   }
 
-  private develop(ctx: RenderContext, doc: EditDoc, rect: Rect | null): void {
+  /**
+   * The current frame without the filter, for the before side of the filters panel. Reuses the
+   * develop buffer: a later partial update only reads what it rewrites.
+   */
+  renderUnfiltered(ctx: RenderContext, doc: EditDoc): void {
+    this.develop(ctx, doc, null, ctx.slot('unfiltered'), 0);
+  }
+
+  private develop(ctx: RenderContext, doc: EditDoc, rect: Rect | null, target = ctx.slot('final'), lutMix = doc.filter.id ? this.lutMix : 0): void {
     const { glc } = this;
     const a = doc.adjust;
     const dev = ctx.slot('dev');
@@ -203,7 +211,7 @@ export class Pipeline {
         uVibrance: a.vibrance / 100,
         uSharpen: a.sharpen / 100,
         uSharpenRadius: Math.max(0.75, ctx.longSide / 2400),
-        uLutMix: doc.filter.id ? this.lutMix : 0,
+        uLutMix: lutMix,
         uLutSize: this.lut.size,
       },
       rect,
@@ -217,7 +225,7 @@ export class Pipeline {
     const toOutput = imageToOutput(doc.crop, doc.width, doc.height);
     glc.run(
       glc.program(shader(FINISH_FRAG)),
-      ctx.slot('final'),
+      target,
       {
         uInput: dev,
         uRegion: ctx.regionUv,

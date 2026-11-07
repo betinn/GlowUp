@@ -1,12 +1,14 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onDestroy, onMount, tick } from 'svelte';
   import { canEncode, exportImage, type ExportFormat } from '../core/export';
   import { outputSize } from '../core/geometry';
   import Icon from './Icon.svelte';
+  import ProgressCard from './ProgressCard.svelte';
   import Segment from './Segment.svelte';
   import Slider from './Slider.svelte';
   import { reveal, rise } from './motion';
   import { engine, ui } from './state.svelte';
+  import { Task } from './task.svelte';
 
   const e = engine();
   const size = outputSize(e.doc.crop);
@@ -20,11 +22,18 @@
   let format = $state<ExportFormat>('image/jpeg');
   let quality = $state(92);
   let available = $state(FORMATS.slice(0, 2));
-  let progress = $state(-1);
+  let job = $state<Task | null>(null);
   let done = $state<{ file: File; ms: number } | null>(null);
   let failed = $state(false);
+  let preview = $state<HTMLCanvasElement>();
 
-  const running = $derived(progress >= 0 && !done);
+  /** Long side of the miniature that fills up while exporting. */
+  const PREVIEW_SIDE = 300;
+  const previewScale = PREVIEW_SIDE / Math.max(size.w, size.h);
+  const previewW = Math.round(size.w * previewScale);
+  const previewH = Math.round(size.h * previewScale);
+
+  const running = $derived(!!job && !done);
   const canShare = $derived(!!done && !!navigator.canShare?.({ files: [done.file] }));
 
   onMount(async () => {
@@ -40,23 +49,59 @@
     setTimeout(() => URL.revokeObjectURL(url), 60_000);
   }
 
+  /** Starts the miniature with a dim copy of what is on screen. Finished tiles light it up. */
+  function seedPreview(c: CanvasRenderingContext2D) {
+    e.renderNow();
+    const [x0, y0] = e.outputToCss(0, 0);
+    const [x1, y1] = e.outputToCss(1, 1);
+    const k = e.dpr;
+    c.fillStyle = '#1d1d20';
+    c.fillRect(0, 0, previewW, previewH);
+    c.globalAlpha = 0.3;
+    c.drawImage(e.canvas, x0 * k, y0 * k, (x1 - x0) * k, (y1 - y0) * k, 0, 0, previewW, previewH);
+    c.globalAlpha = 1;
+  }
+
   async function start() {
+    const { label, ext } = FORMATS.find((f) => f.value === format)!;
+    const megapixels = (size.w * size.h) / 1e6;
+    const task = new Task([
+      { id: 'tiles', label: 'Aplicando seus retoques', weight: 78 },
+      { id: 'encode', label: `Comprimindo em ${label}`, weight: 22, estimate: 150 + megapixels * (format === 'image/png' ? 160 : 50) },
+    ]);
     failed = false;
     done = null;
-    progress = 0;
+    job = task;
+    task.stage('tiles');
+    await tick();
+    const c = preview?.getContext('2d') ?? null;
+    if (c) seedPreview(c);
     const started = performance.now();
     try {
-      const blob = await exportImage(e, { format, quality: quality / 100 }, (f) => (progress = f));
-      const ext = FORMATS.find((f) => f.value === format)!.ext;
+      const blob = await exportImage(
+        e,
+        { format, quality: quality / 100 },
+        {
+          tile(n, total, canvas, r) {
+            task.report(n / total, total > 1 ? `parte ${n} de ${total}` : '');
+            c?.drawImage(canvas, r.x, r.y, r.w, r.h, r.x * previewScale, r.y * previewScale, r.w * previewScale, r.h * previewScale);
+          },
+          encoding: () => task.stage('encode'),
+        },
+      );
       const file = new File([blob], `glowup-${Date.now().toString(36)}.${ext}`, { type: format });
+      task.finish('Pronta');
       done = { file, ms: performance.now() - started };
       save(file);
     } catch (err) {
       console.error(err);
+      task.stop();
       failed = true;
-      progress = -1;
+      job = null;
     }
   }
+
+  onDestroy(() => job?.stop());
 
   const close = () => {
     if (!running) ui.exportOpen = false;
@@ -72,7 +117,15 @@
     <button type="button" class="icon-btn" aria-label="Fechar" onclick={close} disabled={running}><Icon name="close" /></button>
   </div>
 
-  {#if done}
+  {#if job}
+    <div class="print">
+      <canvas bind:this={preview} width={previewW} height={previewH} data-testid="export-preview"></canvas>
+    </div>
+  {/if}
+
+  {#if job && !done}
+    <ProgressCard task={job} title="Exportando a foto" note="{size.w} × {size.h} px, resolução total. Pode deixar a aba aberta." />
+  {:else if done}
     <div class="done" in:reveal>
       <p class="serif big">Prontinho. Tá na sua pasta.</p>
       <p class="meta">
@@ -95,14 +148,7 @@
     {#if failed}
       <p class="meta error" role="alert">Não deu certo dessa vez. Tenta de novo, ou tenta PNG ou JPG.</p>
     {/if}
-    <button type="button" class="btn primary wide" data-testid="export-go" onclick={start} disabled={running}>
-      {#if running}
-        <span class="bar" style:--p={progress}></span>
-        <span class="label">Revelando… {Math.round(progress * 100)}%</span>
-      {:else}
-        Salvar no aparelho
-      {/if}
-    </button>
+    <button type="button" class="btn primary wide" data-testid="export-go" onclick={start}>Salvar no aparelho</button>
   {/if}
 </div>
 
@@ -159,23 +205,24 @@
   }
 
   .wide {
-    position: relative;
     width: 100%;
-    overflow: hidden;
     min-height: 50px;
   }
 
-  .bar {
-    position: absolute;
-    inset: 0;
-    background: var(--safe);
-    transform-origin: left;
-    transform: scaleX(var(--p));
-    transition: transform var(--t-mid) var(--ease-swift);
+  .print {
+    display: grid;
+    grid-template: 100% / 100%;
+    place-items: center;
+    height: min(240px, 34dvh);
+    margin: 6px 0 16px;
   }
 
-  .label {
-    position: relative;
+  canvas {
+    display: block;
+    max-width: 100%;
+    max-height: 100%;
+    border-radius: 4px;
+    box-shadow: 0 0 0 1px var(--line);
   }
 
   .big {

@@ -5,9 +5,11 @@
  */
 
 import type { Engine } from './engine';
+import type { Rect } from './gl/context';
 import { outputSize, outputToImage, sourceBounds } from './geometry';
 import { RenderContext } from './pipeline/context';
 import { shader } from './pipeline/pipeline';
+import { nextPaint } from './progress';
 import EXPORT_FRAG from './shaders/export.frag?raw';
 
 export type ExportFormat = 'image/jpeg' | 'image/png' | 'image/webp';
@@ -18,8 +20,14 @@ export interface ExportOptions {
   quality: number;
 }
 
+export interface ExportEvents {
+  /** A tile is finished. `canvas` holds the photo so far, and `rect` is the part that just arrived. */
+  tile(done: number, total: number, canvas: OffscreenCanvas, rect: Rect): void;
+  /** All tiles are done and the file is being compressed. */
+  encoding(): void;
+}
+
 const ALIGN = 256;
-const yieldToUi = () => new Promise<void>((r) => setTimeout(r));
 
 function tileSide(): number {
   // Tests force small tiles to prove that the result does not depend on the tile grid.
@@ -31,7 +39,7 @@ function tileSide(): number {
 export async function exportImage(
   engine: Engine,
   options: ExportOptions,
-  onProgress: (fraction: number) => void,
+  events: ExportEvents,
 ): Promise<Blob> {
   const { glc, doc, source, pipeline } = engine;
   if (!source || !pipeline) throw new Error('no-image');
@@ -94,8 +102,8 @@ export async function exportImage(
         glc.release(tile);
         ctx.destroy();
 
-        onProgress((r * cols + c + 1) / (rows * cols) * 0.8);
-        await yieldToUi();
+        events.tile(r * cols + c + 1, rows * cols, canvas, { x: px, y: py, w: tw, h: th });
+        await nextPaint();
       }
     }
   } finally {
@@ -106,9 +114,9 @@ export async function exportImage(
     engine.requestRender();
   }
 
-  const blob = await canvas.convertToBlob({ type: options.format, quality: options.quality });
-  onProgress(1);
-  return blob;
+  events.encoding();
+  await nextPaint();
+  return canvas.convertToBlob({ type: options.format, quality: options.quality });
 }
 
 /** True when this browser can really encode the format. */

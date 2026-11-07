@@ -3,6 +3,7 @@
   import { setFilter, syncFilter } from '../../presets/apply';
   import { LUT_CATEGORIES, LUTS, type LutRecipe } from '../../presets/luts';
   import { ThumbRenderer } from '../../presets/thumbs';
+  import { comparePress } from '../compare';
   import Icon from '../Icon.svelte';
   import Slider from '../Slider.svelte';
   import { bump, engine, prefs, ui } from '../state.svelte';
@@ -18,7 +19,22 @@
     LUTS.filter((l) => (category === 'Todos' ? true : category === 'Favoritos' ? favorites.includes(l.id) : l.category === category)),
   );
 
+  const comparing = $derived((ui.splitOn || ui.compareHold) && ui.compareScope === 'filter');
+
+  /** The labels on the divider follow the chosen filter, and without a filter there is nothing to compare. */
+  $effect(() => {
+    ui.filterName = LUTS.find((l) => l.id === filter.id)?.name ?? '';
+    if (!filter.id && ui.compareScope === 'filter') closeCompare();
+  });
+
+  function closeCompare() {
+    ui.splitOn = false;
+    ui.compareHold = false;
+    ui.compareScope = 'all';
+  }
+
   const thumbs = new ThumbRenderer(e);
+  let rendered = $state<Record<string, boolean>>({});
   const pending = new Map<string, HTMLCanvasElement>();
   let queue = Promise.resolve();
   let alive = true;
@@ -29,6 +45,7 @@
     queue = queue.then(async () => {
       if (!alive) return;
       await thumbs.render(recipe, canvas);
+      rendered[recipe.id] = true;
       await new Promise((r) => setTimeout(r));
     });
   }
@@ -38,6 +55,7 @@
   onDestroy(() => {
     alive = false;
     void queue.then(() => thumbs.destroy());
+    if (ui.compareScope === 'filter') closeCompare();
   });
 
   async function pick(id: string) {
@@ -59,6 +77,13 @@
 </div>
 
 {#if filter.id}
+  <div class="compare">
+    <button type="button" class="btn" class:on={comparing} aria-pressed={comparing} data-testid="compare-filter" use:comparePress={'filter'}>
+      <Icon name="compare" size={20} />
+      Comparar sem filtro
+    </button>
+    <span class="tip">Toque divide a foto. Segure para ver sem o filtro.</span>
+  </div>
   <Slider
     label="Intensidade"
     value={filter.intensity * 100}
@@ -75,7 +100,7 @@
   {#each visible as l (l.id)}
     <div class="item" class:on={filter.id === l.id}>
       <button type="button" class="pick" aria-pressed={filter.id === l.id} data-filter={l.id} onclick={() => pick(l.id)}>
-        <canvas use:thumb={l} width="104" height="104"></canvas>
+        <canvas use:thumb={l} class:ready={rendered[l.id]} width="104" height="104"></canvas>
         <span>{l.name}</span>
       </button>
       <button
@@ -113,6 +138,30 @@
     color: var(--safe);
   }
 
+  .compare {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+
+  .compare .btn {
+    flex: none;
+    font-size: 14px;
+    touch-action: none;
+  }
+
+  .compare .btn.on {
+    color: var(--safe);
+    border-color: var(--safe);
+  }
+
+  .tip {
+    font-size: 12px;
+    line-height: 1.25;
+    color: var(--paper-2);
+  }
+
   .grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
@@ -139,9 +188,31 @@
     border-radius: 12px;
     background: var(--ink-3);
     margin-bottom: 4px;
+    animation: waiting 1.1s ease-in-out infinite alternate;
     transition:
       transform var(--t-mid) var(--ease-reveal),
       box-shadow var(--t-mid) var(--ease-reveal);
+  }
+
+  /* Until its miniature is ready a filter breathes, then it develops like everything else. */
+  canvas.ready {
+    animation: develop var(--t-slow) var(--ease-reveal);
+  }
+
+  @keyframes waiting {
+    from {
+      opacity: 0.35;
+    }
+    to {
+      opacity: 0.8;
+    }
+  }
+
+  @keyframes develop {
+    from {
+      opacity: 0.35;
+      filter: blur(5px) brightness(0.6);
+    }
   }
 
   .pick:hover canvas {

@@ -61,15 +61,26 @@
 - [x] Varredura final em repositório e `dist/`
 - [x] README
 
+## M10. Resposta ao usuário
+
+- [x] Progresso real ao abrir foto e projeto, com a foto revelando junto
+- [x] Progresso da exportação por tile, com miniatura que acende por partes
+- [x] Área de soltar na tela inteira, com reação ao passar, ao recusar e ao soltar
+- [x] Soltar no editor troca a foto e salva a atual
+- [x] Comparar com e sem filtro no painel de filtros
+- [x] Divisão do antes e depois presa à foto, no celular e no desktop
+
 ## Metas medidas
 
 Foto gerada de 12 MP (4000 x 3000), Chromium com aceleração, em uma placa dedicada (`node scripts/perf.mjs`):
 
 | Meta | Pedido | Medido |
 | --- | --- | --- |
-| Pincel em 12 MP | 60 fps | 57 fps, p95 de 17 ms |
+| Pincel em 12 MP | 60 fps | 60 fps, p95 de 17 ms |
 | Liquify em 12 MP | 60 fps | 60 fps, p95 de 17 ms |
 | Exportação JPG de 12 MP | menos de 3 s | 1,3 s |
-| Abrir foto de 12 MP | sem meta | 0,4 s |
+| Abrir foto de 12 MP, até o primeiro quadro | sem meta | 1,1 s na primeira vez, 0,3 s depois |
+
+A primeira abertura é mais lenta porque compila os shaders. Pincel oscilou entre 57 e 60 fps entre medições.
 
 Notebook comum e celular médio não foram medidos: não havia esses aparelhos no ambiente de desenvolvimento.

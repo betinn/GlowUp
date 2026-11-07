@@ -8,6 +8,7 @@ export async function openEditor(page: Page, fixture = 'portrait.png'): Promise<
   await page.goto('/');
   await page.setInputFiles('[data-testid=file-input]', `tests/fixtures/${fixture}`);
   await page.locator('[data-group=skin]').waitFor({ timeout: 90_000 });
+  await expect(page.getByTestId('opening')).toHaveCount(0);
   await settle(page);
 }
 

@@ -61,6 +61,47 @@ Regras:
 - O antes/depois entra com uma cortina que atravessa a foto uma vez e para no meio.
 - `prefers-reduced-motion`: revelações viram fade curto, sem deslocamento nem desfoque.
 
+## Espera
+
+Quem espera precisa saber três coisas: que está andando, quanto falta e que a foto está segura.
+
+- **Abrir.** A foto aparece na hora, escura e desfocada, e revela junto com a porcentagem. Isso é a
+  revelação levada ao pé da letra: o progresso é a própria imagem assentando no banho.
+- **Exportar.** Uma miniatura começa apagada e acende parte por parte, conforme cada tile fica pronto.
+  O que aparece é o resultado real, não uma animação.
+- **Barra.** Linha de 3px em âmbar com uma faísca na ponta. O brilho que corre dentro dela continua
+  mesmo quando um passo demora: é o sinal de que nada travou. A faísca é o único brilho da interface
+  e existe porque marca o que está ativo agora.
+- **Número.** Serifa grande em `tabular-nums`, ao lado do passo atual em palavras. Barra e número
+  andam juntos e nunca voltam.
+- **Tranquilizar.** "Tudo acontece aqui, no seu aparelho." Depois de 7 segundos: "Foto grande leva um
+  tempinho. Tá tudo certo."
+- **Fim.** A barra chega a 100%, um tique se desenha e a palavra "Pronta" fica um instante na tela.
+- **Trabalhos curtos**, como remover uma mancha, não merecem tela: só um aviso pequeno, e só se
+  passarem de 220 ms. Miniaturas de filtro respiram até ficarem prontas, depois revelam.
+
+## Soltar a foto
+
+A tela inteira aceita a foto, na inicial e no editor. A bandeja da tela inicial é só o convite.
+
+- **Por cima.** O fundo escurece, uma moldura âmbar se fecha nas bordas, os cantos respiram e uma luz
+  segue o ponteiro. O texto diz "Pode soltar."
+- **Arquivo errado.** A moldura perde a cor, o sinal balança e o texto avisa antes de a pessoa soltar.
+- **Soltou.** Um anel se abre no ponto exato da queda e a foto viaja de lá até o centro, onde começa a
+  revelar. Não há tela vazia entre soltar e ver a foto.
+- **No editor.** O texto muda para "Solta para trocar de foto." e a edição atual é salva antes.
+
+## Comparar
+
+Duas comparações, cada uma com uma pergunta:
+
+- O botão da barra superior responde "o que mudou desde a foto original?".
+- O botão do painel de filtros responde "o que este filtro faz?". O antes é a foto com todos os
+  retoques, só sem o filtro, e as etiquetas dizem "Sem filtro" e o nome do filtro.
+
+Tocar divide a foto, segurar mostra o antes. A divisão fica enquanto a pessoa experimenta outros
+filtros, para comparar sem perder o lugar. Ela nasce no centro da foto, não da tela, e não sai dela.
+
 ## Layout
 
 Mobile primeiro. A tela é a foto.
@@ -80,7 +121,8 @@ prefere "dar uma luz", "acertar", "deixar respirar".
 Exemplos:
 
 - Tela inicial: "Solta a foto aqui." e "Nada sai do seu aparelho. Nem um pixel."
-- Carregando: "Revelando…"
+- Abrindo: "Preparando o laboratório", "Lendo a foto", "Abrindo a foto", "Revelando", "Pronta"
+- Soltando: "Pode soltar." e "Isso não é uma foto."
 - Exportação: "Prontinho. Tá na sua pasta."
 - Erro de arquivo: "Não consegui abrir esse arquivo. Tenta um JPG, PNG ou WebP?"
 - Sem WebGL2: "Este navegador não acende a luz: falta WebGL2."

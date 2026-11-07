@@ -2,7 +2,8 @@
   import { onDestroy, onMount, tick, untrack, type Component } from 'svelte';
   import { Engine, type EngineEvents } from '../core/engine';
   import { Autosave, loadOriginal, loadProject, unpack } from '../core/project';
-  import { SourceImage } from '../core/source';
+  import { nextPaint } from '../core/progress';
+  import { readFile, SourceImage } from '../core/source';
   import type { LayerId } from '../core/doc';
   import { syncFilter } from '../presets/apply';
   import { ensureDocTools } from '../tools/activate';
@@ -13,10 +14,12 @@
   import Onboarding from './Onboarding.svelte';
   import Stage from './Stage.svelte';
   import { changeBrushSize, resetToolMemory, selectTool } from './actions';
+  import { comparePress, holdCompare, toggleCompare } from './compare';
   import { reveal, rise } from './motion';
+  import { cancelOpening, finishOpening } from './open';
   import MaskPanel from './panels/MaskPanel.svelte';
   import BrushControls from './BrushControls.svelte';
-  import { autosave, bump, engine, prefs, setAutosave, setEngine, toast, ui } from './state.svelte';
+  import { autosave, bump, clearEditorCloser, closeEditor, engine, hasEngine, prefs, setAutosave, setEditorCloser, setEngine, toast, ui } from './state.svelte';
 
   /** Panels and overlays of the non-brush tools load on demand. */
   const PANELS: Record<string, () => Promise<{ default: Component }>> = {
@@ -41,8 +44,6 @@
   let sideW = $state(0);
   let railW = $state(0);
   let barH = $state(0);
-  let holdTimer: ReturnType<typeof setTimeout> | null = null;
-  let holding = $state(false);
 
   const desktop = $derived(w >= 900);
   const meta = $derived(ui.tool ? toolById(ui.tool) : undefined);
@@ -54,20 +55,39 @@
 
   let off: (() => void) | null = null;
 
+  /** Marks a stage and lets the screen show it before the next blocking step. */
+  async function stage(id: string) {
+    ui.opening?.task.stage(id);
+    await nextPaint();
+  }
+
+  /** Draws the first frame, which also compiles the shaders. */
+  async function firstFrame(e: Engine) {
+    await stage('render');
+    e.renderNow();
+    await nextPaint();
+  }
+
   async function openPending(e: Engine) {
     const pending = ui.pending;
     ui.pending = null;
     if (pending?.projectId) {
+      await stage('read');
       const record = await loadProject(pending.projectId);
       const original = await loadOriginal(pending.projectId);
       if (!record || !original) throw new Error('project-missing');
+      await stage('decode');
       const source = await SourceImage.decode(original);
+      await stage('upload');
       await e.open(source, record.doc);
+      await stage('retouch');
       await ensureDocTools(e);
-      for (const [id, blob] of Object.entries(record.masks) as [LayerId, Blob][]) {
+      const masks = Object.entries(record.masks) as [LayerId, Blob][];
+      for (const [i, [id, blob]] of masks.entries()) {
         const bytes = await unpack(blob);
-        const masks = e.masks!;
-        if (bytes.length === masks.w * masks.h) masks.write(id, bytes);
+        const store = e.masks!;
+        if (bytes.length === store.w * store.h) store.write(id, bytes);
+        ui.opening?.task.report((i + 1) / masks.length, `${i + 1} de ${masks.length}`);
       }
       if (record.field && e.field) {
         const bytes = await unpack(record.field);
@@ -75,13 +95,18 @@
       }
       await syncFilter(e);
       e.ctx?.invalidate('healed');
-      e.requestRender();
+      await firstFrame(e);
       setAutosave(new Autosave(e, record.id, record.name, record));
       return;
     }
     if (!pending?.file) throw new Error('no-file');
-    const source = await SourceImage.decode(pending.file);
+    ui.opening?.task.stage('read');
+    const blob = await readFile(pending.file, (f) => ui.opening?.task.report(f));
+    await stage('decode');
+    const source = await SourceImage.decode(blob);
+    await stage('upload');
     await e.open(source);
+    await firstFrame(e);
     const id = `p-${Date.now().toString(36)}`;
     const a = new Autosave(e, id, pending.file.name.replace(/\.[^.]+$/, '') || 'foto');
     setAutosave(a);
@@ -89,13 +114,12 @@
   }
 
   onMount(async () => {
-    ui.busy = 'Revelando…';
     await tick();
     let e: Engine;
     try {
       e = new Engine(canvas!);
     } catch {
-      ui.busy = null;
+      cancelOpening();
       failed = 'Este navegador não acende a luz: falta WebGL2.';
       return;
     }
@@ -122,15 +146,15 @@
       await openPending(e);
       resetToolMemory();
       ready = true;
-      ui.busy = null;
       ui.group = 'skin';
       ui.tool = null;
       ui.toolModule = null;
       bump();
       if (!prefs.read('glowup.onboarded', false)) onboarding = true;
+      await finishOpening();
     } catch (err) {
       console.error(err);
-      ui.busy = null;
+      cancelOpening();
       const big = err instanceof Error && err.message === 'image-too-large';
       toast(big ? 'Essa foto é grande demais para este aparelho.' : 'Não consegui abrir esse arquivo. Tenta um JPG, PNG ou WebP?');
       await leave();
@@ -146,9 +170,12 @@
     window.removeEventListener('pagehide', saveNow);
     document.removeEventListener('visibilitychange', saveNow);
     setAutosave(null);
+    clearEditorCloser(shutDown);
     ui.tool = null;
     ui.toolModule = null;
     ui.splitOn = false;
+    ui.compareHold = false;
+    ui.compareScope = 'all';
     ui.exportOpen = false;
     ui.painting = false;
   });
@@ -169,15 +196,31 @@
     if (canvas && ready) untrack(updateViewport);
   });
 
-  async function leave() {
+  /** Sends the comparison state to the engine. */
+  $effect(() => {
+    if (!ready || !hasEngine()) return;
+    const e = engine();
+    const showing = ui.splitOn || ui.compareHold;
+    e.setCompareBase(showing && ui.compareScope === 'filter' ? 'unfiltered' : 'original');
+    e.setSplit(ui.compareHold ? 2 : ui.splitOn ? ui.splitX : -1);
+  });
+
+  async function shutDown(next: () => void) {
     if (ready) {
       engine().commit();
       await autosave()?.flush();
     }
-    if (canvas) engine()?.destroy();
+    if (hasEngine()) engine().destroy();
     setEngine(null);
-    ui.screen = 'home';
+    next();
   }
+
+  setEditorCloser(shutDown);
+
+  const leave = () =>
+    closeEditor(() => {
+      ui.screen = 'home';
+    });
 
   function pickGroup(id: GroupId) {
     ui.group = id;
@@ -193,24 +236,6 @@
     }
     panelOpen = true;
     void selectTool(id);
-  }
-
-  function compareDown() {
-    holdTimer = setTimeout(() => {
-      holding = true;
-      engine().setSplit(2);
-    }, 180);
-  }
-
-  function compareUp() {
-    if (holdTimer) clearTimeout(holdTimer);
-    holdTimer = null;
-    if (holding) {
-      holding = false;
-      engine().setSplit(ui.splitOn ? 0.5 : -1);
-    } else {
-      ui.splitOn = !ui.splitOn;
-    }
   }
 
   function keydown(ev: KeyboardEvent) {
@@ -253,9 +278,9 @@
       e.requestRender();
       bump();
     } else if (key === 'y') {
-      ui.splitOn = !ui.splitOn;
+      toggleCompare('all');
     } else if (key === '\\' && !ev.repeat) {
-      e.setSplit(2);
+      holdCompare('all');
     } else if (key === '0') {
       e.resetView();
     } else if (key === '+' || key === '=') {
@@ -270,7 +295,7 @@
   }
 
   function keyup(ev: KeyboardEvent) {
-    if (ready && ev.key === '\\') engine().setSplit(ui.splitOn ? 0.5 : -1);
+    if (ready && ev.key === '\\') ui.compareHold = false;
   }
 </script>
 
@@ -304,23 +329,12 @@
     <button
       type="button"
       class="icon-btn"
-      class:on={ui.splitOn || holding}
-      aria-label="Comparar antes e depois. Toque para dividir, segure para ver o antes"
-      aria-pressed={ui.splitOn}
+      class:on={(ui.splitOn || ui.compareHold) && ui.compareScope === 'all'}
+      aria-label="Comparar com a foto original. Toque para dividir, segure para ver o antes"
+      aria-pressed={ui.splitOn && ui.compareScope === 'all'}
       data-testid="compare"
       disabled={!ready}
-      onpointerdown={compareDown}
-      onpointerup={compareUp}
-      onpointerleave={() => {
-        if (holding) compareUp();
-        else if (holdTimer) clearTimeout(holdTimer);
-      }}
-      onkeydown={(ev) => {
-        if (ev.key === 'Enter' || ev.key === ' ') {
-          ev.preventDefault();
-          ui.splitOn = !ui.splitOn;
-        }
-      }}><Icon name="compare" /></button
+      use:comparePress={'all'}><Icon name="compare" /></button
     >
     <button type="button" class="btn primary export" data-testid="export-open" disabled={!ready} onclick={() => (ui.exportOpen = true)}>
       <Icon name="export" size={20} /><span class="label">Exportar</span>
@@ -382,7 +396,7 @@
   {/if}
 
   {#if ui.busy}
-    <div class="busy" role="status" transition:reveal={{ duration: 240 }}>
+    <div class="busy" role="status" in:reveal={{ duration: 200, delay: 220, y: -6 }}>
       <p class="serif">{ui.busy}</p>
       <span class="filament"></span>
     </div>
@@ -653,22 +667,27 @@
     }
   }
 
+  /* Short jobs get a small note, and only if they last long enough to be noticed. */
   .busy {
     position: absolute;
     left: 50%;
-    top: 50%;
-    translate: -50% -50%;
+    top: calc(var(--bar-h) + var(--safe-top) + 10px);
+    translate: -50% 0;
     z-index: 20;
+    padding: 6px 16px 8px;
+    border-radius: 16px;
+    background: rgb(11 11 12 / 0.78);
     text-align: center;
     pointer-events: none;
-    font-size: 30px;
+    font-size: 18px;
+    white-space: nowrap;
   }
 
   .filament {
     display: block;
-    width: 140px;
+    width: 100%;
     height: 1.5px;
-    margin: 12px auto 0;
+    margin-top: 4px;
     background: linear-gradient(90deg, transparent, var(--safe), transparent);
     background-size: 50% 100%;
     background-repeat: no-repeat;
