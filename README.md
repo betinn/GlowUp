@@ -54,6 +54,11 @@ dentes, em todos os rostos achados, e um interruptor libera o pincel. Se o detec
 boca está fechada ou o download falha, o pincel fica livre. O detector baixa só na primeira vez que
 alguém abre uma dessas ferramentas ou escolhe um rosto, cerca de 6 MB, do próprio site.
 
+Ao abrir uma delas, a foto aproxima dos olhos ou da boca e um brilho rápido mostra onde o pincel alcança.
+No modo Automático, que vem ligado, a ferramenta já aplica em todos os olhos ou dentes achados, numa
+etapa só que dá para desfazer, e os controles ajustam o efeito. No Manual voltam pincel e borracha, a
+partir do que o Automático fez.
+
 Solte a foto em qualquer lugar da tela, inclusive no editor. Abrir e exportar mostram a porcentagem e o
 passo atual, com a própria foto revelando na tela.
 
