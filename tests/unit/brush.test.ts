@@ -2,6 +2,20 @@ import { describe, expect, it } from 'vitest';
 import { StrokeInterpolator, TileTracker } from '../../src/core/brush';
 
 describe('stroke interpolator', () => {
+  it('holds every touched tile whole in tileBounds', () => {
+    const t = new TileTracker(300, 200, 128);
+    t.mark(140, 130, 150, 140);
+    t.mark(260, 150, 270, 160);
+    const b = t.tileBounds;
+    expect(b).toEqual({ x: 128, y: 128, w: 172, h: 72 });
+    for (const tile of t.tiles()) {
+      expect(tile.x).toBeGreaterThanOrEqual(b.x);
+      expect(tile.y).toBeGreaterThanOrEqual(b.y);
+      expect(tile.x + tile.w).toBeLessThanOrEqual(b.x + b.w);
+      expect(tile.y + tile.h).toBeLessThanOrEqual(b.y + b.h);
+    }
+  });
+
   it('starts with a dab at the first point', () => {
     const s = new StrokeInterpolator(10, 0.5);
     const dabs = s.add({ x: 5, y: 6, pressure: 1 });

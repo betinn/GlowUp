@@ -142,6 +142,19 @@ export class TileTracker {
     return { x: this.x0, y: this.y0, w: this.x1 - this.x0, h: this.y1 - this.y0 };
   }
 
+  /** Smallest rectangle that holds every touched tile whole. */
+  get tileBounds() {
+    const list = this.tiles();
+    const x = Math.min(...list.map((t) => t.x));
+    const y = Math.min(...list.map((t) => t.y));
+    return {
+      x,
+      y,
+      w: Math.max(...list.map((t) => t.x + t.w)) - x,
+      h: Math.max(...list.map((t) => t.y + t.h)) - y,
+    };
+  }
+
   /** Lists touched tiles with their pixel rectangles. */
   tiles(): { x: number; y: number; w: number; h: number }[] {
     const out = [];
