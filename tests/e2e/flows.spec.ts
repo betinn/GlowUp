@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { expectNoErrors, facePoint, imageRect, openEditor, paint, pickTool, scribble, setSlider, settle } from './helpers';
+import { expectNoErrors, facePoint, imageRect, openEditor, paint, pickTool, scribble, setSlider, settle, limitSettled } from './helpers';
 
 /** Reads width and height from PNG or JPEG bytes. */
 function imageSize(b: Buffer): { w: number; h: number; type: string } {
@@ -301,6 +301,7 @@ test.describe('celular', () => {
     await page.locator('[data-group=makeup]').tap();
     await page.locator('[data-tool=whiten]').tap();
     await expect(page.getByRole('slider', { name: 'Tirar o amarelo' })).toBeAttached();
+    await limitSettled(page);
     await settle(page, 500);
     await page.screenshot({ path: 'docs/visual-checks/ui-celular-ferramenta.png' });
     const noOverflow = await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth);

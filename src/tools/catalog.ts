@@ -1,6 +1,7 @@
 /** Static list of tools shown in the UI. Shaders and panels load on demand through `loaders`. */
 
 import type { LayerId } from '../core/doc';
+import type { FaceRegion } from '../core/face/regions';
 import type { ToolModule } from './types';
 
 export type ToolKind = 'mask' | 'heal' | 'liquify' | 'adjust' | 'filters' | 'presets' | 'blur' | 'crop';
@@ -12,6 +13,8 @@ export interface ToolMeta {
   group: GroupId;
   kind: ToolKind;
   layer?: LayerId;
+  /** Part of the face the brush stays on, when the detector finds it. */
+  region?: FaceRegion;
   hint: string;
 }
 
@@ -32,13 +35,13 @@ export const TOOLS: ToolMeta[] = [
   { id: 'skintone', label: 'Tom de pele', group: 'skin', kind: 'mask', layer: 'skintone', hint: 'Pinte a área e ajuste matiz, saturação e luz.' },
   { id: 'highlight', label: 'Iluminador', group: 'skin', kind: 'mask', layer: 'highlight', hint: 'Passe nas maçãs, no nariz e no arco do cupido.' },
 
-  { id: 'sclera', label: 'Branco do olho', group: 'eyes', kind: 'mask', layer: 'sclera', hint: 'Passe de leve no branco dos olhos, sem encostar na íris.' },
-  { id: 'redeye', label: 'Olho vermelho', group: 'eyes', kind: 'mask', layer: 'redeye', hint: 'Pinte sobre a pupila vermelha.' },
-  { id: 'eyecolor', label: 'Cor dos olhos', group: 'eyes', kind: 'mask', layer: 'eyecolor', hint: 'Pinte só a íris. A textura fica.' },
-  { id: 'sparkle', label: 'Brilho no olhar', group: 'eyes', kind: 'mask', layer: 'sparkle', hint: 'Passe de leve na íris.' },
+  { id: 'sclera', label: 'Branco do olho', group: 'eyes', kind: 'mask', layer: 'sclera', region: 'sclera', hint: 'Passe de leve no branco dos olhos, sem encostar na íris.' },
+  { id: 'redeye', label: 'Olho vermelho', group: 'eyes', kind: 'mask', layer: 'redeye', region: 'iris', hint: 'Pinte sobre a pupila vermelha.' },
+  { id: 'eyecolor', label: 'Cor dos olhos', group: 'eyes', kind: 'mask', layer: 'eyecolor', region: 'iris', hint: 'Pinte só a íris. A textura fica.' },
+  { id: 'sparkle', label: 'Brilho no olhar', group: 'eyes', kind: 'mask', layer: 'sparkle', region: 'iris', hint: 'Passe de leve na íris.' },
 
   { id: 'lips', label: 'Batom', group: 'makeup', kind: 'mask', layer: 'lips', hint: 'Pinte os lábios com calma. Dá para apagar as bordas.' },
-  { id: 'whiten', label: 'Dentes', group: 'makeup', kind: 'mask', layer: 'whiten', hint: 'Passe nos dentes. O escuro da boca fica como está.' },
+  { id: 'whiten', label: 'Dentes', group: 'makeup', kind: 'mask', layer: 'whiten', region: 'teeth', hint: 'Passe nos dentes. O escuro da boca fica como está.' },
   { id: 'blush', label: 'Blush', group: 'makeup', kind: 'mask', layer: 'blush', hint: 'Pincel grande e macio nas maçãs do rosto.' },
   { id: 'eyeshadow', label: 'Sombra', group: 'makeup', kind: 'mask', layer: 'eyeshadow', hint: 'Pinte a pálpebra.' },
   { id: 'brow', label: 'Sobrancelha', group: 'makeup', kind: 'mask', layer: 'brow', hint: 'Siga o desenho dos fios.' },

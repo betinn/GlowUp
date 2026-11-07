@@ -34,11 +34,14 @@ in vec2 vUv;
 out vec4 outColor;
 uniform sampler2D uBase;
 uniform sampler2D uStroke;
+uniform sampler2D uLimit;
 uniform float uOpacity;
 uniform bool uErase;
+uniform bool uLimited;
 void main() {
   float b = textureLod(uBase, vUv, 0.0).r;
   float s = texture(uStroke, vUv).r * uOpacity;
+  if (uLimited && !uErase) s *= textureLod(uLimit, vUv, 0.0).r;
   float r = uErase ? b * (1.0 - s) : b + (1.0 - b) * s;
   outColor = vec4(r, r, r, 1.0);
 }

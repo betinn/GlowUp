@@ -15,6 +15,7 @@
   import Stage from './Stage.svelte';
   import { changeBrushSize, resetToolMemory, selectTool, toggleMark } from './actions';
   import { comparePress, holdCompare, toggleCompare } from './compare';
+  import { dropToolLimit, strokeOutside } from './facepick.svelte';
   import { reveal, rise } from './motion';
   import { cancelOpening, finishOpening } from './open';
   import MaskPanel from './panels/MaskPanel.svelte';
@@ -136,6 +137,7 @@
       view: bump,
       busy: (label) => (ui.busy = label),
       error: (message) => toast(message),
+      outside: () => toast(strokeOutside()),
     };
     off = e.on(events);
     window.addEventListener('pagehide', saveNow);
@@ -175,6 +177,7 @@
     document.removeEventListener('visibilitychange', saveNow);
     setAutosave(null);
     clearEditorCloser(shutDown);
+    dropToolLimit();
     ui.tool = null;
     ui.toolModule = null;
     ui.splitOn = false;

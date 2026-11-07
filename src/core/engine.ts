@@ -50,6 +50,8 @@ export interface EngineEvents {
   view(): void;
   busy(label: string | null): void;
   error(message: string): void;
+  /** A whole stroke fell outside the limit of the brush. */
+  outside(): void;
 }
 
 function previewSide(glc: GLContext): number {
@@ -75,6 +77,8 @@ export class Engine {
   liquifyStrength = 0.6;
   /** Paints the mark of the touched area over the photo. Every tool opens with it off. */
   showMask = false;
+  /** While set, strokes wait and the person reads this instead. */
+  holdStroke: string | null = null;
   exporting = false;
   /** Changes whenever the liquify field changes, so autosave knows when to write it. */
   fieldRev = 0;
@@ -104,6 +108,8 @@ export class Engine {
     interp: StrokeInterpolator | null;
     layer: LayerId | null;
     wasPainted: boolean;
+    /** Something of the stroke fell inside the limit of the brush. */
+    reached: boolean;
     healDabs: HealOp['dabs'];
     start: [number, number];
     travelled: number;
@@ -219,9 +225,16 @@ export class Engine {
     this.mode = mode;
     this.activeLayer = layer;
     this.showMask = false;
+    this.holdStroke = null;
+    this.masks?.setLimit(null);
     if (this.pipeline) this.pipeline.active = layer;
     this.requestRender();
     this.emit('change');
+  }
+
+  /** Limits the brush of the open tool. The next tool starts free. */
+  setPaintLimit(data: Uint8Array | null): void {
+    this.masks?.setLimit(data);
   }
 
   /** Live change of a tool parameter. Call `commit` when the gesture ends. */
@@ -450,6 +463,10 @@ export class Engine {
   beginStroke(x: number, y: number, pressure = 1): void {
     const masks = this.masks;
     if (!masks || this.stroke || this.mode === 'none') return;
+    if (this.holdStroke) {
+      this.emit('error', this.holdStroke);
+      return;
+    }
     this.commit();
     const longMask = Math.max(masks.w, masks.h);
     const radius = this.brush.size * longMask;
@@ -465,7 +482,7 @@ export class Engine {
       const field = this.field;
       if (!field) return;
       field.begin(this.liquifyMode, this.brush.size, this.liquifyStrength);
-      this.stroke = { ...common, interp: null, layer: null, wasPainted: false };
+      this.stroke = { ...common, interp: null, layer: null, wasPainted: false, reached: true };
       this.moveStroke(x, y, pressure);
       if (this.liquifyMode !== 'push') requestAnimationFrame(this.holdTick);
       return;
@@ -475,7 +492,7 @@ export class Engine {
     const settings = this.mode === 'heal' ? { ...this.brush, erase: false, opacity: 1, flow: 1 } : this.brush;
     masks.beginStroke(layer, settings);
     const interp = new StrokeInterpolator(radius, settings.flow);
-    this.stroke = { ...common, interp, layer, wasPainted: state?.painted ?? false };
+    this.stroke = { ...common, interp, layer, wasPainted: state?.painted ?? false, reached: !masks.limited || settings.erase };
     if (state && !this.brush.erase) state.painted = true;
     this.moveStroke(x, y, pressure);
   }
@@ -511,6 +528,7 @@ export class Engine {
     const masks = this.masks;
     const ctx = this.ctx;
     if (!s || !masks || !ctx || !s.layer || dabs.length === 0) return;
+    s.reached ||= masks.reaches(dabs);
     const rect = masks.paint(dabs, s.layer);
     if (s.kind === 'heal') {
       const long = Math.max(masks.w, masks.h);
@@ -531,6 +549,12 @@ export class Engine {
   async endStroke(): Promise<void> {
     const s = this.stroke;
     if (!s) return;
+    if (!s.reached) {
+      // Nothing landed, so there is nothing to undo either.
+      this.cancelStroke();
+      this.emit('outside');
+      return;
+    }
     this.stroke = null;
     const masks = this.masks;
     if (!masks) return;

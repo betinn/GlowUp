@@ -1,7 +1,8 @@
 /**
  * Runs MediaPipe Face Landmarker in the browser. The library, the WebAssembly and the model are
- * files of this site, and this module loads only when someone asks to pick a face. The photo stays
- * on the device. The detector says where a face is, never who it is.
+ * files of this site, and this module loads only on the first request: picking a face or opening a
+ * tool for eyes or teeth. The photo stays on the device. The detector says where a face is, never
+ * who it is.
  */
 
 import { FaceLandmarker } from '@mediapipe/tasks-vision';
@@ -10,7 +11,7 @@ import wasmUrl from '@mediapipe/tasks-vision/vision_wasm_internal.wasm?url';
 import { nextPaint } from '../progress';
 import type { SourceImage } from '../source';
 import modelUrl from './face_landmarker.task?url';
-import { addFace, byPosition, FACE_OVAL, keepScanning, makeFace, SCAN_LEVELS, tileGrid, type Face } from './scan';
+import { addFace, byPosition, keepScanning, readFace, SCAN_LEVELS, tileGrid, type Face } from './scan';
 
 /** Sizes after decompression, for a real percentage even when the server sends brotli. */
 export const WASM_BYTES = 14_603_354;
@@ -136,11 +137,8 @@ export class FaceScan {
         const outH = Math.max(1, Math.round(tile.h * k));
         const found = landmarker!.detect(source.draw(tile.x, tile.y, tile.w, tile.h, outW, outH));
         for (const marks of found.faceLandmarks) {
-          const outline = FACE_OVAL.map((index): [number, number] => {
-            const p = marks[index];
-            return [(tile.x + p.x * tile.w) / source.w, (tile.y + p.y * tile.h) / source.h];
-          });
-          if (addFace(this.faces, makeFace(outline))) added++;
+          const face = readFace((index) => [(tile.x + marks[index].x * tile.w) / source.w, (tile.y + marks[index].y * tile.h) / source.h]);
+          if (addFace(this.faces, face)) added++;
         }
         const span = SCAN_LEVELS.length - first;
         onProgress((this.level - first + (i + 1) / tiles.length) / span);

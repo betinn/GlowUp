@@ -81,7 +81,7 @@
     mode = 'stroke';
     strokeStart = performance.now();
     e.beginStroke(x, y, pressure(ev));
-    ui.painting = true;
+    ui.painting = e.stroking;
     placeCursor(x, y);
     cursorVisible = true;
   }

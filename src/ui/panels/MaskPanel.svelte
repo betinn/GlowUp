@@ -3,7 +3,9 @@
   import type { ToolModule } from '../../tools/types';
   import BrushControls from '../BrushControls.svelte';
   import ColorRow from '../ColorRow.svelte';
+  import { toolLimit } from '../facepick.svelte';
   import Icon from '../Icon.svelte';
+  import RegionLimit from './RegionLimit.svelte';
   import Segment from '../Segment.svelte';
   import Slider from '../Slider.svelte';
   import { bump, engine, ui } from '../state.svelte';
@@ -33,6 +35,10 @@
 </script>
 
 {#if state}
+  <!-- First in the panel: on a phone it is short, and this says where the brush stands. -->
+  {#if toolLimit.region}
+    <RegionLimit />
+  {/if}
   {#each tool.controls as c (c.key)}
     {#if visible(c.key)}
       {#if c.type === 'slider'}

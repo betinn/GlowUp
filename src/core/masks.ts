@@ -9,6 +9,9 @@ import type { MaskProvider } from './pipeline/types';
 
 export const MASK_TILE = 128;
 
+/** Side of the cells that say where the brush limit has something. */
+const LIMIT_CELL = 16;
+
 export interface MaskTile extends Rect {
   data: Uint8Array;
 }
@@ -21,6 +24,8 @@ export class MaskStore implements MaskProvider {
   private stroke: Tex | null = null;
   private tracker: TileTracker | null = null;
   private current: { tex: Tex; settings: BrushSettings } | null = null;
+  /** Where a stroke may land, for the open tool. It is not a mask, so it is never saved. */
+  private limit: { tex: Tex; cells: Uint8Array; columns: number } | null = null;
   readonly w: number;
   readonly h: number;
 
@@ -59,6 +64,44 @@ export class MaskStore implements MaskProvider {
 
   ids(): LayerId[] {
     return [...this.masks.keys()];
+  }
+
+  get limited(): boolean {
+    return !!this.limit;
+  }
+
+  /** Paint lands only where `data` has something. Without data the brush is free. */
+  setLimit(data: Uint8Array | null): void {
+    if (this.limit) this.glc.destroyTex(this.limit.tex);
+    this.limit = null;
+    if (!data) return;
+    const { w, h } = this;
+    const tex = this.glc.createTex(w, h, 'r8');
+    this.glc.upload(tex, { x: 0, y: 0, w, h }, data);
+    const columns = Math.ceil(w / LIMIT_CELL);
+    const cells = new Uint8Array(columns * Math.ceil(h / LIMIT_CELL));
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        if (data[y * w + x]) cells[Math.floor(y / LIMIT_CELL) * columns + Math.floor(x / LIMIT_CELL)] = 1;
+      }
+    }
+    this.limit = { tex, cells, columns };
+  }
+
+  /** True when a dab comes near the limit, so the stroke has something to show. */
+  reaches(dabs: readonly Dab[]): boolean {
+    const { limit } = this;
+    if (!limit) return true;
+    const rows = limit.cells.length / limit.columns;
+    const cell = (at: number, last: number) => Math.min(last, Math.max(0, Math.floor(at / LIMIT_CELL)));
+    for (const { x, y, radius } of dabs) {
+      for (let row = cell(y - radius, rows - 1); row <= cell(y + radius, rows - 1); row++) {
+        for (let column = cell(x - radius, limit.columns - 1); column <= cell(x + radius, limit.columns - 1); column++) {
+          if (limit.cells[row * limit.columns + column]) return true;
+        }
+      }
+    }
+    return false;
   }
 
   private scratch(): { base: Tex; stroke: Tex } {
@@ -108,7 +151,7 @@ export class MaskStore implements MaskProvider {
     glc.run(
       glc.program(shader(APPLY_FRAG)),
       tex,
-      { uBase: this.base!, uStroke: stroke, uOpacity: settings.opacity, uErase: settings.erase },
+      { uBase: this.base!, uStroke: stroke, uLimit: this.limit?.tex ?? this.base!, uOpacity: settings.opacity, uErase: settings.erase, uLimited: !!this.limit },
       rect,
     );
     this.bump(id);
@@ -191,6 +234,7 @@ export class MaskStore implements MaskProvider {
   }
 
   destroy(): void {
+    this.setLimit(null);
     for (const t of this.masks.values()) this.glc.destroyTex(t);
     this.masks.clear();
     if (this.base) this.glc.destroyTex(this.base);

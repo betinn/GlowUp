@@ -129,6 +129,27 @@ const CHECKS: Check[] = [
     },
   },
   {
+    name: '21-branco-do-olho',
+    title: 'Branco do olho: o traço passa pela íris e ela fica como está',
+    clip: EYES,
+    run: async (page) => {
+      await pickTool(page, 'eyes', 'sclera');
+      await setSlider(page, 'Tamanho', 50);
+      await paint(page, [[EYE_L[0] - 0.06, EYE_L[1]], [EYE_L[0] + 0.06, EYE_L[1]]], 2);
+      await paint(page, [[EYE_R[0] - 0.06, EYE_R[1]], [EYE_R[0] + 0.06, EYE_R[1]]], 2);
+    },
+  },
+  {
+    name: '22-limite-dentes',
+    title: 'Dentes: um traço largo por cima da boca toda só pega os dentes',
+    clip: MOUTH,
+    run: async (page) => {
+      await pickTool(page, 'makeup', 'whiten');
+      await setSlider(page, 'Tamanho', 70);
+      await paint(page, [[-0.14, 0.24], [0.14, 0.24]]);
+    },
+  },
+  {
     name: '11-maquiagem',
     title: 'Batom, blush, sombra, sobrancelha e contorno',
     clip: FACE,

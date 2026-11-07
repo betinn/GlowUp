@@ -3,6 +3,7 @@
 import { DEFAULT_BRUSH, type BrushSettings } from '../core/brush';
 import { ensureField, ensureHeal, ensureLayerTool } from '../tools/activate';
 import { toolById, type ToolMeta } from '../tools/catalog';
+import { dropToolLimit, forgetFreedTools, limitTool } from './facepick.svelte';
 import { bump, engine, toast, ui } from './state.svelte';
 
 /** Brush settings are remembered per tool during the session. */
@@ -26,6 +27,7 @@ export const filterBrush = () => brushFor('filter-area', FILTER_BRUSH);
 
 export function resetToolMemory(): void {
   brushes.clear();
+  forgetFreedTools();
 }
 
 export async function selectTool(id: string | null): Promise<void> {
@@ -33,6 +35,7 @@ export async function selectTool(id: string | null): Promise<void> {
   e.commit();
   const meta: ToolMeta | undefined = id ? toolById(id) : undefined;
   if (ui.tool === 'crop' && id !== 'crop') e.setCropEditing(false);
+  dropToolLimit();
   ui.tool = id;
   ui.toolModule = null;
   ui.showHint = true;
@@ -44,6 +47,7 @@ export async function selectTool(id: string | null): Promise<void> {
         e.brush = brushFor(meta.id, mod.brush);
         e.setTool('mask', meta.layer!);
         ui.toolModule = mod;
+        if (meta.region) void limitTool(e, meta.id, meta.region);
         break;
       }
       case 'heal':

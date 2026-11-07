@@ -1,4 +1,5 @@
 import { expect, type Page } from '@playwright/test';
+import { TOOLS } from '../../src/tools/catalog';
 
 /** Size of the fixture portrait. Coordinates below match scripts/make-fixtures.mjs. */
 export const PORTRAIT = { w: 1500, h: 1875 };
@@ -45,7 +46,14 @@ export async function pickTool(page: Page, group: string, tool: string): Promise
   await page.locator(`[data-group=${group}]`).click();
   const button = page.locator(`[data-tool=${tool}]`);
   if ((await button.getAttribute('aria-pressed')) !== 'true') await button.click();
+  if (TOOLS.find((t) => t.id === tool)?.region) await limitSettled(page);
   await settle(page, 300);
+}
+
+/** The tools for eyes and teeth hold the brush until the detector answers. */
+export async function limitSettled(page: Page): Promise<void> {
+  await page.locator('[data-limit]').waitFor();
+  await expect(page.locator('[data-limit=searching]')).toHaveCount(0, { timeout: 60_000 });
 }
 
 export async function setSlider(page: Page, label: string, value: number): Promise<void> {

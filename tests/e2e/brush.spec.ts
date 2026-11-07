@@ -50,12 +50,14 @@ test.describe('marca do pincel', () => {
     for (const t of TOOLS.filter((tool) => tool.kind === 'mask')) {
       await pickTool(page, t.group, t.id);
       const before = await page.screenshot({ clip });
-      await paint(page, scribble(0, 0.05, 0.1, 0.06, 4));
+      // Tools for eyes and teeth stay on their region, and the others can go anywhere.
+      const [x, y, r] = t.region === 'teeth' ? [0, 0.245, 0.06] : t.region ? [IRIS[0], IRIS[1], 0.05] : [0, 0.05, 0.1];
+      await paint(page, scribble(x, y, r, r * 0.6, 4));
       const open = await page.screenshot({ clip });
       await page.keyboard.press('Escape');
       await settle(page, 400);
       const closed = await page.screenshot({ clip });
-      expect(await meanDiff(page, before, open), `${t.id} pintou`).toBeGreaterThan(0.01);
+      expect(await meanDiff(page, before, open), `${t.id} pintou`).toBeGreaterThan(0.003);
       expect(await meanDiff(page, open, closed), `${t.id} aberta e fechada`).toBeLessThan(0.002);
     }
   });

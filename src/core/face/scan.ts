@@ -37,10 +37,35 @@ export const FACE_OVAL: readonly number[] = [
 /** Position of the bottom of the chin inside `FACE_OVAL`. */
 export const CHIN = FACE_OVAL.indexOf(152);
 
-/** A face found in the photo. Only the outline is kept, in image UV, and only in memory. */
+/** Contours of the eyes and four points on the edge of each iris, as the landmark list numbers them. */
+export const EYES: readonly (readonly number[])[] = [
+  [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246],
+  [263, 249, 390, 373, 374, 380, 381, 382, 362, 398, 384, 385, 386, 387, 388, 466],
+];
+export const IRISES: readonly (readonly number[])[] = [
+  [469, 470, 471, 472],
+  [474, 475, 476, 477],
+];
+
+/** Lips, from the left corner along the lower lip. The same position in each list faces the same point. */
+export const INNER_LIPS: readonly number[] = [78, 95, 88, 178, 87, 14, 317, 402, 318, 324, 308, 415, 310, 311, 312, 13, 82, 81, 80, 191];
+export const OUTER_LIPS: readonly number[] = [61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 409, 270, 269, 267, 0, 37, 39, 40, 185];
+
+/** Where the tools for eyes and teeth may go, in image UV. */
+export interface FaceParts {
+  eyes: readonly (readonly Point[])[];
+  irises: readonly (readonly Point[])[];
+  innerLips: readonly Point[];
+  outerLips: readonly Point[];
+}
+
+const NO_PARTS: FaceParts = { eyes: [], irises: [], innerLips: [], outerLips: [] };
+
+/** A face found in the photo. Only these shapes are kept, in image UV, and only in memory. */
 export interface Face {
   outline: readonly Point[];
   box: Area;
+  parts: FaceParts;
 }
 
 function starts(length: number, side: number): number[] {
@@ -71,8 +96,19 @@ function overlap(a: Area, b: Area): number {
   return shared / Math.max(a.w * a.h + b.w * b.h - shared, 1e-12);
 }
 
-export function makeFace(outline: readonly Point[]): Face {
-  return { outline, box: bounds(outline) };
+export function makeFace(outline: readonly Point[], parts = NO_PARTS): Face {
+  return { outline, box: bounds(outline), parts };
+}
+
+/** Keeps from the landmark list only what the mask of the filter and the brush limits need. */
+export function readFace(point: (index: number) => Point): Face {
+  const read = (list: readonly number[]) => list.map(point);
+  return makeFace(read(FACE_OVAL), {
+    eyes: EYES.map(read),
+    irises: IRISES.map(read),
+    innerLips: read(INNER_LIPS),
+    outerLips: read(OUTER_LIPS),
+  });
 }
 
 /**
