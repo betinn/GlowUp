@@ -1,5 +1,5 @@
 import { GLSL_HEADER, type GLContext, type Rect, type Tex, type Tex3D, type Uniforms } from '../gl/context';
-import { LAYER_ORDER, type EditDoc, type LayerId } from '../doc';
+import { FILTER_MASK, LAYER_ORDER, type EditDoc, type LayerId } from '../doc';
 import { imageToOutput, outputSize } from '../geometry';
 import COLOR_GLSL from '../shaders/color.glsl?raw';
 import DEVELOP_FRAG from '../shaders/develop.frag?raw';
@@ -10,6 +10,14 @@ import type { Healer, MaskProvider, PassEnv, ToolPass } from './types';
 
 /** Long side of the shared low-pass image, in pixels. */
 const LOW_SIDE = 96;
+
+/** Softest edge of a masked filter, as a share of the size of the masked area. */
+const MAX_FEATHER = 0.3;
+
+/** Mip level that blurs a mask by the requested softness. Level zero means no extra blur. */
+export function featherLod(feather: number, reach: number, maskSide: number): number {
+  return Math.log2(Math.max((feather / 100) * MAX_FEATHER * reach * maskSide, 1));
+}
 
 export const shader = (body: string) => `${GLSL_HEADER}${COLOR_GLSL}\n${body}`;
 
@@ -52,6 +60,8 @@ export class Pipeline {
   active: LayerId | null = null;
   /** Tiny low-pass of the whole photo, shared by every context so tiles agree on tone masks. */
   private globalLow: Tex | null = null;
+  /** Revision of the filter mask whose mip levels are up to date. */
+  private filterMipsRev = -1;
 
   constructor(
     private readonly glc: GLContext,
@@ -171,7 +181,8 @@ export class Pipeline {
     ctx.localRect = null;
 
     if (dirty.global) {
-      if (doc.hasField || doc.blur.mode !== 'off') rect = null;
+      // A soft mask reaches past the brush, so a partial update would leave a seam.
+      if (doc.hasField || doc.blur.mode !== 'off' || this.filterArea(doc)?.lod) rect = null;
       this.develop(ctx, doc, rect ? inflate(rect, 6, ctx) : null);
       dirty.global = false;
     }
@@ -185,11 +196,25 @@ export class Pipeline {
     this.develop(ctx, doc, null, ctx.slot('unfiltered'), 0);
   }
 
+  /** Mask of a filter limited to part of the photo, ready to sample. */
+  private filterArea(doc: EditDoc): { mask: Tex; lod: number } | null {
+    const mask = doc.filter.masked ? this.masks.get(FILTER_MASK) : null;
+    if (!mask) return null;
+    const lod = featherLod(doc.filter.feather ?? 0, doc.filter.reach ?? 0, Math.max(mask.w, mask.h));
+    const rev = this.masks.rev(FILTER_MASK);
+    if (lod > 0 && rev !== this.filterMipsRev) {
+      this.glc.generateMips(mask);
+      this.filterMipsRev = rev;
+    }
+    return { mask, lod };
+  }
+
   private develop(ctx: RenderContext, doc: EditDoc, rect: Rect | null, target = ctx.slot('final'), lutMix = doc.filter.id ? this.lutMix : 0): void {
     const { glc } = this;
     const a = doc.adjust;
     const dev = ctx.slot('dev');
     const hasField = doc.hasField && !!this.field;
+    const area = this.filterArea(doc);
     glc.run(
       glc.program(shader(DEVELOP_FRAG)),
       dev,
@@ -211,8 +236,12 @@ export class Pipeline {
         uVibrance: a.vibrance / 100,
         uSharpen: a.sharpen / 100,
         uSharpenRadius: Math.max(0.75, ctx.longSide / 2400),
-        uLutMix: lutMix,
+        // A filter limited to a mask that was never painted has nowhere to show.
+        uLutMix: doc.filter.masked && !area ? 0 : lutMix,
         uLutSize: this.lut.size,
+        uFilterMask: area?.mask ?? this.emptyField,
+        uFilterMasked: !!area,
+        uFilterLod: area?.lod ?? 0,
       },
       rect,
     );

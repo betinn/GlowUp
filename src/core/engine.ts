@@ -5,8 +5,9 @@
 
 import { GLContext, type Tex } from './gl/context';
 import { DEFAULT_BRUSH, StrokeInterpolator, type BrushSettings, type Dab } from './brush';
-import { clone, createDoc, type Adjustments, type BlurSettings, type EditDoc, type HealOp, type LayerId, type ParamValue } from './doc';
-import { applyMat3, outputSize, outputToImage, rotatedBounds, type Crop } from './geometry';
+import { clone, createDoc, FILTER_MASK, type Adjustments, type BlurSettings, type EditDoc, type FilterState, type HealOp, type LayerId, type ParamValue } from './doc';
+import { applyMat3, imageToOutput, outputSize, outputToImage, rotatedBounds, type Crop } from './geometry';
+import { decodeTile, encodeTile } from './history/codec';
 import { History, type HistoryEntry } from './history/history';
 import { MaskStore, type MaskTile } from './masks';
 import { Pipeline, shader } from './pipeline/pipeline';
@@ -277,10 +278,44 @@ export class Engine {
 
   setFilterState(id: string | null, intensity: number): void {
     this.track('Filtro');
-    this.doc.filter = { id, intensity };
+    this.doc.filter = { ...this.doc.filter, id, intensity };
     if (this.pipeline) this.pipeline.lutMix = intensity;
     this.ctx?.invalidate('global');
     this.requestRender();
+  }
+
+  /** Live change of where the filter applies. Call `commit` when the gesture ends. */
+  setFilterArea(patch: Pick<FilterState, 'masked' | 'feather'>): void {
+    this.track('Filtro');
+    Object.assign(this.doc.filter, patch);
+    this.ctx?.invalidate('global');
+    this.requestRender();
+  }
+
+  /** Replaces the mask of the filter and its settings as one undo step. Without data the mask is empty. */
+  async replaceFilterMask(label: string, data: Uint8Array | null, patch: Partial<FilterState>): Promise<void> {
+    const masks = this.masks;
+    if (!masks) return;
+    this.commit();
+    const { w, h } = masks;
+    const previous = await masks.read(FILTER_MASK);
+    const pack = (bytes: Uint8Array | null) => (bytes ? encodeTile(bytes, w, h) : null);
+    const before = { mask: pack(previous), filter: clone(this.doc.filter) };
+    const after = { mask: pack(data), filter: { ...clone(this.doc.filter), ...patch } };
+    const apply = (state: typeof before) => {
+      if (state.mask) masks.write(FILTER_MASK, decodeTile(state.mask, w, h));
+      else masks.clear(FILTER_MASK);
+      this.doc.filter = clone(state.filter);
+      this.ctx?.invalidate('global');
+      this.requestRender();
+    };
+    apply(after);
+    this.history.push({
+      label,
+      bytes: (before.mask?.length ?? 0) + (after.mask?.length ?? 0) + 256,
+      undo: () => apply(before),
+      redo: () => apply(after),
+    });
   }
 
   setCrop(crop: Crop): void {
@@ -364,6 +399,21 @@ export class Engine {
   outputToCss(s: number, t: number): [number, number] {
     const [x, y] = outputToScreen(this.viewport, this.displaySize, this.view, s, t);
     return [x / this.dpr, y / this.dpr];
+  }
+
+  /** Point of the photo as it was opened to CSS pixels on the canvas, past crop and liquify. */
+  imageToCss(u: number, v: number): [number, number] {
+    let [x, y] = [u, v];
+    if (this.field && this.doc.hasField) {
+      // The field maps a shown position back to the photo. A few steps invert it closely enough.
+      for (let i = 0; i < 4; i++) {
+        const [du, dv] = this.field.lookup(x, y);
+        x = u - du;
+        y = v - dv;
+      }
+    }
+    const [s, t] = applyMat3(imageToOutput(this.displayCrop(), this.doc.width, this.doc.height), x, y);
+    return this.outputToCss(s, t);
   }
 
   cssToOutput(x: number, y: number): [number, number] {

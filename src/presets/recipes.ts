@@ -82,7 +82,8 @@ export const BUILTIN_PRESETS: RetouchPreset[] = [
 /** Applies a preset to the document. Unlisted adjustments go back to zero. */
 export function applyPresetToDoc(doc: EditDoc, preset: RetouchPreset): void {
   doc.adjust = { ...DEFAULT_ADJUST, ...preset.adjust };
-  doc.filter = { ...preset.filter };
+  // A recipe says which filter, not where: the area chosen on this photo stays.
+  doc.filter = { ...doc.filter, ...preset.filter };
   for (const [id, params] of Object.entries(preset.tools) as [LayerId, Params][]) {
     const layer = doc.layers[id];
     if (layer) Object.assign(layer.params, params);
@@ -100,7 +101,7 @@ export function presetFromDoc(doc: EditDoc, name: string): RetouchPreset {
     name,
     note: 'Sua receita.',
     adjust: { ...doc.adjust },
-    filter: { ...doc.filter },
+    filter: { id: doc.filter.id, intensity: doc.filter.intensity },
     tools,
     custom: true,
   };

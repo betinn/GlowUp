@@ -21,6 +21,9 @@ uniform float uSharpen;
 uniform float uSharpenRadius;
 uniform float uLutMix;
 uniform float uLutSize;
+uniform sampler2D uFilterMask;
+uniform bool uFilterMasked;
+uniform float uFilterLod;
 
 vec3 sCurve(vec3 x, float k) {
   vec3 s = x * x * (3.0 - 2.0 * x);
@@ -82,8 +85,14 @@ void main() {
 
   c = clamp(c, 0.0, 1.0);
   if (uLutMix > 0.0) {
+    float m = 1.0;
+    if (uFilterMasked) {
+      // The mask lives on the photo as it was opened: the warped position keeps it on the face.
+      vec2 muv = uRegion.xy + uv * uRegion.zw;
+      m = uFilterLod > 0.0 ? bicubicLod(uFilterMask, muv, uFilterLod).r : textureLod(uFilterMask, muv, 0.0).r;
+    }
     vec3 coord = c * ((uLutSize - 1.0) / uLutSize) + 0.5 / uLutSize;
-    c = mix(c, texture(uLut, coord).rgb, uLutMix);
+    c = mix(c, texture(uLut, coord).rgb, uLutMix * m);
   }
   outColor = vec4(c, 1.0);
 }

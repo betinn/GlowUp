@@ -3,7 +3,7 @@
  * Nothing here leaves the device.
  */
 
-import type { EditDoc, LayerId } from './doc';
+import { FILTER_MASK, type EditDoc, type LayerId } from './doc';
 import type { Engine } from './engine';
 
 const DB_NAME = 'glowup';
@@ -149,7 +149,8 @@ export class Autosave {
     try {
       for (const id of masks.ids()) {
         const rev = masks.rev(id);
-        if (this.savedRev.get(id) === rev || !engine.doc.layers[id]) continue;
+        const kept = !!engine.doc.layers[id] || id === FILTER_MASK;
+        if (this.savedRev.get(id) === rev || !kept) continue;
         const bytes = await masks.read(id);
         if (bytes) this.masks[id] = await pack(bytes);
         this.savedRev.set(id, rev);

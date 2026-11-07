@@ -47,7 +47,7 @@ export class SourceImage {
   }
 
   /** Draws part of the photo at the given output size. Transparency is flattened over white. */
-  private draw(x: number, y: number, w: number, h: number, outW: number, outH: number): OffscreenCanvas {
+  draw(x: number, y: number, w: number, h: number, outW: number, outH: number): OffscreenCanvas {
     const canvas = new OffscreenCanvas(outW, outH);
     const c = canvas.getContext('2d', { alpha: false })!;
     c.fillStyle = '#fff';
@@ -65,6 +65,16 @@ export class SourceImage {
     const tex = glc.createTex(outW, outH, 'rgba8');
     glc.uploadImage(tex, this.draw(x, y, w, h, outW, outH));
     return tex;
+  }
+
+  /** Brightness of a region at the given output size, row by row, from 0 to 1. */
+  luma(x: number, y: number, w: number, h: number, outW: number, outH: number): Float32Array {
+    const { data } = this.draw(x, y, w, h, outW, outH).getContext('2d')!.getImageData(0, 0, outW, outH);
+    const out = new Float32Array(outW * outH);
+    for (let i = 0; i < out.length; i++) {
+      out[i] = (0.2126 * data[i * 4] + 0.7152 * data[i * 4 + 1] + 0.0722 * data[i * 4 + 2]) / 255;
+    }
+    return out;
   }
 
   /** Small preview for the home screen. */

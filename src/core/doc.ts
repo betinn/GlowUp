@@ -38,6 +38,9 @@ export const LAYER_ORDER: readonly LayerId[] = [
   'hair',
 ];
 
+/** Mask key of a filter limited to part of the photo. It never joins the chain of tools. */
+export const FILTER_MASK = 'filter' as unknown as LayerId;
+
 export type ParamValue = number | string;
 export type Params = Record<string, ParamValue>;
 
@@ -103,6 +106,12 @@ export const DEFAULT_BLUR: BlurSettings = {
 export interface FilterState {
   id: string | null;
   intensity: number;
+  /** The filter stays inside its own mask. Older projects leave this out: the whole photo. */
+  masked?: boolean;
+  /** Softness of the mask edge, 0..100. Applied while rendering, so brush work gets it too. */
+  feather?: number;
+  /** Size of the masked area as a fraction of the long side. Softness is relative to it. */
+  reach?: number;
 }
 
 /** One healing operation. Coordinates are image UV, radii are fractions of the long side. */
