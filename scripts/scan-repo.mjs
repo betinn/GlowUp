@@ -32,7 +32,8 @@ const PRODUCTS = [
 
 const RULES = [
   { name: 'windows-path', re: /\b[A-Za-z]:[\\/](?:Users|Windows|Program Files)[\\/]/ },
-  { name: 'unix-home', re: /(?<![\w.-])\/(?:home|Users)\/[A-Za-z0-9._-]+/ },
+  // web_user is the virtual home of the WebAssembly runtime, not a path of any machine.
+  { name: 'unix-home', re: /(?<![\w.-])\/(?:home|Users)\/(?!web_user\b)[A-Za-z0-9._-]+/ },
   { name: 'private-key', re: /-----BEGIN [A-Z ]*PRIVATE KEY-----/ },
   {
     name: 'token',
