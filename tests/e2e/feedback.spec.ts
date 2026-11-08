@@ -206,8 +206,19 @@ test.describe('resposta ao usuário', () => {
     await page.screenshot({ path: shot('exportando') });
     await download;
     await expect(page.getByText('Prontinho. Tá na sua pasta.')).toBeVisible();
-    await settle(page, 400);
+    // The saved moment: the print lifts, a gleam crosses it and a seal with a tick stamps its corner.
+    await expect(page.locator('[data-saved=yes]')).toHaveCount(1);
+    await page.waitForTimeout(650);
+    await page.screenshot({ path: shot('exportado-selo') });
+    await settle(page, 900);
     await page.screenshot({ path: shot('exportado') });
+    const seal = await page.locator('.seal').evaluate((el) => {
+      const box = el.getBoundingClientRect();
+      const tick = getComputedStyle(el.querySelector('path')!).strokeDashoffset;
+      return { w: box.width, tick };
+    });
+    expect(seal.w).toBeGreaterThan(30);
+    expect(parseFloat(seal.tick)).toBeLessThan(0.05);
     const log = await progressLog(page);
     const rises = log.filter((l) => l.value > 0);
     for (let i = 1; i < rises.length; i++) expect(rises[i].value).toBeGreaterThanOrEqual(rises[i - 1].value);

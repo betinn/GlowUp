@@ -4,7 +4,6 @@
   import BrushControls from '../BrushControls.svelte';
   import ColorRow from '../ColorRow.svelte';
   import { toolLimit } from '../facepick.svelte';
-  import Icon from '../Icon.svelte';
   import RegionLimit from './RegionLimit.svelte';
   import Segment from '../Segment.svelte';
   import Slider from '../Slider.svelte';
@@ -72,11 +71,6 @@
     <BrushControls />
   {/if}
 
-  {#if state.painted}
-    <button type="button" class="clear" onclick={() => e.clearLayer(layer).then(bump)}>
-      <Icon name="trash" size={18} /> {brushShown ? 'Apagar o que pintei' : 'Tirar o efeito'}
-    </button>
-  {/if}
 {/if}
 
 <style>
@@ -86,16 +80,4 @@
     margin: 10px 0;
   }
 
-  .clear {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    min-height: 44px;
-    color: var(--paper-2);
-    font-size: 13px;
-  }
-
-  .clear:hover {
-    color: var(--paper);
-  }
 </style>

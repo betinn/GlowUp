@@ -5,7 +5,7 @@ de propósito manchas, olheiras, olho vermelho e dentes amarelados. Nenhuma pess
 
 - `NN-*.png`: antes e depois de cada ferramenta.
 - `ui-*.png`: telas da interface no desktop e no celular, incluindo soltar a foto (`ui-soltar*`),
-  progresso (`ui-abrindo`, `ui-exportando`, `ui-exportado`), comparação de filtro (`*filtro-comparar`),
+  progresso (`ui-abrindo`, `ui-exportando`, `ui-exportado-selo` no meio do carimbo, `ui-exportado`), comparação de filtro (`*filtro-comparar`),
   filtro em um rosto (`ui-rosto-*`, `ui-celular-rosto`) e marca do pincel (`ui-marca-ligada`, `ui-celular-marca`).
 - `20-filtro-rosto.png`: filtro em um dos dois rostos de `tests/fixtures/group.png`.
 - `21-branco-do-olho.png`, `22-limite-dentes.png`: um traço largo que só muda a região da ferramenta.
@@ -18,6 +18,11 @@ de propósito manchas, olheiras, olho vermelho e dentes amarelados. Nenhuma pess
 - `12-cabelo.png` e `23-` a `26-cabelo-*.png`: as cinco ferramentas de cabelo no Automático. `ui-cabelo-brilho` e
   `ui-cabelo-auto` mostram a busca e o resultado, e `ui-celular-cabelo` a barra com os oito grupos no celular. O segmentador fica inseguro no meio do cabelo desenhado e
   deixa partes de fora: em foto real o cabelo é outro, e o pincel livre, no Manual, cobre o que faltar.
+
+- `ui-pele-brilho`, `ui-pele-auto`, `ui-manchas-auto`, `ui-pele-iluminador` e `ui-celular-pele`: o menu Pele
+  no Automático. `ui-manchas-circulo` mostra os círculos das correções, com o mouse sobre um deles, e
+  `ui-ferramenta-ligada` a chavinha no botão de Suavizar com o efeito na foto. Manchas tira 20 das 26 manchas desenhadas; as que ficam encostam nos lábios, na sobrancelha
+  ou no olho, onde a busca não olha.
 
 Os anéis destas imagens vêm do detector real: o retrato procedural basta para ele. A borda e o pescoço
 foram ajustados em fotos reais de domínio público, que ficaram fora do repositório.

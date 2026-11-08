@@ -22,6 +22,9 @@ export const HEAL_MASK = 'heal' as unknown as LayerId;
 
 export type ToolMode = 'none' | 'mask' | 'heal' | 'liquify';
 
+/** Edge of a heal placed by the automatic mode, as the hardness of the brush: soft, as for a touch. */
+const AUTO_HEAL_EDGE = 0.3;
+
 /** How long the light over the reach of the brush lasts, in milliseconds. */
 export const REVEAL_MS = 1100;
 
@@ -104,6 +107,8 @@ export class Engine {
   showMask = false;
   /** The mask of the open tool comes from the detector: a drag moves the photo and paints nothing. */
   brushOff = false;
+  /** The automatic mode of Manchas is going over the spots. The healing brush waits for it. */
+  private healingSpots = false;
   /** While set, strokes wait and the person reads this instead. */
   holdStroke: string | null = null;
   exporting = false;
@@ -368,14 +373,17 @@ export class Engine {
    * Replaces a whole layer mask with `data`, as one undo step. The result is a mask like any painted
    * one: brush, eraser, sliders and the saved project treat it the same.
    */
-  async fillLayer(id: LayerId, data: Uint8Array, label: string): Promise<void> {
+  async fillLayer(id: LayerId, data: Uint8Array, label: string, fadeMs = 0): Promise<void> {
     const layer = this.doc.layers[id];
     const masks = this.masks;
     if (!layer || !masks) return;
     this.commit();
     const { w, h } = masks;
     const previous = await masks.read(id);
+    // Read before the fade, which marks the layer as painted while it plays.
     const before = { mask: previous ? encodeTile(previous, w, h) : null, painted: layer.painted };
+    if (fadeMs > 0) await this.fadeMask(id, previous, data, fadeMs);
+    if (this.masks !== masks || !this.doc.layers[id]) return;
     const after = { mask: encodeTile(data, w, h), painted: true };
     const apply = (state: typeof before) => {
       if (state.mask) masks.write(id, decodeTile(state.mask, w, h));
@@ -392,6 +400,31 @@ export class Engine {
       undo: () => apply(before),
       redo: () => apply(after),
     });
+  }
+
+  /**
+   * Shows the effect arriving: the mask goes from `from` to `to` over `ms`, frame by frame. Nothing of it
+   * reaches the history; the caller writes the final mask. Stops early if the photo changes.
+   */
+  private async fadeMask(id: LayerId, from: Uint8Array | null, to: Uint8Array, ms: number): Promise<void> {
+    const masks = this.masks;
+    if (!masks) return;
+    const step = new Uint8Array(to.length);
+    const start = performance.now();
+    for (;;) {
+      await new Promise((done) => requestAnimationFrame(done));
+      if (this.masks !== masks) return;
+      const t = (performance.now() - start) / ms;
+      if (t >= 1) return;
+      const k = easeInOut(t);
+      if (from) for (let i = 0; i < to.length; i++) step[i] = from[i] + (to[i] - from[i]) * k;
+      else for (let i = 0; i < to.length; i++) step[i] = to[i] * k;
+      masks.write(id, step);
+      const current = this.doc.layers[id];
+      if (current) current.painted = true;
+      this.ctx?.invalidate('prefix');
+      this.requestRender();
+    }
   }
 
   setAdjust<K extends keyof Adjustments>(key: K, value: number): void {
@@ -660,7 +693,7 @@ export class Engine {
 
   beginStroke(x: number, y: number, pressure = 1): void {
     const masks = this.masks;
-    if (!masks || this.stroke || this.mode === 'none' || this.brushOff) return;
+    if (!masks || this.stroke || this.mode === 'none' || this.brushOff || (this.mode === 'heal' && this.healingSpots)) return;
     if (this.holdStroke) {
       this.emit('error', this.holdStroke);
       return;
@@ -730,7 +763,8 @@ export class Engine {
     const rect = masks.paint(dabs, s.layer);
     if (s.kind === 'heal') {
       const long = Math.max(masks.w, masks.h);
-      for (const d of dabs) s.healDabs.push({ u: d.x / masks.w, v: d.y / masks.h, r: d.radius / long });
+      // With a limit, a dab that falls off the skin heals nothing.
+      for (const d of dabs) if (masks.reaches([d])) s.healDabs.push({ u: d.x / masks.w, v: d.y / masks.h, r: d.radius / long });
     } else if (rect) {
       const k = ctx.w / masks.w;
       ctx.touch({
@@ -872,6 +906,86 @@ export class Engine {
         this.requestRender();
       },
     });
+  }
+
+  /**
+   * Replaces every healed spot with one heal at each of `spots`, as one undo step. Each spot is fitted
+   * as a touch of the healing brush would be, and the photo shows them going one by one: `each` runs
+   * after every spot. Returns how many were healed.
+   */
+  async healSpots(spots: HealOp['dabs'], label: string, each?: () => Promise<void>): Promise<number> {
+    const { heal, ctx, pipeline } = this;
+    if (!heal || !ctx || !pipeline || this.healingSpots) return 0;
+    this.commit();
+    this.healingSpots = true;
+    const before = this.doc.heals.slice();
+    const made: HealOp[] = [];
+    try {
+      this.doc.heals = [];
+      ctx.invalidate('healed');
+      pipeline.update(ctx, this.doc);
+      // The update above leaves nothing marked to redraw, so the detail kept for a zoomed view would
+      // stay healed. With no spot to heal, or none that holds, the photo would keep showing them.
+      this.dropRoi();
+      this.unfilteredFresh = false;
+      this.requestRender();
+      for (const spot of spots) {
+        // A touch refits the spot. When it sees a contour instead, the search already found a spot
+        // that stays inside the skin, so its circle is healed as it is.
+        const op = (await heal.commit(ctx, [spot], AUTO_HEAL_EDGE, true)) ?? (await heal.commit(ctx, [spot], AUTO_HEAL_EDGE, false));
+        if (this.ctx !== ctx) return 0;
+        if (!op) continue;
+        this.doc.heals.push(op);
+        made.push(op);
+        this.applyNewestHeal(ctx);
+        this.requestRender();
+        await each?.();
+      }
+    } finally {
+      this.healingSpots = false;
+      this.glc.drainPool();
+    }
+    if (this.ctx !== ctx) return 0;
+    const after = made;
+    const set = (list: HealOp[]) => {
+      this.doc.heals = list.slice();
+      this.ctx?.invalidate('healed');
+      this.requestRender();
+    };
+    if (made.length === 0 && before.length === 0) return 0;
+    this.history.push({
+      label,
+      bytes: 128 + (before.length + after.length) * 96,
+      undo: () => set(before),
+      redo: () => set(after),
+    });
+    return made.length;
+  }
+
+  /**
+   * Takes one healed spot back to the photo, as one undo step, and keeps the others. False when it is
+   * no longer there or the automatic mode is still healing. Ids may repeat after a project is reopened,
+   * so the op itself says which one.
+   */
+  removeHeal(op: HealOp): boolean {
+    if (this.healingSpots || this.stroke) return false;
+    const before = this.doc.heals.slice();
+    const after = before.filter((other) => other !== op);
+    if (after.length === before.length) return false;
+    this.commit();
+    const set = (list: HealOp[]) => {
+      this.doc.heals = list.slice();
+      this.ctx?.invalidate('healed');
+      this.requestRender();
+    };
+    set(after);
+    this.history.push({
+      label: 'Tirar correção',
+      bytes: 128 + (before.length + after.length) * 96,
+      undo: () => set(before),
+      redo: () => set(after),
+    });
+    return true;
   }
 
   /** Adds the newest healing op on top of the cached result instead of replaying all of them. */

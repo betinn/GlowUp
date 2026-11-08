@@ -77,6 +77,10 @@ Quem espera precisa saber três coisas: que está andando, quanto falta e que a 
 - **Tranquilizar.** "Tudo acontece aqui, no seu aparelho." Depois de 7 segundos: "Foto grande leva um
   tempinho. Tá tudo certo."
 - **Fim.** A barra chega a 100%, um tique se desenha e a palavra "Pronta" fica um instante na tela.
+- **Foto salva.** A cópia sobe para a luz com um brilho âmbar por baixo, um reflexo atravessa a foto e um
+  selo âmbar carimba o canto, gira até o lugar, solta faíscas da luz de segurança e desenha um tique. Leva
+  cerca de um segundo e se repete a cada "Baixar de novo". No celular, uma vibração curta. Com movimento
+  reduzido, o selo aparece pronto, sem nada se mexer.
 - **Trabalhos curtos**, como remover uma mancha, não merecem tela: só um aviso pequeno, e só se
   passarem de 220 ms. Miniaturas de filtro respiram até ficarem prontas, depois revelam.
 
@@ -109,6 +113,14 @@ rotulado no painel e tecla `M`. Ligada, ela cobre o resultado, então a própria
 "Ver o resultado", o que vale também com o painel recolhido no celular. Cada ferramenta abre com a marca
 desligada.
 
+## A ferramenta é o interruptor
+
+As ferramentas com efeito próprio, as de pincel e Manchas, não têm botão de lixeira no painel. A própria
+ferramenta liga e desliga: com o efeito na foto, o botão mostra uma chavinha âmbar no canto, e um segundo
+toque na ferramenta aberta tira o efeito, numa etapa "Limpar" do desfazer. Mais um toque aplica de novo no
+Automático. No celular, com o painel recolhido, o toque primeiro reabre o painel. As outras ferramentas
+seguem recolhendo o painel no segundo toque.
+
 ## Olhos e dentes
 
 Cor dos olhos, Olho vermelho, Brilho no olhar, Branco do olho e Dentes ficam na sua região, em todos os
@@ -116,6 +128,9 @@ rostos achados.
 
 - **Primeira vez.** Ao abrir a ferramenta, o cartão de progresso aparece no topo do painel com o aviso dos
   6 MB. O traço espera e um aviso explica. "Pintar livre" pula a espera.
+- **Íris.** A íris sai da própria foto, não só do desenho do modelo: o que é escuro como o meio da íris, perto
+  do círculo que o modelo dá, sem a pele, o branco, os cílios e o brilho da luz. A cor fica dentro da íris
+  mesmo com a cabeça inclinada ou o olho virado de lado.
 - **Interruptor.** "Só na íris", "Só no branco do olho" ou "Só nos dentes". Desligado vale para aquela
   ferramenta enquanto a foto estiver aberta.
 - **Traço fora.** A parte de fora some sem erro. Se o traço inteiro cair fora, um aviso aponta o
@@ -134,6 +149,26 @@ rostos achados.
   Sem pincel, arrastar move a foto. Manual mostra pincel, borracha e o interruptor, e parte do que o
   Automático fez. Voltar ao Automático troca o que foi pintado pela região. Projeto reaberto com máscara
   abre no Manual, para não apagar trabalho.
+
+## Pele
+
+Manchas, Suavizar, Olheiras, Tom de pele e Iluminador seguem o mesmo caminho dos olhos e dentes, com as
+palavras da pele.
+
+- **Busca.** O cartão diz "Procurando a pele", ou "Procurando os olhos" em Olheiras, com o aviso dos 6 MB
+  na primeira vez. A pele de um rosto já achado sai na hora ao trocar de ferramenta.
+- **Foco e brilho.** A vista vai até o rosto, ou até os olhos em Olheiras, quando eles não estão na tela, e a
+  luz fria acende sobre a pele.
+- **Automático.** O efeito chega em meio segundo, em vez de aparecer de uma vez, para a pessoa ver onde a
+  foto mudou. Em Manchas cada mancha some por vez, de cima para baixo. Cada correção ganha um círculo fino sobre a foto: passar o mouse acende o círculo e
+  mostra um X, e um toque tira só aquela correção, numa etapa "Tirar correção". Assim um erro entre muitos
+  acertos não obriga a perder tudo. Os círculos somem no Manual e na comparação, e o interruptor "Círculos
+  nas correções" esconde todos para ver a foto limpa; a escolha fica guardada no aparelho. Sem
+  mancha achada, um aviso manda para o Manual.
+- **Manual.** Suavizar, Tom de pele e Iluminador trazem pincel, borracha e "Só na pele". Olheiras traz "Só
+  nas olheiras". Manchas traz o pincel de healing, também preso à pele.
+- **Iluminador.** O limite é a pele, mas o Automático acende só os pontos onde a luz cai: maçãs, ponte do
+  nariz, meio da testa, arco do cupido e queixo.
 
 ## Cabelo
 
@@ -156,8 +191,8 @@ Cada uma segue o mesmo caminho dos olhos e dentes, com as palavras do cabelo.
 - **Por menu.** "Zerar" aparece no fim da fila de ferramentas quando o menu tem algo a tirar. Tira as máscaras e
   os controles das ferramentas do menu, e também o que é só dele: manchas em Pele, liquify em Forma, filtro e
   área em Looks, ajustes e desfoque em Luz, recorte em Quadro. Um aviso diz que o desfazer traz de volta.
-- **A foto toda.** Ícone no topo, ao lado do desfazer, apagado quando não há nada a tirar. Pede um segundo sim
-  num aviso sobre a foto, porque sair do editor perde o desfazer. `Esc` cancela.
+- **A foto toda.** Ícone no topo, ao lado do desfazer, apagado quando não há nada a tirar. Tira tudo num toque,
+  sem pergunta: o desfazer, logo ao lado, traz tudo de volta se foi sem querer.
 
 ## Filtro em um rosto
 

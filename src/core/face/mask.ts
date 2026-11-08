@@ -149,6 +149,8 @@ export interface MaskTarget {
   h: number;
   /** Luma of an area of the mask grid, row by row, from 0 to 1. */
   luma?(area: Area): Float32Array;
+  /** Color of an area of the mask grid, row by row, four bytes per pixel (RGBA). */
+  color?(area: Area): Uint8ClampedArray;
 }
 
 /**

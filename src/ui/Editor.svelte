@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount, tick, untrack, type Component } from 'svelte';
+  import { scale } from 'svelte/transition';
   import { Engine, type EngineEvents } from '../core/engine';
   import { Autosave, loadOriginal, loadProject, unpack } from '../core/project';
   import { nextPaint } from '../core/progress';
@@ -13,15 +14,15 @@
   import Icon from './Icon.svelte';
   import Onboarding from './Onboarding.svelte';
   import Stage from './Stage.svelte';
-  import { changeBrushSize, resetToolMemory, selectTool, toggleMark } from './actions';
+  import { changeBrushSize, resetToolMemory, selectTool, switchable, toggleEffect, toggleMark } from './actions';
   import { comparePress, holdCompare, toggleCompare } from './compare';
-  import { autoHint, dropToolLimit, strokeOutside } from './facepick.svelte';
+  import { autoHint, dropToolLimit, hasWork, strokeOutside, toolLimit } from './facepick.svelte';
   import { reveal, rise } from './motion';
   import { regionShow } from './regionshow.svelte';
   import { groupChanged, photoChanged, resetGroup, resetPhoto } from './reset';
   import { cancelOpening, finishOpening } from './open';
+  import HealPanel from './panels/HealPanel.svelte';
   import MaskPanel from './panels/MaskPanel.svelte';
-  import BrushControls from './BrushControls.svelte';
   import { autosave, bump, clearEditorCloser, closeEditor, engine, hasEngine, prefs, setAutosave, setEditorCloser, setEngine, toast, ui } from './state.svelte';
 
   /** Panels and overlays of the non-brush tools load on demand. */
@@ -36,6 +37,7 @@
   const loadCropOverlay = () => import('./CropOverlay.svelte');
   const loadBlurOverlay = () => import('./BlurOverlay.svelte');
   const loadFaceOverlay = () => import('./FaceOverlay.svelte');
+  const loadHealOverlay = () => import('./HealOverlay.svelte');
 
   let canvas = $state<HTMLCanvasElement>();
   let ready = $state(false);
@@ -52,6 +54,23 @@
   const desktop = $derived(w >= 900);
   const meta = $derived(ui.tool ? toolById(ui.tool) : undefined);
   const groupTools = $derived(TOOLS.filter((t) => t.group === ui.group));
+  /** Tools of the group with their effect on the photo. Their button shows a small switch, turned on. */
+  const lit = $derived.by(() => {
+    void ui.rev;
+    if (!ready) return new Set<string>();
+    const e = engine();
+    return new Set(groupTools.filter((t) => switchable(t.id) && hasWork(e, t.id)).map((t) => t.id));
+  });
+  /** In the automatic mode of Manchas each healed spot has a ring, to take it back alone, unless the person hid them. */
+  const healRings = $derived(
+    meta?.kind === 'heal' &&
+      ui.healRings &&
+      toolLimit.region !== null &&
+      toolLimit.mode === 'auto' &&
+      toolLimit.state === 'on' &&
+      !ui.splitOn &&
+      !ui.compareHold,
+  );
   const canUndo = $derived((ui.rev, ready && engine().history.canUndo));
   const canRedo = $derived((ui.rev, ready && engine().history.canRedo));
   // The label changes with each step, so it follows every change, not only canUndo.
@@ -63,11 +82,6 @@
   const groupLabel = $derived(GROUPS.find((g) => g.id === ui.group)?.label ?? '');
   const groupDirty = $derived((ui.rev, ready && groupChanged(ui.group)));
   const photoDirty = $derived((ui.rev, ready && photoChanged()));
-  /** The whole photo goes back only after a second yes, since leaving the editor drops the undo. */
-  let askReset = $state(false);
-  $effect(() => {
-    if (!photoDirty) askReset = false;
-  });
 
   /** The words under the light stay a little longer than the light, time enough to read them. */
   let reachNote = $state(false);
@@ -266,13 +280,27 @@
     void selectTool(list.length === 1 ? list[0].id : null);
   }
 
+  /**
+   * A tap on another tool opens it. On the open tool, a folded panel opens again first. Then, for the
+   * tools with an effect of their own, the tap turns the effect off or back on; for the others it folds
+   * the panel, as before.
+   */
   function pickTool(id: string) {
-    if (ui.tool === id) {
-      panelOpen = !panelOpen;
-      return;
+    if (ui.tool !== id) {
+      panelOpen = true;
+      void selectTool(id);
+    } else if (!panelOpen) {
+      panelOpen = true;
+    } else if (switchable(id)) {
+      void toggleEffect(id);
+    } else {
+      panelOpen = false;
     }
-    panelOpen = true;
-    void selectTool(id);
+  }
+
+  function toolTitle(id: string, label: string): string {
+    if (ui.tool !== id || !switchable(id)) return label;
+    return lit.has(id) ? `${label}: toque de novo para tirar o efeito` : `${label}: toque de novo para aplicar`;
   }
 
   function keydown(ev: KeyboardEvent) {
@@ -323,8 +351,7 @@
     } else if (key === '-') {
       e.zoomBy(e.canvas.clientWidth / 2, e.canvas.clientHeight / 2, 0.8);
     } else if (key === 'escape') {
-      if (askReset) askReset = false;
-      else if (ui.exportOpen) ui.exportOpen = false;
+      if (ui.exportOpen) ui.exportOpen = false;
       else if (ui.faceChoosing) ui.faceChoosing = false;
       else if (ui.splitOn) ui.splitOn = false;
       else void selectTool(null);
@@ -356,6 +383,11 @@
         <BlurOverlay />
       {/await}
     {/if}
+    {#if healRings}
+      {#await loadHealOverlay() then { default: HealOverlay }}
+        <HealOverlay />
+      {/await}
+    {/if}
     {#if ui.faceChoosing}
       {#await loadFaceOverlay() then { default: FaceOverlay }}
         <FaceOverlay />
@@ -368,7 +400,7 @@
     <span class="brand serif">Glowup</span>
     <div class="grow"></div>
     <button type="button" class="icon-btn" aria-label="Voltar ao original" title="Voltar ao original" data-testid="reset-photo"
-      disabled={!photoDirty} onclick={() => (askReset = !askReset)}><Icon name="reset" /></button>
+      disabled={!photoDirty} onclick={() => void resetPhoto()}><Icon name="reset" /></button>
     <button type="button" class="icon-btn" aria-label="Desfazer" title={undoTitle} disabled={!canUndo} onclick={() => engine().undo()}><Icon name="undo" /></button>
     <button type="button" class="icon-btn" aria-label="Refazer" title={redoTitle} disabled={!canRedo} onclick={() => engine().redo()}><Icon name="redo" /></button>
     <button
@@ -391,9 +423,14 @@
       <aside class="side" bind:clientWidth={sideW} aria-label="Ferramenta">
         <div class="tools scroll-x" role="toolbar" aria-label="Ferramentas">
           {#each groupTools as t (t.id)}
-            <button type="button" class="tool" class:on={ui.tool === t.id} aria-pressed={ui.tool === t.id} data-tool={t.id} onclick={() => pickTool(t.id)}>
+            <button type="button" class="tool" class:on={ui.tool === t.id} aria-pressed={ui.tool === t.id} data-tool={t.id}
+              data-effect={switchable(t.id) ? (lit.has(t.id) ? 'on' : 'off') : null} title={toolTitle(t.id, t.label)}
+              aria-label={lit.has(t.id) ? `${t.label}, efeito ligado` : undefined} onclick={() => pickTool(t.id)}>
               <Icon name={t.id} size={22} />
               <span>{t.label}</span>
+              {#if lit.has(t.id)}
+                <span class="effect" aria-hidden="true" transition:scale={{ duration: 160, start: 0.5 }}></span>
+              {/if}
             </button>
           {/each}
           {#if groupDirty}
@@ -424,7 +461,7 @@
                 {#if meta.kind === 'mask' && ui.toolModule && meta.layer}
                   <MaskPanel layer={meta.layer} tool={ui.toolModule} />
                 {:else if meta.kind === 'heal'}
-                  <BrushControls erasable={false} full={false} />
+                  <HealPanel />
                 {:else if PANELS[meta.kind]}
                   {#await PANELS[meta.kind]() then { default: Panel }}
                     <Panel />
@@ -447,22 +484,14 @@
     </div>
   {/if}
 
-  {#if marking && !askReset}
+  {#if marking}
     <div class="marking" data-testid="mark-chip" in:reveal={{ duration: 200, y: -6 }}>
       <span>Marca do pincel ligada</span>
       <button type="button" onclick={toggleMark}>Ver o resultado</button>
     </div>
   {/if}
 
-  {#if askReset}
-    <div class="marking ask" role="alertdialog" aria-label="Voltar ao original" data-testid="reset-ask" in:reveal={{ duration: 200, y: -6 }}>
-      <span>Tirar tudo e voltar à foto original?</span>
-      <button type="button" data-testid="reset-yes" onclick={() => { askReset = false; void resetPhoto(); }}>Voltar</button>
-      <button type="button" class="quiet" onclick={() => (askReset = false)}>Cancelar</button>
-    </div>
-  {/if}
-
-  {#if reachNote && !marking && !askReset}
+  {#if reachNote && !marking}
     <div class="reach" role="status" data-testid="reach-chip" in:reveal={{ duration: 200, y: -6 }}>O brilho mostra onde o pincel alcança</div>
   {/if}
 
@@ -627,6 +656,33 @@
     background: rgb(255 184 119 / 0.1);
   }
 
+  .tool {
+    position: relative;
+  }
+
+  /* A small switch, turned on: this tool has its effect on the photo. A second tap turns it off. */
+  .effect {
+    position: absolute;
+    top: 5px;
+    right: 7px;
+    width: 18px;
+    height: 10px;
+    border-radius: 999px;
+    background: var(--safe);
+    box-shadow: 0 0 0 1.5px var(--ink-2);
+  }
+
+  .effect::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--ink);
+  }
+
   .groups {
     display: flex;
     justify-content: space-between;
@@ -780,14 +836,6 @@
     border-radius: 999px;
     color: var(--safe);
     font-size: 13px;
-  }
-
-  .marking.ask {
-    border-color: var(--line);
-  }
-
-  .marking .quiet {
-    color: var(--paper-2);
   }
 
   .zero {
