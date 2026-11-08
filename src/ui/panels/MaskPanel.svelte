@@ -59,7 +59,7 @@
           onchange={() => e.commit()}
         />
       {:else if c.type === 'segment'}
-        <Segment label={c.label} value={String(state.params[c.key])} options={c.options} onchange={(v) => setAndCommit(c.key, v)} />
+        <Segment label={c.label} value={String(state.params[c.key] ?? tool.defaults[c.key])} options={c.options} onchange={(v) => setAndCommit(c.key, v)} />
       {:else}
         <ColorRow label={c.label} value={String(state.params[c.key])} palette={c.palette} onchange={(v) => setAndCommit(c.key, v)} />
       {/if}

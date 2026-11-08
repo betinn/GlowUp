@@ -17,6 +17,8 @@ export interface ToolMeta {
   region?: FaceRegion;
   /** Shape the automatic mode fills the mask with, when it is not the region itself. */
   fill?: FaceRegion;
+  /** What it draws has a size on the skin, so it takes the size of the face found in the photo. */
+  faceSized?: boolean;
   hint: string;
 }
 
@@ -49,7 +51,7 @@ export const TOOLS: ToolMeta[] = [
   { id: 'eyeshadow', label: 'Sombra', group: 'makeup', kind: 'mask', layer: 'eyeshadow', region: 'lids', fill: 'shadow', hint: 'Pinte a pálpebra, do cílio para cima.' },
   { id: 'brow', label: 'Sobrancelha', group: 'makeup', kind: 'mask', layer: 'brow', region: 'brows', fill: 'browhair', hint: 'Siga o desenho dos fios.' },
   { id: 'contour', label: 'Contorno', group: 'makeup', kind: 'mask', layer: 'contour', region: 'skin', fill: 'sculpt', hint: 'Abaixo das maçãs e nas laterais do rosto e do nariz.' },
-  { id: 'freckles', label: 'Sardas', group: 'makeup', kind: 'mask', layer: 'freckles', region: 'skin', fill: 'sprinkle', hint: 'Passe onde quer as sardas.' },
+  { id: 'freckles', label: 'Sardas', group: 'makeup', kind: 'mask', layer: 'freckles', region: 'skin', fill: 'sprinkle', faceSized: true, hint: 'Passe onde quer as sardas. Passar de novo traz mais.' },
 
   { id: 'haircolor', label: 'Cor', group: 'hair', kind: 'mask', layer: 'hair', region: 'hair', hint: 'Escolha a cor. O brilho e os fios ficam.' },
   { id: 'hairdark', label: 'Escurecer', group: 'hair', kind: 'mask', layer: 'hairdark', region: 'hair', hint: 'Escurece os fios sem apagar o brilho.' },

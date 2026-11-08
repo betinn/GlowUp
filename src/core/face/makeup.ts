@@ -10,7 +10,7 @@
 
 import { softBlur, type Area, type MaskTarget, type Point } from './mask';
 import { FACE_OVAL, type Face, type FaceParts } from './scan';
-import { addGlow, areaAround, buildOnSkin, closeSmallHoles, cover, eyeFrame, mid, place, skinLikeness, smooth, toGrid } from './skin';
+import { addGlow, areaAround, buildOnSkin, cover, eyeFrame, mid, place, skinLikeness, smooth, toGrid } from './skin';
 
 /**
  * The inner contour of the lips left out over 20% of the teeth on 9 of 45 real smiles. Going this far
@@ -21,8 +21,6 @@ const LIP_REACH = 0.4;
 const CLOSED_MOUTH = 0.05;
 const OPEN_MOUTH = 0.12;
 
-/** The lips may reach this far past the outer contour, as a share of the mouth width. */
-const LIP_ROOM = 0.06;
 /** Skin is sampled in this band around the outer contour, as shares of the mouth width. */
 const SKIN_FROM = 0.1;
 const SKIN_TO = 0.24;
@@ -36,14 +34,35 @@ const LIP_TO = 0.65;
 /** Much darker than the lips is the inside of the mouth, as a share of the luma of the lips. */
 const MOUTH_DARK_LOW = 0.35;
 const MOUTH_DARK_HIGH = 0.55;
-/** Glints and the line between closed lips are closed up to about this size, as a share of the mouth width. */
-const LIP_CLOSE = 0.045;
 const MIN_LIP_SAMPLES = 30;
-/** Above this a pixel counts as lip, to tell what touches the lips. Above the second it closes a glint in. */
-const LIP_SOLID = 0.4;
-const LIP_FULL = 0.85;
-/** How much less sure of the color a pixel inside the outer contour needs to be. */
-const LIP_EASE = 0.2;
+/** How far each point of the outer contour may move, out and in, as shares of the mouth width. */
+const FIT_OUT = 0.06;
+const FIT_IN = 0.07;
+/** Length of each search step, the stretch read on each side of it and the blur of the map, the same way. */
+const FIT_STEP = 0.005;
+const FIT_SIDE = 0.025;
+const FIT_BLUR = 0.008;
+/** A step of the map below the first is no edge, and above the second it is sure. */
+const FIT_WEAK = 0.08;
+const FIT_CLEAR = 0.3;
+/** What the farthest step loses against one on the contour. */
+const FIT_FAR = 0.2;
+/** Luma as a share of the luma of the skin, where a glint starts and where it is sure. And its halo, on the mouth width. */
+const GLINT_FROM = 0.98;
+const GLINT_TO = 1.1;
+const GLINT_HALO = 0.02;
+/** New points per stretch of the contour of the model. */
+const FIT_POINTS = 6;
+/** Along the contour, in points: the window that drops a wrong step, and the softness of the offsets. */
+const FIT_MEDIAN = 4;
+const FIT_SMOOTH = 3;
+/** Inside the mouth, this blur tells a wide opening from the narrow line between the lips. */
+const MOUTH_DEEP = 0.02;
+/** What is not lip may start in the opening this far past the contour, as a share of the mouth width. */
+const MOUTH_ROOM = 0.04;
+/** A pixel below the first starts what is not lip inside the mouth, and it spreads below the second. */
+const MOUTH_SEED = 0.25;
+const MOUTH_SOLID = 0.5;
 
 /** How far the brush may go around a brow, across and past its outer end, as shares of the thickness. */
 const BROW_ROOM = 0.45;
@@ -98,6 +117,9 @@ const SIDE_INSET = 0.05;
 const NOSE_RADIUS = 0.13;
 const NOSE_PEAK = 0.6;
 const TOP_RADIUS = 0.36;
+/** Around them a few strays, since the mask of the freckles says how likely a dot is, not how dark. */
+const TOP_FRINGE = 0.72;
+const FRINGE_PEAK = 0.3;
 const BRIDGE_RADIUS = 0.3;
 /** Points of the outline along each side of the face, from the temple to the jaw. */
 const SIDES: readonly (readonly number[])[] = [
@@ -114,6 +136,110 @@ export function lipReach(innerLips: readonly Point[]): number {
 }
 
 const median = (list: number[]) => list.sort((a, b) => a - b)[list.length >> 1];
+
+/** Pushes each point of a shape away from its center by `by`, the same on every side. */
+function outgrow(points: readonly Point[], by: number): Point[] {
+  const cx = points.reduce((sum, p) => sum + p[0], 0) / points.length;
+  const cy = points.reduce((sum, p) => sum + p[1], 0) / points.length;
+  return points.map(([x, y]): Point => {
+    const d = Math.hypot(x - cx, y - cy) || 1;
+    return [x + ((x - cx) / d) * by, y + ((y - cy) / d) * by];
+  });
+}
+
+/** A closed curve through the points, with `steps` new points on each stretch. */
+export function smoothLoop(points: readonly Point[], steps: number): Point[] {
+  const n = points.length;
+  const out: Point[] = [];
+  for (let i = 0; i < n; i++) {
+    const [p0, p1, p2, p3] = [points[(i + n - 1) % n], points[i], points[(i + 1) % n], points[(i + 2) % n]];
+    for (let k = 0; k < steps; k++) {
+      const t = k / steps;
+      const blend = (a: number, b: number, c: number, d: number) =>
+        0.5 * (2 * b + (c - a) * t + (2 * a - 5 * b + 4 * c - d) * t * t + (3 * b - a - 3 * c + d) * t * t * t);
+      out.push([blend(p0[0], p1[0], p2[0], p3[0]), blend(p0[1], p1[1], p2[1], p3[1])]);
+    }
+  }
+  return out;
+}
+
+/** The value of a map over `area` at a point on the grid, between pixels. */
+function sampleAt(map: Float32Array, area: Area, x: number, y: number): number {
+  const fx = Math.min(area.w - 1.001, Math.max(0, x - area.x - 0.5));
+  const fy = Math.min(area.h - 1.001, Math.max(0, y - area.y - 0.5));
+  const ix = Math.floor(fx);
+  const iy = Math.floor(fy);
+  const tx = fx - ix;
+  const ty = fy - iy;
+  const at = iy * area.w + ix;
+  return (map[at] * (1 - tx) + map[at + 1] * tx) * (1 - ty) + (map[at + area.w] * (1 - tx) + map[at + area.w + 1] * tx) * ty;
+}
+
+/**
+ * Moves a closed contour onto the edge of a map from 0 outside to 1 inside. Each point looks along its
+ * normal for the strongest step, and a step far from the contour must be stronger to win. A point with no
+ * clear step takes after its neighbors, and the offsets are smoothed along the contour, so the result is
+ * a clean line.
+ */
+export function fitContour(contour: readonly Point[], like: Float32Array, area: Area, width: number): Point[] {
+  const n = contour.length;
+  const cx = contour.reduce((sum, p) => sum + p[0], 0) / n;
+  const cy = contour.reduce((sum, p) => sum + p[1], 0) / n;
+  const normals = contour.map(([x, y], i): Point => {
+    const a = contour[(i + n - 1) % n];
+    const b = contour[(i + 1) % n];
+    const length = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+    const nx = (b[1] - a[1]) / length;
+    const ny = -(b[0] - a[0]) / length;
+    return nx * (x - cx) + ny * (y - cy) >= 0 ? [nx, ny] : [-nx, -ny];
+  });
+  const step = Math.max(0.5, width * FIT_STEP);
+  const reachOut = Math.ceil((width * FIT_OUT) / step);
+  const reachIn = Math.ceil((width * FIT_IN) / step);
+  const side = Math.max(1, Math.round((width * FIT_SIDE) / step));
+  const offsets = new Float32Array(n);
+  const trust = new Float32Array(n);
+  contour.forEach(([x, y], i) => {
+    const [nx, ny] = normals[i];
+    const read = (k: number) => sampleAt(like, area, x + nx * k * step, y + ny * k * step);
+    let top = -Infinity;
+    let plain = 0;
+    for (let k = reachOut; k >= -reachIn; k--) {
+      let inside = 0;
+      let outside = 0;
+      for (let j = 0; j < side; j++) {
+        inside += read(k - j - 0.5);
+        outside += read(k + j + 0.5);
+      }
+      const score = (inside - outside) / side;
+      const fair = score - (FIT_FAR * Math.abs(k)) / Math.max(reachOut, reachIn);
+      if (fair > top) {
+        top = fair;
+        plain = score;
+        offsets[i] = k * step;
+      }
+    }
+    trust[i] = smooth(FIT_WEAK, FIT_CLEAR, plain);
+  });
+  // A wrong step on one point drops out against the points around it.
+  const steady = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const near = Array.from({ length: FIT_MEDIAN * 2 + 1 }, (_, j) => offsets[(i + j - FIT_MEDIAN + n) % n]);
+    steady[i] = median(near);
+  }
+  return contour.map(([x, y], i): Point => {
+    let sum = 0;
+    let weight = 0;
+    for (let j = -FIT_SMOOTH * 3; j <= FIT_SMOOTH * 3; j++) {
+      const at = (i + j + n) % n;
+      const w = Math.exp((-0.5 * j * j) / (FIT_SMOOTH * FIT_SMOOTH)) * (trust[at] + 1e-3);
+      sum += steady[at] * w;
+      weight += w;
+    }
+    const by = sum / weight;
+    return [x + normals[i][0] * by, y + normals[i][1] * by];
+  });
+}
 
 /** The pixels where `open` holds that can be reached from `seeds` without leaving it, going up, down and sideways. */
 export function reached(open: (i: number) => boolean, seeds: readonly number[], w: number, h: number): Uint8Array {
@@ -133,35 +259,27 @@ export function reached(open: (i: number) => boolean, seeds: readonly number[], 
   return seen;
 }
 
-/** Pushes each point of a shape away from its center by `by`, the same on every side. */
-function outgrow(points: readonly Point[], by: number): Point[] {
-  const cx = points.reduce((sum, p) => sum + p[0], 0) / points.length;
-  const cy = points.reduce((sum, p) => sum + p[1], 0) / points.length;
-  return points.map(([x, y]): Point => {
-    const d = Math.hypot(x - cx, y - cy) || 1;
-    return [x + ((x - cx) / d) * by, y + ((y - cy) / d) * by];
-  });
-}
-
 /**
- * The lips as the photo shows them, over `area`: what stands on the way from the color of the skin around
- * the mouth to the color of the middle of the lips. Color without brightness, so a shadow does not move
- * the edge and a glint closes back. Teeth are far from that color, and what is much darker is the inside
- * of the mouth. Null when the lips and the skin look the same, as with a lipstick the color of the skin.
+ * The lips as the photo shows them, over `area`. The color of the lips against the skin around the mouth
+ * gives a map, in color without brightness, so a shadow does not move the edge, and the outer contour of
+ * the model is fitted to it. A contour, not pixels: the edge comes out clean under a strong color, and a
+ * glint or a pale part stays in. Inside the mouth only what is not the color of the lips and touches the
+ * opening stays out, as teeth and the dark, so the line where the lips meet takes the color too. Null when
+ * the lips and the skin look the same, as with a lipstick the color of the skin.
  */
 export function lipsFromPhoto(
   rgba: Uint8ClampedArray,
   area: Area,
   outer: readonly Point[],
   inner: readonly Point[],
-  open: boolean,
+  opening: readonly Point[] | null,
   width: number,
 ): Float32Array | null {
   const body = cover(outer, area);
-  const hole = open ? cover(inner, area) : new Float32Array(body.length);
+  const mouth = opening ? cover(inner, area) : new Float32Array(body.length);
   const n = body.length;
   const ring = new Float32Array(n);
-  for (let i = 0; i < n; i++) ring[i] = body[i] * (1 - hole[i]);
+  for (let i = 0; i < n; i++) ring[i] = body[i] * (1 - mouth[i]);
   const core = softBlur(ring, area.w, area.h, Math.max(0.6, width * LIP_FEATHER));
   const near = cover(outgrow(outer, width * SKIN_FROM), area);
   const far = cover(outgrow(outer, width * SKIN_TO), area);
@@ -173,6 +291,7 @@ export function lipsFromPhoto(
   const lipY: number[] = [];
   const skinR: number[] = [];
   const skinG: number[] = [];
+  const skinY: number[] = [];
   for (let i = 0; i < n; i++) {
     const R = rgba[i * 4];
     const G = rgba[i * 4 + 1];
@@ -188,6 +307,7 @@ export function lipsFromPhoto(
     } else if (far[i] > 0.5 && near[i] < 0.5) {
       skinR.push(r[i]);
       skinG.push(g[i]);
+      skinY.push(y[i]);
     }
   }
   if (lipR.length < MIN_LIP_SAMPLES || skinR.length < MIN_LIP_SAMPLES) return null;
@@ -195,34 +315,36 @@ export function lipsFromPhoto(
   const sg = median(skinG);
   const dx = median(lipR) - sr;
   const dy = median(lipG) - sg;
-  const gap = Math.hypot(dx, dy);
-  if (gap < LIP_MIN_CONTRAST) return null;
+  const size = dx * dx + dy * dy;
+  if (Math.sqrt(size) < LIP_MIN_CONTRAST) return null;
   const my = Math.max(median(lipY), 0.05);
-  const like = new Float32Array(n);
-  for (let i = 0; i < n; i++) {
-    const along = ((r[i] - sr) * dx + (g[i] - sg) * dy) / (gap * gap);
-    // Inside the outline a lip washed out by the light still counts. Past it, the photo has to be sure.
-    const ease = body[i] * LIP_EASE;
-    like[i] = smooth(LIP_FROM - ease, LIP_TO - ease, along) * smooth(MOUTH_DARK_LOW, MOUTH_DARK_HIGH, y[i] / my) * (1 - hole[i]);
-  }
-  const soft = softBlur(like, area.w, area.h, Math.max(0.5, width * LIP_FEATHER * 0.5));
-  const closed = closeSmallHoles(soft, area.w, area.h, width * LIP_CLOSE);
-  const reach = softBlur(cover(outgrow(outer, width * LIP_ROOM), area), area.w, area.h, Math.max(0.5, width * LIP_FEATHER * 0.5));
-  for (let i = 0; i < n; i++) closed[i] *= reach[i] * (1 - hole[i]);
-  // A patch of redder skin near the mouth does not touch the lips, and a glint on them touches nothing else.
+  const along = new Float32Array(n);
+  for (let i = 0; i < n; i++) along[i] = Math.min(1.2, Math.max(-0.2, ((r[i] - sr) * dx + (g[i] - sg) * dy) / size));
+  const colored = softBlur(along, area.w, area.h, Math.max(0.6, width * FIT_BLUR));
+  // A glint is white, so by color it would look like skin: inside the contour it counts as lip, with the pale
+  // halo around it. Nothing on a lip is brighter than the skin except light.
+  const light = median(skinY);
+  const glint = new Float32Array(n);
+  for (let i = 0; i < n; i++) glint[i] = smooth(light * GLINT_FROM, light * GLINT_TO, y[i]) * body[i];
+  const halo = softBlur(glint, area.w, area.h, Math.max(0.6, width * GLINT_HALO));
+  for (let i = 0; i < n; i++) along[i] = Math.max(along[i], smooth(0.08, 0.35, halo[i]) * body[i]);
+  const map = softBlur(along, area.w, area.h, Math.max(0.6, width * FIT_BLUR));
+  const fitted = fitContour(smoothLoop(outer, FIT_POINTS), map, area, width);
+  const soft = Math.max(0.5, width * LIP_FEATHER * 0.6);
+  const edge = softBlur(cover(fitted, area), area.w, area.h, soft);
+  if (!opening) return edge;
+  // What is not the color of the lips, starting inside the opening: teeth and the dark of the mouth.
+  const lipLike = new Float32Array(n);
+  for (let i = 0; i < n; i++) lipLike[i] = smooth(LIP_FROM, LIP_TO, colored[i]) * smooth(MOUTH_DARK_LOW, MOUTH_DARK_HIGH, y[i] / my);
+  const room = cover(outgrow(opening, width * MOUTH_ROOM), area);
   const seeds: number[] = [];
-  const edge: number[] = [];
-  for (let i = 0; i < n; i++) {
-    if (core[i] > 0.9) seeds.push(i);
-    const x = i % area.w;
-    if (hole[i] > 0.5 || x === 0 || x === area.w - 1 || i < area.w || i >= n - area.w) edge.push(i);
-  }
-  const outside = reached((i) => closed[i] <= LIP_FULL, edge, area.w, area.h);
-  for (let i = 0; i < n; i++) if (!outside[i]) closed[i] = 1;
-  const joined = reached((i) => closed[i] > LIP_SOLID, seeds, area.w, area.h);
-  const kept = softBlur(Float32Array.from(joined), area.w, area.h, Math.max(0.6, width * LIP_FEATHER * 1.5));
-  for (let i = 0; i < n; i++) closed[i] *= smooth(0.02, 0.2, kept[i]);
-  return closed;
+  for (let i = 0; i < n; i++) if (mouth[i] > 0.5 && lipLike[i] < MOUTH_SEED) seeds.push(i);
+  const notLip = reached((i) => room[i] > 0.5 && lipLike[i] < MOUTH_SOLID, seeds, area.w, area.h);
+  const hole = softBlur(Float32Array.from(notLip), area.w, area.h, soft);
+  // The deep of a wide mouth stays out whatever its color, as a tongue. A narrow gap has no deep part.
+  const deep = softBlur(mouth, area.w, area.h, Math.max(0.6, width * MOUTH_DEEP));
+  for (let i = 0; i < n; i++) edge[i] *= 1 - Math.max(smooth(0.72, 0.92, deep[i]), hole[i]);
+  return edge;
 }
 
 /** The lips of every face, without the inside of the mouth, as a mask from 0 to 255. Null when no mouth was found. */
@@ -236,14 +358,14 @@ export function buildLipMask(faces: readonly Face[], target: MaskTarget): Uint8A
     const area = areaAround(outer, width * (SKIN_TO + 0.05) + 2, target);
     if (area.w < 2 || area.h < 2) continue;
     const reach = lipReach(inner);
+    // The opening of the teeth tool, so the two tools meet without a gap.
+    const opening = inner.map(([x, y], i): Point => [x + (outer[i][0] - x) * reach, y + (outer[i][1] - y) * reach]);
     const rgba = target.color?.(area);
-    const found = rgba ? lipsFromPhoto(rgba, area, outer, inner, reach > 0, width) : null;
+    const found = rgba ? lipsFromPhoto(rgba, area, outer, inner, reach > 0 ? opening : null, width) : null;
     if (found) {
       place(out, target, area, found);
       continue;
     }
-    // The opening of the teeth tool, so the two tools meet without a gap.
-    const opening = inner.map(([x, y], i): Point => [x + (outer[i][0] - x) * reach, y + (outer[i][1] - y) * reach]);
     const body = cover(outer, area);
     const hole = reach > 0 ? cover(opening, area) : new Float32Array(body.length);
     for (let i = 0; i < body.length; i++) body[i] *= 1 - hole[i];
@@ -474,9 +596,16 @@ export function buildSculptMask(faces: readonly Face[], target: MaskTarget): Uin
   });
 }
 
+/** The largest face as a share of the long side of the photo. Zero without a face. */
+export function faceShare(faces: readonly Face[], w: number, h: number): number {
+  const long = Math.max(w, h);
+  return Math.max(0, ...faces.map(({ box }) => Math.max(box.w * w, box.h * h) / long));
+}
+
 /** Over the nose and the top of the cheeks, as sun freckles fall, on the skin. Null when no face shows them. */
 export function buildSprinkleMask(faces: readonly Face[], target: MaskTarget): Uint8Array | null {
   return buildOnSkin(faces, target, ({ parts }, shape, area) => {
+    bandsOf(parts.cheekTops, target, parts, shape, area, TOP_FRINGE, FRINGE_PEAK);
     bandsOf(parts.cheekTops, target, parts, shape, area, TOP_RADIUS, 1);
     if (!parts.cheekTops?.length || !parts.midline || parts.midline.length < 9) return;
     const line = toGrid(parts.midline, target);

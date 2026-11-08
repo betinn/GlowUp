@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { focusPoints } from '../../src/core/face/focus';
-import { addBand, lidShape, reached } from '../../src/core/face/makeup';
+import { addBand, faceShare, fitContour, lidShape, reached, smoothLoop } from '../../src/core/face/makeup';
 import type { Area, MaskTarget, Point } from '../../src/core/face/mask';
 import { buildRegionMask, type LandmarkRegion } from '../../src/core/face/regions';
 import { CHEEK_TOPS, CHEEKS, FACE_OVAL, HOLLOWS, makeFace, NOSE_SIDES, readFace, type Face, type FaceParts } from '../../src/core/face/scan';
@@ -145,7 +145,7 @@ describe('lips', () => {
     });
     const mask = buildRegionMask([big], 'lips', slipped)!;
     // The lower lip of the photo, past the outer contour of the model.
-    expect(at(mask, 0.5, 0.745)).toBeGreaterThan(200);
+    expect(at(mask, 0.5, 0.745)).toBeGreaterThan(170);
     // The skin the outline covers, above the upper lip of the photo.
     expect(at(mask, 0.5, 0.626)).toBeLessThan(30);
     expect(at(mask, 0.5, 0.65)).toBeGreaterThan(200);
@@ -161,14 +161,52 @@ describe('lips', () => {
     expect(at(buildRegionMask([face()], 'lips', glinted)!, 0.5, 0.708)).toBeGreaterThan(220);
   });
 
-  it('leave out a patch of redder skin that does not touch them', () => {
+  it('keep a clean edge: no patch of redder skin near the mouth, no bite out of a washed-out lip', () => {
     const marked = portrait((u, v) => {
       if (inLens(u, v, 0.5, 0.68, 0.07, 0.015)) return TEETH;
-      if (inLens(u, v, 0.5, 0.68, 0.085, 0.03)) return LIP;
-      if (Math.hypot(u - 0.585, v - 0.655) < 0.006) return LIP;
+      if (inLens(u, v, 0.5, 0.68, 0.09, 0.035)) return LIP;
+      if (Math.hypot(u - 0.585, v - 0.64) < 0.006) return LIP;
       return null;
     });
-    expect(at(buildRegionMask([face()], 'lips', marked)!, 0.585, 0.655)).toBeLessThan(30);
+    expect(at(buildRegionMask([face()], 'lips', marked)!, 0.585, 0.64)).toBeLessThan(30);
+    // A band of the upper lip as bright as a glint, between the strong color and the edge.
+    const washed = portrait((u, v) => {
+      if (inLens(u, v, 0.5, 0.68, 0.07, 0.015)) return TEETH;
+      if (inLens(u, v, 0.5, 0.68, 0.09, 0.035)) return v < 0.652 && u > 0.46 && u < 0.54 ? [250, 225, 215] : LIP;
+      return null;
+    });
+    expect(at(buildRegionMask([face()], 'lips', washed)!, 0.5, 0.65)).toBeGreaterThan(200);
+  });
+
+  it('paint the line where the lips meet, and only leave out what is not lip in the opening', () => {
+    const line = makeFace(oval(0.5, 0.5, 0.26, 0.36), { ...parts, innerLips: lens(0.5, 0.68, 0.08, 0.012, 20) });
+    const parted = portrait((u, v) => {
+      if (inLens(u, v, 0.5, 0.68, 0.03, 0.012)) return TEETH;
+      if (inLens(u, v, 0.5, 0.68, 0.09, 0.035)) return LIP;
+      return null;
+    });
+    const mask = buildRegionMask([line], 'lips', parted)!;
+    expect(at(mask, 0.5, 0.68)).toBeLessThan(30);
+    // Inside the contour of the model, but the color of the lips.
+    expect(at(mask, 0.565, 0.68)).toBeGreaterThan(200);
+  });
+
+  it('come out as a smooth line, whatever the grain of the photo', () => {
+    const grainy = portrait((u, v) => {
+      if (inLens(u, v, 0.5, 0.68, 0.07, 0.015)) return TEETH;
+      const n = (Math.round(u * SIZE) * 7 + Math.round(v * SIZE) * 13) % 5;
+      if (inLens(u, v, 0.5, 0.68, 0.09, 0.035)) return [LIP[0] + n * 6, LIP[1] - n * 4, LIP[2] - n * 3];
+      return [SKIN[0] + n * 3, SKIN[1] + n * 3, SKIN[2] + n * 3];
+    });
+    const mask = buildRegionMask([face()], 'lips', grainy)!;
+    // Where the lower edge crosses half strength, column by column: it never jumps.
+    const edges: number[] = [];
+    for (let x = Math.round(0.44 * SIZE); x <= Math.round(0.56 * SIZE); x++) {
+      let y = Math.round(0.75 * SIZE);
+      while (y > 0 && mask[y * SIZE + x] < 128) y--;
+      edges.push(y);
+    }
+    for (let i = 1; i < edges.length; i++) expect(Math.abs(edges[i] - edges[i - 1])).toBeLessThanOrEqual(1);
   });
 
   it('cover the whole mouth when it is closed', () => {
@@ -361,6 +399,55 @@ describe('blush, contour and freckles', () => {
     expect(shape[50 * 100 + 50]).toBeCloseTo(0.8, 1);
     expect(shape[50 * 100 + 20]).toBeCloseTo(0.8, 1);
     expect(shape[25 * 100 + 50]).toBeLessThan(0.01);
+  });
+});
+
+describe('the fit of a contour', () => {
+  /** A map with a disc of radius 40 around (100, 100), on a grid of 200. */
+  const area = { x: 0, y: 0, w: 200, h: 200 };
+  const disc = (value: (x: number, y: number) => number) => Float32Array.from({ length: 200 * 200 }, (_, i) => value(i % 200, Math.floor(i / 200)));
+  const circle = (radius: number) => Array.from({ length: 60 }, (_, i): Point => [100 + Math.cos((i / 60) * 6.2832) * radius, 100 + Math.sin((i / 60) * 6.2832) * radius]);
+  const radii = (points: readonly Point[]) => points.map(([x, y]) => Math.hypot(x - 100, y - 100));
+
+  it('moves onto the edge from either side', () => {
+    const map = disc((x, y) => (Math.hypot(x - 100, y - 100) < 40 ? 1 : 0));
+    for (const start of [37, 43]) {
+      for (const r of radii(fitContour(circle(start), map, area, 100))) expect(Math.abs(r - 40)).toBeLessThan(1.5);
+    }
+  });
+
+  it('stays where it is on a map with no edge', () => {
+    const map = disc(() => 0.5);
+    for (const r of radii(fitContour(circle(40), map, area, 100))) expect(r).toBeCloseTo(40, 3);
+  });
+
+  it('takes after the neighbors where one stretch has no edge', () => {
+    // An edge all around, except a stretch of the disc as pale as the outside.
+    const map = disc((x, y) => (Math.hypot(x - 100, y - 100) < 40 && !(x > 110 && Math.abs(y - 100) < 10) ? 1 : 0));
+    const fitted = radii(fitContour(circle(38), map, area, 100));
+    expect(Math.abs(fitted[0] - 40)).toBeLessThan(3);
+  });
+
+  it('runs a smooth loop through the points it was given', () => {
+    const square: Point[] = [
+      [0, 0],
+      [10, 0],
+      [10, 10],
+      [0, 10],
+    ];
+    const loop = smoothLoop(square, 4);
+    expect(loop.length).toBe(16);
+    expect(loop[0]).toEqual([0, 0]);
+    expect(loop[4]).toEqual([10, 0]);
+  });
+});
+
+describe('the size of a face', () => {
+  it('is the largest face as a share of the long side, and zero without one', () => {
+    const small = makeFace(oval(0.2, 0.2, 0.05, 0.05));
+    const large = makeFace(oval(0.6, 0.6, 0.2, 0.3));
+    expect(faceShare([small, large], 1000, 500)).toBeCloseTo(0.4, 1);
+    expect(faceShare([], 1000, 500)).toBe(0);
   });
 });
 

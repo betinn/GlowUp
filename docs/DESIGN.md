@@ -195,8 +195,11 @@ ocular.
 | Contorno | Só na pele | Sob as maçãs, nas laterais do rosto e do nariz |
 | Sardas | Só na pele | Nariz e alto das bochechas |
 
-- **Foto real.** Lábios e fios vêm da cor e do brilho da própria foto, porque o contorno do modelo escorrega em
-  cabeça inclinada. Sem contraste, como batom da cor da pele, a forma volta a ser a do modelo.
+- **Foto real.** O contorno dos lábios é ajustado à cor da própria foto, numa linha limpa, e os fios vêm do brilho, porque
+  o modelo escorrega em cabeça inclinada. Sem contraste, como batom da cor da pele, a forma volta a ser a do modelo.
+- **Sardas.** Tipo (Finas, Naturais, Marcantes), Quantidade, Tamanho, Variação e Opacidade. Os pontos caem soltos, juntando
+  em umas partes e rareando em outras, e cada um tem forma, tamanho e cor próprios. A máscara diz quantos pontos cabem ali,
+  não o quanto eles escurecem, então passar o pincel de novo traz mais pontos. O tamanho segue o rosto da foto.
 - **Sem rosto.** Sem rosto, sem a região ou sem o detector, um aviso diz por quê e o pincel fica livre.
 
 ## Cabelo

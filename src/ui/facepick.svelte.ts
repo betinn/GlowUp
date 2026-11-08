@@ -7,6 +7,7 @@
 import type { Engine } from '../core/engine';
 import type { FaceScan } from '../core/face/detector';
 import { focusPoints } from '../core/face/focus';
+import { faceShare } from '../core/face/makeup';
 import { addHair, faceSize, hairCrop } from '../core/face/hair';
 import { buildFaceMask, type MaskTarget, type Point } from '../core/face/mask';
 import { buildRegionMask, type FaceRegion } from '../core/face/regions';
@@ -398,6 +399,20 @@ function modeFor(e: Engine, tool: string): ToolMode {
   return hasWork(e, tool) ? 'manual' : 'auto';
 }
 
+/**
+ * Tells a tool how large the faces of this photo are, for what has a size on the skin. Only a number, and
+ * it follows the photo, so it is no step of its own in the undo.
+ */
+function tellFaceSize(e: Engine, tool: string, source: SourceImage): void {
+  const meta = toolById(tool);
+  const layer = meta?.faceSized && meta.layer ? e.doc.layers[meta.layer] : undefined;
+  const share = faceShare(facePick.faces, source.w, source.h);
+  if (!layer || !share || layer.params.face === share) return;
+  layer.params.face = share;
+  e.ctx?.invalidate('prefix');
+  e.requestRender();
+}
+
 /** Fills the open tool from what was found, as one undo step: its mask, or the spots it heals. */
 async function fillRegion(e: Engine, tool: string): Promise<void> {
   const fill = regionFill;
@@ -408,6 +423,7 @@ async function fillRegion(e: Engine, tool: string): Promise<void> {
   } else {
     const layer = layerOf(tool);
     if (!layer) return;
+    if (e.source) tellFaceSize(e, tool, e.source);
     await e.fillLayer(layer, fill.mask, 'Automático', reducedMotion() ? 0 : FILL_FADE_MS);
   }
   bump();
@@ -466,6 +482,7 @@ export async function limitTool(e: Engine, tool: string, region: FaceRegion, dee
       const shape = buildRegionMask(scan.list, meta.fill, target);
       fill = shape ? { mask: shape } : null;
     }
+    tellFaceSize(e, tool, source);
     e.setPaintLimit(data);
     // The hair segmenter also looks at a photo without faces, so for hair the photo has none.
     toolLimit.state = data ? 'on' : scan.list.length || hair ? 'no-region' : 'no-face';

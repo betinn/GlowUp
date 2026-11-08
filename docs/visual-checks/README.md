@@ -24,7 +24,7 @@ de propósito manchas, olheiras, olho vermelho e dentes amarelados. Nenhuma pess
   `ui-ferramenta-ligada` a chavinha no botão de Suavizar com o efeito na foto. Manchas tira 20 das 26 manchas desenhadas; as que ficam encostam nos lábios, na sobrancelha
   ou no olho, onde a busca não olha.
 
-- `ui-make-brilho`, `ui-make-batom`, `ui-make-sardas`, `ui-make-auto` e `ui-celular-make`: o menu Make no
+- `ui-make-brilho`, `ui-make-batom`, `ui-make-sardas`, `ui-make-sardas-marcantes`, `ui-make-auto` e `ui-celular-make`: o menu Make no
   Automático. `11-maquiagem` e `13-sardas` agora mostram o Automático, não traços de script. Só o retrato
   procedural entra no repositório; lábios, fios, pálpebras e os lugares das maçãs e do contorno também foram
   conferidos numa selfie real de cabeça inclinada e virada, que ficou fora.

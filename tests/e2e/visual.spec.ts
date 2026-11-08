@@ -174,7 +174,7 @@ const CHECKS: Check[] = [
     clip: FACE,
     run: async (page) => {
       await pickTool(page, 'makeup', 'freckles', { auto: true });
-      await setSlider(page, 'Densidade', 60);
+      await setSlider(page, 'Quantidade', 60);
     },
   },
   {

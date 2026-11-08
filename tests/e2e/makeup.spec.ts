@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { chooseMode, expectNoErrors, facePoint, fitPhoto, meanDiff, openEditor, paint, pickTool, settle, showSettled, type Clip } from './helpers';
+import { chooseMode, expectNoErrors, facePoint, fitPhoto, meanDiff, openEditor, paint, pickTool, setSlider, settle, showSettled, type Clip } from './helpers';
 
 /** The real detector runs here, on the procedural portrait. */
 const shot = (name: string) => `docs/visual-checks/${name}.png`;
@@ -190,10 +190,81 @@ test.describe('make', () => {
     const plain = await page.screenshot();
     const after = await applied(page, 'freckles');
     // The dots are sparse, so a wider area tells more than a small one.
-    for (const spot of [CHEEK_TOP, BRIDGE]) expect(await meanDiff(page, plain, after, around(page, spot, 16))).toBeGreaterThan(0.25);
-    expect(await meanDiff(page, plain, after, around(page, FOREHEAD, 16))).toBeLessThan(0.1);
+    for (const spot of [CHEEK_TOP, BRIDGE]) expect(await meanDiff(page, plain, after, around(page, spot, 16))).toBeGreaterThan(0.1);
+    expect(await meanDiff(page, plain, after, around(page, FOREHEAD, 16))).toBeLessThan(0.05);
     await page.screenshot({ path: shot('ui-make-sardas') });
     expectNoErrors(errors);
+  });
+
+  test('Sardas têm tipo e quantidade', async ({ page }) => {
+    const errors = watch(page);
+    await openEditor(page);
+    const plain = await page.screenshot();
+    const start = await applied(page, 'freckles');
+    const wide = around(page, CHEEK_TOP, 24);
+    const amount = (picture: Buffer) => meanDiff(page, plain, picture, wide);
+    const natural = await amount(start);
+    await expect(page.getByRole('radio', { name: 'Naturais' })).toHaveAttribute('aria-checked', 'true');
+
+    await setSlider(page, 'Quantidade', 90);
+    await settle(page, 300);
+    expect(await amount(await page.screenshot())).toBeGreaterThan(natural * 1.2);
+    await setSlider(page, 'Quantidade', 10);
+    await settle(page, 300);
+    expect(await amount(await page.screenshot())).toBeLessThan(natural * 0.6);
+    await setSlider(page, 'Quantidade', 45);
+
+    // Each kind makes a different pattern on the same place.
+    await page.getByRole('radio', { name: 'Finas' }).click();
+    await settle(page, 300);
+    const fine = await page.screenshot();
+    await page.getByRole('radio', { name: 'Marcantes' }).click();
+    await settle(page, 300);
+    const bold = await page.screenshot();
+    expect(await meanDiff(page, fine, bold, wide)).toBeGreaterThan(0.2);
+    await page.screenshot({ path: shot('ui-make-sardas-marcantes') });
+    expectNoErrors(errors);
+  });
+
+  test('Sardas não formam fileiras', async ({ page }) => {
+    await openEditor(page);
+    const plain = await page.screenshot();
+    await applied(page, 'freckles');
+    await setSlider(page, 'Quantidade', 80);
+    await settle(page, 300);
+    const dots = await page.screenshot();
+    const [x, y] = facePoint(page, ...CHEEK_TOP);
+    const peak = await page.evaluate(
+      async ({ a, b, x, y }) => {
+        const load = async (data: string) => {
+          const img = new Image();
+          img.src = `data:image/png;base64,${data}`;
+          await img.decode();
+          const c = new OffscreenCanvas(img.width, img.height);
+          const g = c.getContext('2d')!;
+          g.drawImage(img, 0, 0);
+          return g.getImageData(x - 48, y - 32, 96, 64).data;
+        };
+        const [p, q] = await Promise.all([load(a), load(b)]);
+        const map = Float32Array.from({ length: 96 * 64 }, (_, i) => Math.abs(p[i * 4] - q[i * 4]));
+        const mean = map.reduce((sum, v) => sum + v, 0) / map.length;
+        for (let i = 0; i < map.length; i++) map[i] -= mean;
+        const energy = map.reduce((sum, v) => sum + v * v, 0) || 1;
+        // How much the dots line up with themselves at any shift past the size of a dot. A grid scores high.
+        let top = 0;
+        for (let dy = -12; dy <= 12; dy++) {
+          for (let dx = 0; dx <= 16; dx++) {
+            if (Math.hypot(dx, dy) < 6) continue;
+            let sum = 0;
+            for (let yy = 12; yy < 52; yy++) for (let xx = 0; xx < 80; xx++) sum += map[yy * 96 + xx] * map[(yy + dy) * 96 + xx + dx];
+            top = Math.max(top, sum / energy);
+          }
+        }
+        return top;
+      },
+      { a: plain.toString('base64'), b: dots.toString('base64'), x: Math.round(x), y: Math.round(y) },
+    );
+    expect(peak).toBeLessThan(0.45);
   });
 
   test('Dentes segue o padrão: acha, voa, aplica e tira no botão', async ({ page }) => {

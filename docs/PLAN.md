@@ -112,7 +112,9 @@
 ## M16. Make pelo detector
 
 - [x] Batom, blush, sombra, sobrancelha, contorno e sardas com busca, voo, brilho, Automático e Manual
-- [x] Batom lê os lábios da cor da foto, sem os dentes, e Sobrancelha lê os fios do brilho da foto
+- [x] Batom ajusta o contorno dos lábios à cor da foto, com linha limpa e sem os dentes
+- [x] Sobrancelha lê os fios do brilho da foto
+- [x] Sardas soltas, sem padrão, com tipo, quantidade e tamanho na escala do rosto
 - [x] Sombra esmaece dos cílios para cima e fica fora do olho e da sobrancelha
 - [x] Blush, contorno e sardas seguem pontos do modelo que giram com a cabeça, sempre sobre a pele
 - [x] Sem rosto, sem região ou sem detector, pincel livre com aviso em todas as ferramentas do menu

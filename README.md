@@ -44,7 +44,8 @@ suavizar (Leve e Intenso), olheiras, tom de pele, iluminador, cada um na pele qu
 **Olhos:** branco do olho, olho vermelho, cor dos olhos, brilho no olhar.
 
 **Make:** batom nos lábios sem os dentes, dentes, blush nas maçãs, sombra nas pálpebras, sobrancelha nos fios,
-contorno sob as maçãs e nas laterais do rosto e do nariz, sardas procedurais sobre nariz e bochechas. Cada um acha
+contorno sob as maçãs e nas laterais do rosto e do nariz, sardas sobre nariz e bochechas, soltas e sem padrão, com tipo
+e quantidade. Cada um acha
 o lugar sozinho no Automático, e no Manual o pincel fica preso a ele.
 
 **Cabelo:** cor, escurecer, clarear, contraste e nitidez, cada um só nos fios que o detector achou.
