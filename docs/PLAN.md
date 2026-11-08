@@ -109,6 +109,14 @@
 
 - [x] Zerar por menu e voltar a foto toda ao original, cada um numa etapa do desfazer
 
+## M16. Make pelo detector
+
+- [x] Batom, blush, sombra, sobrancelha, contorno e sardas com busca, voo, brilho, Automático e Manual
+- [x] Batom lê os lábios da cor da foto, sem os dentes, e Sobrancelha lê os fios do brilho da foto
+- [x] Sombra esmaece dos cílios para cima e fica fora do olho e da sobrancelha
+- [x] Blush, contorno e sardas seguem pontos do modelo que giram com a cabeça, sempre sobre a pele
+- [x] Sem rosto, sem região ou sem detector, pincel livre com aviso em todas as ferramentas do menu
+
 ## Metas medidas
 
 Foto gerada de 12 MP (4000 x 3000), Chromium com aceleração, em uma placa dedicada (`node scripts/perf.mjs`):

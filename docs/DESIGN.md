@@ -170,6 +170,35 @@ palavras da pele.
 - **Iluminador.** O limite é a pele, mas o Automático acende só os pontos onde a luz cai: maçãs, ponte do
   nariz, meio da testa, arco do cupido e queixo.
 
+## Make
+
+Batom, Dentes, Blush, Sombra, Sobrancelha, Contorno e Sardas seguem o mesmo caminho dos olhos e da pele, com as
+palavras de cada uma. Sobrancelha fica aqui porque preenche e colore, como maquiagem; o menu Olhos age no globo
+ocular.
+
+- **Busca.** O cartão diz o que procura: "Procurando os lábios", "Procurando as sobrancelhas", "Procurando os
+  olhos" em Sombra, "Procurando a pele" em Blush, Contorno e Sardas.
+- **Foco e brilho.** A vista vai até a boca em Batom, até as sobrancelhas em Sobrancelha, até olhos e
+  sobrancelhas em Sombra, e até o rosto nas ferramentas que ficam na pele. A luz fria acende onde o pincel alcança.
+- **Automático.** O efeito chega em meio segundo, no lugar de cada produto. O botão da ferramenta é o
+  interruptor, como no resto do app.
+- **Manual.** Pincel, borracha e o interruptor do limite, que difere do que o Automático preenche quando a mão
+  precisa de mais espaço:
+
+| Ferramenta | O pincel fica em | O Automático preenche |
+| --- | --- | --- |
+| Batom | Só nos lábios | Os lábios, sem os dentes e o escuro da boca |
+| Dentes | Só nos dentes | Os dentes. Boca fechada não tem região, e o pincel fica livre |
+| Blush | Só na pele | As maçãs, subindo um pouco rumo à têmpora |
+| Sombra | Só nas pálpebras, por igual | A pálpebra, mais forte nos cílios e sumindo para cima |
+| Sobrancelha | Só nas sobrancelhas, com folga para engrossar ou alongar | Os fios, com as falhas preenchidas de leve |
+| Contorno | Só na pele | Sob as maçãs, nas laterais do rosto e do nariz |
+| Sardas | Só na pele | Nariz e alto das bochechas |
+
+- **Foto real.** Lábios e fios vêm da cor e do brilho da própria foto, porque o contorno do modelo escorrega em
+  cabeça inclinada. Sem contraste, como batom da cor da pele, a forma volta a ser a do modelo.
+- **Sem rosto.** Sem rosto, sem a região ou sem o detector, um aviso diz por quê e o pincel fica livre.
+
 ## Cabelo
 
 Menu próprio na barra de grupos, entre Make e Forma, com Cor, Escurecer, Clarear, Contraste e Nitidez.
