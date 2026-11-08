@@ -1,28 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { focusPoints } from '../../src/core/face/focus';
 import { addBand, faceShare, fitContour, lidShape, lipsFromPhoto, reached, smoothLoop } from '../../src/core/face/makeup';
-import type { Area, MaskTarget, Point } from '../../src/core/face/mask';
+import type { MaskTarget, Point } from '../../src/core/face/mask';
 import { buildRegionMask, type LandmarkRegion } from '../../src/core/face/regions';
 import { CHEEK_TOPS, CHEEKS, FACE_OVAL, HOLLOWS, makeFace, NOSE_SIDES, readFace, type Face, type FaceParts } from '../../src/core/face/scan';
 import { TOOLS } from '../../src/tools/catalog';
 import { LIMIT_WORDS, PLACES } from '../../src/ui/facepick.svelte';
+import { lens, oval, paintedPhoto, type Color } from './face-fixtures';
 
 const SIZE = 240;
 const at = (mask: Uint8Array, u: number, v: number) => mask[Math.round(v * SIZE) * SIZE + Math.round(u * SIZE)];
-
-function lens(cx: number, cy: number, halfW: number, halfH: number, count: number): Point[] {
-  return Array.from({ length: count }, (_, i): Point => {
-    const t = (i / count) * Math.PI * 2 + Math.PI;
-    return [cx + Math.cos(t) * halfW, cy - Math.sin(t) * halfH];
-  });
-}
-
-function oval(cx: number, cy: number, rx: number, ry: number): Point[] {
-  return Array.from({ length: FACE_OVAL.length }, (_, i): Point => {
-    const t = (i / FACE_OVAL.length) * Math.PI * 2;
-    return [cx + Math.sin(t) * rx, cy - Math.cos(t) * ry];
-  });
-}
 
 /** A brow in the order of the model: along the top from the outer end, then back along the bottom. */
 function brow(cx: number, cy: number, halfW: number, halfH: number, outerAt: -1 | 1): Point[] {
@@ -72,34 +59,11 @@ const TEETH: [number, number, number] = [235, 228, 210];
 const HAIR: [number, number, number] = [60, 40, 26];
 const BROW: [number, number, number] = [95, 65, 45];
 
-type Paint = (u: number, v: number) => [number, number, number];
-
-function photo(paint: Paint): MaskTarget {
-  const read = (area: Area) => {
-    const out = new Uint8ClampedArray(area.w * area.h * 4);
-    for (let y = 0; y < area.h; y++) {
-      for (let x = 0; x < area.w; x++) out.set([...paint((x + area.x + 0.5) / SIZE, (y + area.y + 0.5) / SIZE), 255], (y * area.w + x) * 4);
-    }
-    return out;
-  };
-  return {
-    w: SIZE,
-    h: SIZE,
-    color: read,
-    luma: (area) => {
-      const rgba = read(area);
-      const out = new Float32Array(area.w * area.h);
-      for (let i = 0; i < out.length; i++) out[i] = (0.2126 * rgba[i * 4] + 0.7152 * rgba[i * 4 + 1] + 0.0722 * rgba[i * 4 + 2]) / 255;
-      return out;
-    },
-  };
-}
-
 const inLens = (u: number, v: number, cx: number, cy: number, a: number, b: number) => ((u - cx) / a) ** 2 + ((v - cy) / b) ** 2 < 1;
 
 /** Skin all over, with hair at the top, and what `over` draws on top of it. */
 const portrait = (over: (u: number, v: number) => [number, number, number] | null): MaskTarget =>
-  photo((u, v) => over(u, v) ?? (v < 0.18 ? HAIR : SKIN));
+  paintedPhoto(SIZE, (u, v) => over(u, v) ?? (v < 0.18 ? HAIR : SKIN));
 
 /** The lips of the photo, with the mouth open. `dy` moves them away from where the model says they are. */
 const smile = (dy = 0, lip = LIP): MaskTarget =>
@@ -108,6 +72,24 @@ const smile = (dy = 0, lip = LIP): MaskTarget =>
     if (inLens(u, v, 0.5, 0.68 + dy, 0.09, 0.035)) return lip;
     return null;
   });
+
+/**
+ * The lips of a mouth on a larger grid than the others, so a pale stretch has room between two steps of
+ * color, with `around` painted under it. Returns the mask down the middle of the mouth.
+ */
+function largeMouth(around: (u: number, v: number) => Color | null): (v: number) => number {
+  const S = 720;
+  const area = { x: 0, y: 0, w: S, h: S };
+  const { color } = paintedPhoto(S, (u, v) => {
+    if (inLens(u, v, 0.5, 0.68, 0.1, 0.012)) return TEETH;
+    if (inLens(u, v, 0.5, 0.68, 0.14, 0.06)) return LIP;
+    return around(u, v) ?? SKIN;
+  });
+  const grid = (points: Point[]) => points.map(([u, v]): Point => [u * S, v * S]);
+  const inner = grid(lens(0.5, 0.68, 0.1, 0.012, 20));
+  const mask = lipsFromPhoto(color!(area), area, grid(lens(0.5, 0.68, 0.14, 0.06, 20)), inner, inner, 0.28 * S)!;
+  return (v) => mask[Math.round(v * S) * S + S / 2];
+}
 
 describe('landmark lists of the makeup', () => {
   it('are read with the rest of the face, one line per side', () => {
@@ -192,46 +174,15 @@ describe('lips', () => {
   });
 
   it('reach a paler bow of the upper lip that rises past the contour of the model', () => {
-    // A larger grid than the others, so the pale stretch has room between the two steps.
-    const S = 720;
-    const area = { x: 0, y: 0, w: S, h: S };
-    const rgba = new Uint8ClampedArray(S * S * 4);
-    for (let i = 0; i < S * S; i++) {
-      const u = ((i % S) + 0.5) / S;
-      const v = (Math.floor(i / S) + 0.5) / S;
-      let c: readonly number[] = SKIN;
-      if (inLens(u, v, 0.5, 0.68, 0.1, 0.012)) c = TEETH;
-      else if (inLens(u, v, 0.5, 0.68, 0.14, 0.06)) c = LIP;
-      // Halfway between the color of the lip and the skin, as the top of a bow often is.
-      else if (inLens(u, v, 0.5, 0.624, 0.05, 0.0124)) c = [205, 124, 112];
-      rgba.set([...c, 255], i * 4);
-    }
-    const grid = (points: Point[]) => points.map(([u, v]): Point => [u * S, v * S]);
-    const inner = grid(lens(0.5, 0.68, 0.1, 0.012, 20));
-    const mask = lipsFromPhoto(rgba, area, grid(lens(0.5, 0.68, 0.14, 0.06, 20)), inner, inner, 0.28 * S)!;
-    const row = (v: number) => mask[Math.round(v * S) * S + S / 2];
+    // Halfway between the color of the lip and the skin, as the top of a bow often is.
+    const row = largeMouth((u, v) => (inLens(u, v, 0.5, 0.624, 0.05, 0.0124) ? [205, 124, 112] : null));
     expect(row(0.618)).toBeGreaterThan(0.5);
     expect(row(0.6)).toBeLessThan(0.1);
   });
 
   it('stay off reddish skin around the mouth, which has a step of color but is not darker', () => {
-    const S = 720;
-    const area = { x: 0, y: 0, w: S, h: S };
-    const rgba = new Uint8ClampedArray(S * S * 4);
-    for (let i = 0; i < S * S; i++) {
-      const u = ((i % S) + 0.5) / S;
-      const v = (Math.floor(i / S) + 0.5) / S;
-      let c: readonly number[] = SKIN;
-      if (inLens(u, v, 0.5, 0.68, 0.1, 0.012)) c = TEETH;
-      else if (inLens(u, v, 0.5, 0.68, 0.14, 0.06)) c = LIP;
-      // A flush as light as the skin, as red as a pale lip, right past the edge.
-      else if (inLens(u, v, 0.5, 0.68, 0.16, 0.08)) c = [232, 150, 135];
-      rgba.set([...c, 255], i * 4);
-    }
-    const grid = (points: Point[]) => points.map(([u, v]): Point => [u * S, v * S]);
-    const inner = grid(lens(0.5, 0.68, 0.1, 0.012, 20));
-    const mask = lipsFromPhoto(rgba, area, grid(lens(0.5, 0.68, 0.14, 0.06, 20)), inner, inner, 0.28 * S)!;
-    const row = (v: number) => mask[Math.round(v * S) * S + S / 2];
+    // A flush as light as the skin, as red as a pale lip, right past the edge.
+    const row = largeMouth((u, v) => (inLens(u, v, 0.5, 0.68, 0.16, 0.08) ? [232, 150, 135] : null));
     expect(row(0.628)).toBeGreaterThan(0.8);
     expect(row(0.612)).toBeLessThan(0.1);
     expect(row(0.75)).toBeLessThan(0.1);

@@ -1,28 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import type { Area, MaskTarget, Point } from '../../src/core/face/mask';
+import type { MaskTarget, Point } from '../../src/core/face/mask';
 import { focusPoints } from '../../src/core/face/focus';
 import { buildRegionMask } from '../../src/core/face/regions';
 import { BROWS, FACE_OVAL, makeFace, MIDLINE, readFace, type Face, type FaceParts } from '../../src/core/face/scan';
 import { closeSmallHoles, skinArea, skinLikeness, spotGuard, underEyeShape, withForehead } from '../../src/core/face/skin';
+import { lens, oval, paintedPhoto, type Color } from './face-fixtures';
 
 const SIZE = 240;
 const at = (mask: Uint8Array, u: number, v: number) => mask[Math.round(v * SIZE) * SIZE + Math.round(u * SIZE)];
-
-/** A lens shape, like an open eye or a mouth, with `count` points starting at the left corner and going along the bottom. */
-function lens(cx: number, cy: number, halfW: number, halfH: number, count: number): Point[] {
-  return Array.from({ length: count }, (_, i): Point => {
-    const t = (i / count) * Math.PI * 2 + Math.PI;
-    return [cx + Math.cos(t) * halfW, cy - Math.sin(t) * halfH];
-  });
-}
-
-/** An oval face outline with as many points as the model gives, from the top of the forehead, the chin halfway. */
-function oval(cx: number, cy: number, rx: number, ry: number): Point[] {
-  return Array.from({ length: FACE_OVAL.length }, (_, i): Point => {
-    const t = (i / FACE_OVAL.length) * Math.PI * 2;
-    return [cx + Math.sin(t) * rx, cy - Math.cos(t) * ry];
-  });
-}
 
 /** A face filling most of the grid: eyes at a third, the mouth low, the nose down the middle. */
 function face(): Face {
@@ -51,29 +36,7 @@ const SKIN: [number, number, number] = [220, 168, 140];
 const HAIR: [number, number, number] = [60, 40, 26];
 
 /** The photo as the mask grid sees it: skin everywhere, with hair over the top of the forehead. */
-function photo(paint: (u: number, v: number) => [number, number, number] = (_u, v) => (v < 0.24 ? HAIR : SKIN)): MaskTarget {
-  const read = (area: Area) => {
-    const out = new Uint8ClampedArray(area.w * area.h * 4);
-    for (let y = 0; y < area.h; y++) {
-      for (let x = 0; x < area.w; x++) {
-        const c = paint((x + area.x + 0.5) / SIZE, (y + area.y + 0.5) / SIZE);
-        out.set([...c, 255], (y * area.w + x) * 4);
-      }
-    }
-    return out;
-  };
-  return {
-    w: SIZE,
-    h: SIZE,
-    color: read,
-    luma: (area) => {
-      const rgba = read(area);
-      const out = new Float32Array(area.w * area.h);
-      for (let i = 0; i < out.length; i++) out[i] = (0.2126 * rgba[i * 4] + 0.7152 * rgba[i * 4 + 1] + 0.0722 * rgba[i * 4 + 2]) / 255;
-      return out;
-    },
-  };
-}
+const photo = (paint: (u: number, v: number) => Color = (_u, v) => (v < 0.24 ? HAIR : SKIN)): MaskTarget => paintedPhoto(SIZE, paint);
 
 describe('landmark lists of the skin', () => {
   it('follow the brows and the middle of the model', async () => {
