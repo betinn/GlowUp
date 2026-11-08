@@ -77,6 +77,10 @@ Quem espera precisa saber três coisas: que está andando, quanto falta e que a 
 - **Tranquilizar.** "Tudo acontece aqui, no seu aparelho." Depois de 7 segundos: "Foto grande leva um
   tempinho. Tá tudo certo."
 - **Fim.** A barra chega a 100%, um tique se desenha e a palavra "Pronta" fica um instante na tela.
+- **Foto salva.** A cópia sobe para a luz com um brilho âmbar por baixo, um reflexo atravessa a foto e um
+  selo âmbar carimba o canto, gira até o lugar, solta faíscas da luz de segurança e desenha um tique. Leva
+  cerca de um segundo e se repete a cada "Baixar de novo". No celular, uma vibração curta. Com movimento
+  reduzido, o selo aparece pronto, sem nada se mexer.
 - **Trabalhos curtos**, como remover uma mancha, não merecem tela: só um aviso pequeno, e só se
   passarem de 220 ms. Miniaturas de filtro respiram até ficarem prontas, depois revelam.
 
@@ -108,6 +112,14 @@ A foto mostra sempre o resultado real. A marca laranja de onde se pintou é uma 
 rotulado no painel e tecla `M`. Ligada, ela cobre o resultado, então a própria foto avisa e oferece
 "Ver o resultado", o que vale também com o painel recolhido no celular. Cada ferramenta abre com a marca
 desligada.
+
+## A ferramenta é o interruptor
+
+As ferramentas com efeito próprio, as de pincel e Manchas, não têm botão de lixeira no painel. A própria
+ferramenta liga e desliga: com o efeito na foto, o botão mostra uma chavinha âmbar no canto, e um segundo
+toque na ferramenta aberta tira o efeito, numa etapa "Limpar" do desfazer. Mais um toque aplica de novo no
+Automático. No celular, com o painel recolhido, o toque primeiro reabre o painel. As outras ferramentas
+seguem recolhendo o painel no segundo toque.
 
 ## Olhos e dentes
 
@@ -145,8 +157,7 @@ palavras da pele.
 - **Foco e brilho.** A vista vai até o rosto, ou até os olhos em Olheiras, quando eles não estão na tela, e a
   luz fria acende sobre a pele.
 - **Automático.** O efeito chega em meio segundo, em vez de aparecer de uma vez, para a pessoa ver onde a
-  foto mudou. Em Manchas cada mancha some por vez, de cima para baixo, e o botão "Tirar as N correções" tira
-  todas numa etapa. Cada correção ganha um círculo fino sobre a foto: passar o mouse acende o círculo e
+  foto mudou. Em Manchas cada mancha some por vez, de cima para baixo. Cada correção ganha um círculo fino sobre a foto: passar o mouse acende o círculo e
   mostra um X, e um toque tira só aquela correção, numa etapa "Tirar correção". Assim um erro entre muitos
   acertos não obriga a perder tudo. Os círculos somem no Manual e na comparação, e o interruptor "Círculos
   nas correções" esconde todos para ver a foto limpa; a escolha fica guardada no aparelho. Sem

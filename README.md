@@ -35,6 +35,9 @@ sem GPU, e `E2E_PORT` troca a porta do preview, para duas cópias do repositóri
 
 ## Ferramentas
 
+Com o efeito de uma ferramenta na foto, o botão dela mostra uma chavinha ligada. Tocar de novo na
+ferramenta aberta tira o efeito, e mais um toque aplica de novo.
+
 **Pele:** manchas (healing com toque único automático, e no Automático acha e tira as manchas sozinho),
 suavizar (Leve e Intenso), olheiras, tom de pele, iluminador, cada um na pele que o detector achou.
 

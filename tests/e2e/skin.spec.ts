@@ -31,6 +31,8 @@ function around(page: Page, point: [number, number], half = 5): Clip {
 }
 
 const undoButton = (page: Page) => page.getByRole('button', { name: 'Desfazer' });
+const healTool = (page: Page) => page.locator('[data-tool=heal]');
+const healSpots = (page: Page) => page.getByTestId('heal-spot');
 
 /** The whole photo in view, once the flight and the fade are over. */
 async function fitted(page: Page): Promise<Buffer> {
@@ -81,7 +83,9 @@ test.describe('pele', () => {
     await page.locator('[data-tool=heal]').click();
     await expect(page.getByText(/Aplicado nas manchas que achei/)).toBeVisible({ timeout: 60_000 });
     await expect(undoButton(page)).toHaveAttribute('title', 'Desfazer: Automático');
-    const count = Number((await page.getByTestId('heal-clear').innerText()).match(/\d+/)?.[0]);
+    await expect(page.locator('[data-region-show=idle]')).toHaveCount(1, { timeout: 30_000 });
+    await expect(healTool(page)).toHaveAttribute('data-effect', 'on');
+    const count = await healSpots(page).count();
     expect(count).toBeGreaterThanOrEqual(15);
     const healed = await fitted(page);
     await page.screenshot({ path: shot('ui-manchas-auto') });
@@ -101,15 +105,16 @@ test.describe('pele', () => {
     const r = imageRect(page);
     const photo = { x: r.x, y: r.y, width: r.w, height: r.h };
     expect(await meanDiff(page, plain, await page.screenshot(), photo)).toBeLessThan(0.3);
-    await expect(page.getByTestId('heal-clear')).toHaveCount(0);
+    await expect(healTool(page)).toHaveAttribute('data-effect', 'off');
     await expect(page.getByRole('button', { name: 'Aplicar de novo' })).toBeVisible();
     await page.getByRole('button', { name: 'Refazer' }).click();
     await settle(page, 400);
-    await expect(page.getByTestId('heal-clear')).toContainText(String(count));
+    await expect(healTool(page)).toHaveAttribute('data-effect', 'on');
+    await expect(healSpots(page)).toHaveCount(count);
     expectNoErrors(errors);
   });
 
-  test('Manchas: um toque no círculo tira só aquela correção, e "Tirar" limpa a foto na hora', async ({ page }) => {
+  test('Manchas: um toque no círculo tira só aquela correção, e tocar de novo em Manchas limpa a foto na hora', async ({ page }) => {
     const errors = watch(page);
     await openEditor(page);
     const plain = await page.screenshot();
@@ -118,9 +123,9 @@ test.describe('pele', () => {
     await expect(page.getByText(/Aplicado nas manchas que achei/)).toBeVisible({ timeout: 60_000 });
     await expect(page.getByText(/Toque num círculo para desfazer só aquela/)).toBeVisible();
     await expect(page.locator('[data-region-show=idle]')).toHaveCount(1, { timeout: 30_000 });
-    const count = Number((await page.getByTestId('heal-clear').innerText()).match(/\d+/)?.[0]);
+    const count = await healSpots(page).count();
+    expect(count).toBeGreaterThanOrEqual(15);
     const healed = await fitted(page);
-    await expect(page.getByTestId('heal-spot')).toHaveCount(count);
 
     // The ring of one spot: a tap brings that spot back and leaves the others healed.
     const ring = page.getByTestId('heal-spot').nth(3);
@@ -130,7 +135,6 @@ test.describe('pele', () => {
     await settle(page, 300);
     await page.screenshot({ path: shot('ui-manchas-circulo') });
     await ring.click();
-    await expect(page.getByTestId('heal-clear')).toContainText(String(count - 1));
     await expect(page.getByTestId('heal-spot')).toHaveCount(count - 1);
     await expect(undoButton(page)).toHaveAttribute('title', 'Desfazer: Tirar correção');
     await page.mouse.move(5, 5);
@@ -145,7 +149,6 @@ test.describe('pele', () => {
 
     // Undo puts that one correction back.
     await undoButton(page).click();
-    await expect(page.getByTestId('heal-clear')).toContainText(String(count));
     await expect(page.getByTestId('heal-spot')).toHaveCount(count);
 
     // The rings can be hidden, so the photo shows clean. The choice is kept on this device.
@@ -158,13 +161,20 @@ test.describe('pele', () => {
     await page.getByTestId('heal-rings').click();
     await expect(page.getByTestId('heal-spot')).toHaveCount(count);
 
-    // "Tirar" shows the photo as it was at once, with nothing else touched.
-    await page.getByTestId('heal-clear').click();
-    await expect(page.getByTestId('heal-clear')).toHaveCount(0);
+    // A second tap on the tool shows the photo as it was at once, with nothing else touched.
+    await healTool(page).click();
+    await expect(healTool(page)).toHaveAttribute('data-effect', 'off');
     await expect(page.getByTestId('heal-spot')).toHaveCount(0);
+    await expect(undoButton(page)).toHaveAttribute('title', 'Desfazer: Limpar');
     await settle(page, 400);
     const r = imageRect(page);
     expect(await meanDiff(page, plain, await page.screenshot(), { x: r.x, y: r.y, width: r.w, height: r.h })).toBeLessThan(0.3);
+
+    // And one more tap heals the spots again.
+    await healTool(page).click();
+    await expect(healTool(page)).toHaveAttribute('data-effect', 'on', { timeout: 30_000 });
+    await expect(page.locator('[data-region-show=idle]')).toHaveCount(1, { timeout: 30_000 });
+    await expect(page.getByTestId('heal-spot')).toHaveCount(count);
     expectNoErrors(errors);
   });
 
@@ -197,8 +207,8 @@ test.describe('pele', () => {
     const middle: Clip = { x: vp.width / 2 - 260, y: vp.height / 2 - 220, width: 340, height: 440 };
     const healed = await page.screenshot();
 
-    await page.getByTestId('heal-clear').click();
-    await expect(page.getByTestId('heal-clear')).toHaveCount(0);
+    await healTool(page).click();
+    await expect(healTool(page)).toHaveAttribute('data-effect', 'off');
     await settle(page, 900);
     const cleared = await page.screenshot();
     // Undo and redo draw the cleared photo from scratch: the view must already show it.
@@ -209,6 +219,37 @@ test.describe('pele', () => {
     const fresh = await page.screenshot();
     expect(await meanDiff(page, healed, fresh, middle)).toBeGreaterThan(0.3);
     expect(await meanDiff(page, cleared, fresh, middle)).toBeLessThan(0.1);
+    expectNoErrors(errors);
+  });
+
+  test('tocar de novo na ferramenta tira o efeito, e mais uma vez aplica de novo', async ({ page }) => {
+    const errors = watch(page);
+    await openEditor(page);
+    const plain = await page.screenshot();
+    const smooth = page.locator('[data-tool=smooth]');
+    const after = await applied(page, 'smooth');
+    await expect(smooth).toHaveAttribute('data-effect', 'on');
+    await expect(smooth.locator('.effect')).toBeVisible();
+    // The panel has no trash button any more: the tool itself is the switch.
+    await expect(page.getByText(/Tirar o efeito|Apagar o que pintei/)).toHaveCount(0);
+    await page.screenshot({ path: shot('ui-ferramenta-ligada') });
+
+    await smooth.click();
+    await expect(smooth).toHaveAttribute('data-effect', 'off');
+    await expect(smooth.locator('.effect')).toHaveCount(0);
+    await expect(undoButton(page)).toHaveAttribute('title', 'Desfazer: Limpar');
+    const off = await fitted(page);
+    expect(await meanDiff(page, plain, off, around(page, CHEEK))).toBeLessThan(0.3);
+
+    await smooth.click();
+    await expect(smooth).toHaveAttribute('data-effect', 'on');
+    await expect(undoButton(page)).toHaveAttribute('title', 'Desfazer: Automático');
+    const again = await fitted(page);
+    expect(await meanDiff(page, after, again, around(page, CHEEK))).toBeLessThan(0.3);
+
+    // Undo puts back what the taps took away.
+    await undoButton(page).click();
+    await expect(smooth).toHaveAttribute('data-effect', 'off');
     expectNoErrors(errors);
   });
 

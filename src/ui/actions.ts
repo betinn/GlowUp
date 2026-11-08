@@ -3,7 +3,8 @@
 import { DEFAULT_BRUSH, type BrushSettings } from '../core/brush';
 import { ensureField, ensureHeal, ensureLayerTool } from '../tools/activate';
 import { toolById, type ToolMeta } from '../tools/catalog';
-import { dropToolLimit, forgetFreedTools, limitTool } from './facepick.svelte';
+import { dropToolLimit, forgetFreedTools, hasWork, limitTool, refillRegion, toolLimit } from './facepick.svelte';
+import { regionShow } from './regionshow.svelte';
 import { bump, engine, toast, ui } from './state.svelte';
 
 /** Brush settings are remembered per tool during the session. */
@@ -96,5 +97,29 @@ export const sliderToSize = (v: number) => SIZE_MIN * (SIZE_MAX / SIZE_MIN) ** (
 export function changeBrushSize(factor: number): void {
   const e = engine();
   e.brush.size = Math.min(SIZE_MAX, Math.max(SIZE_MIN, e.brush.size * factor));
+  bump();
+}
+
+/** Tools whose effect lives in a mask or in healed spots, so a second tap on the tool can turn it off. */
+export const switchable = (id: string) => {
+  const kind = toolById(id)?.kind;
+  return kind === 'mask' || kind === 'heal';
+};
+
+/**
+ * A second tap on the open tool. With an effect on the photo, it takes it off, as one undo step, as the
+ * trash button of the panel did. Without one, the automatic mode applies it again. While the detector
+ * searches or the view shows the region, the tap waits for nothing and does nothing.
+ */
+export async function toggleEffect(id: string): Promise<void> {
+  const e = engine();
+  const meta = toolById(id);
+  if (!meta || !switchable(id) || toolLimit.state === 'searching' || regionShow.phase || ui.painting) return;
+  if (hasWork(e, id)) {
+    if (meta.kind === 'heal') await e.healSpots([], 'Limpar');
+    else await e.clearLayer(meta.layer!);
+  } else if (toolLimit.tool === id && toolLimit.mode === 'auto' && toolLimit.state === 'on') {
+    refillRegion(e);
+  }
   bump();
 }

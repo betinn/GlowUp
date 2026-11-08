@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount, tick, untrack, type Component } from 'svelte';
+  import { scale } from 'svelte/transition';
   import { Engine, type EngineEvents } from '../core/engine';
   import { Autosave, loadOriginal, loadProject, unpack } from '../core/project';
   import { nextPaint } from '../core/progress';
@@ -13,9 +14,9 @@
   import Icon from './Icon.svelte';
   import Onboarding from './Onboarding.svelte';
   import Stage from './Stage.svelte';
-  import { changeBrushSize, resetToolMemory, selectTool, toggleMark } from './actions';
+  import { changeBrushSize, resetToolMemory, selectTool, switchable, toggleEffect, toggleMark } from './actions';
   import { comparePress, holdCompare, toggleCompare } from './compare';
-  import { autoHint, dropToolLimit, strokeOutside, toolLimit } from './facepick.svelte';
+  import { autoHint, dropToolLimit, hasWork, strokeOutside, toolLimit } from './facepick.svelte';
   import { reveal, rise } from './motion';
   import { regionShow } from './regionshow.svelte';
   import { groupChanged, photoChanged, resetGroup, resetPhoto } from './reset';
@@ -53,6 +54,13 @@
   const desktop = $derived(w >= 900);
   const meta = $derived(ui.tool ? toolById(ui.tool) : undefined);
   const groupTools = $derived(TOOLS.filter((t) => t.group === ui.group));
+  /** Tools of the group with their effect on the photo. Their button shows a small switch, turned on. */
+  const lit = $derived.by(() => {
+    void ui.rev;
+    if (!ready) return new Set<string>();
+    const e = engine();
+    return new Set(groupTools.filter((t) => switchable(t.id) && hasWork(e, t.id)).map((t) => t.id));
+  });
   /** In the automatic mode of Manchas each healed spot has a ring, to take it back alone, unless the person hid them. */
   const healRings = $derived(
     meta?.kind === 'heal' &&
@@ -277,13 +285,27 @@
     void selectTool(list.length === 1 ? list[0].id : null);
   }
 
+  /**
+   * A tap on another tool opens it. On the open tool, a folded panel opens again first. Then, for the
+   * tools with an effect of their own, the tap turns the effect off or back on; for the others it folds
+   * the panel, as before.
+   */
   function pickTool(id: string) {
-    if (ui.tool === id) {
-      panelOpen = !panelOpen;
-      return;
+    if (ui.tool !== id) {
+      panelOpen = true;
+      void selectTool(id);
+    } else if (!panelOpen) {
+      panelOpen = true;
+    } else if (switchable(id)) {
+      void toggleEffect(id);
+    } else {
+      panelOpen = false;
     }
-    panelOpen = true;
-    void selectTool(id);
+  }
+
+  function toolTitle(id: string, label: string): string {
+    if (ui.tool !== id || !switchable(id)) return label;
+    return lit.has(id) ? `${label}: toque de novo para tirar o efeito` : `${label}: toque de novo para aplicar`;
   }
 
   function keydown(ev: KeyboardEvent) {
@@ -407,9 +429,14 @@
       <aside class="side" bind:clientWidth={sideW} aria-label="Ferramenta">
         <div class="tools scroll-x" role="toolbar" aria-label="Ferramentas">
           {#each groupTools as t (t.id)}
-            <button type="button" class="tool" class:on={ui.tool === t.id} aria-pressed={ui.tool === t.id} data-tool={t.id} onclick={() => pickTool(t.id)}>
+            <button type="button" class="tool" class:on={ui.tool === t.id} aria-pressed={ui.tool === t.id} data-tool={t.id}
+              data-effect={switchable(t.id) ? (lit.has(t.id) ? 'on' : 'off') : null} title={toolTitle(t.id, t.label)}
+              aria-label={lit.has(t.id) ? `${t.label}, efeito ligado` : undefined} onclick={() => pickTool(t.id)}>
               <Icon name={t.id} size={22} />
               <span>{t.label}</span>
+              {#if lit.has(t.id)}
+                <span class="effect" aria-hidden="true" transition:scale={{ duration: 160, start: 0.5 }}></span>
+              {/if}
             </button>
           {/each}
           {#if groupDirty}
@@ -641,6 +668,33 @@
   .tool.on {
     color: var(--safe);
     background: rgb(255 184 119 / 0.1);
+  }
+
+  .tool {
+    position: relative;
+  }
+
+  /* A small switch, turned on: this tool has its effect on the photo. A second tap turns it off. */
+  .effect {
+    position: absolute;
+    top: 5px;
+    right: 7px;
+    width: 18px;
+    height: 10px;
+    border-radius: 999px;
+    background: var(--safe);
+    box-shadow: 0 0 0 1.5px var(--ink-2);
+  }
+
+  .effect::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--ink);
   }
 
   .groups {

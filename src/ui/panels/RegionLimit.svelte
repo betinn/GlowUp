@@ -51,7 +51,7 @@
     </div>
     {#if auto}
       {#if filled}
-        <p class="note" role="status">Aplicado {place} que achei. Para retocar à mão, use Manual.</p>
+        <p class="note" role="status">Aplicado {place} que achei. Para tirar, toque de novo na ferramenta. Para retocar à mão, use Manual.</p>
       {:else if regionShow.phase || !on}
         <p class="note" role="status">Já aplico {place}.</p>
       {:else}
