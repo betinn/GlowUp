@@ -4,9 +4,9 @@ import { join, relative, sep } from 'node:path';
 import { brotliCompressSync, constants, gzipSync } from 'node:zlib';
 import type { Plugin } from 'vite';
 
-const COMPRESSIBLE = /\.(js|mjs|css|html|svg|json|webmanifest|txt|wasm|task)$/;
-/** The face detector downloads only when someone asks for it, so it stays out of the precache. */
-const ON_DEMAND = /(^|\/)(detector-|vision_wasm_internal|face_landmarker)/;
+const COMPRESSIBLE = /\.(js|mjs|css|html|svg|json|webmanifest|txt|wasm|task|tflite)$/;
+/** The face detector and the hair segmenter download only when someone asks for them, so they stay out of the precache. */
+const ON_DEMAND = /(^|\/)(detector-|vision_wasm_internal|face_landmarker|hair_segmenter)/;
 
 function walk(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {

@@ -135,6 +135,22 @@ rostos achados.
   Automático fez. Voltar ao Automático troca o que foi pintado pela região. Projeto reaberto com máscara
   abre no Manual, para não apagar trabalho.
 
+## Cabelo
+
+Menu próprio na barra de grupos, entre Make e Forma, com Cor, Escurecer, Clarear, Contraste e Nitidez.
+Cada uma segue o mesmo caminho dos olhos e dentes, com as palavras do cabelo.
+
+- **Busca.** O cartão diz "Procurando o cabelo" e, depois dos rostos, "Achando os fios". Na primeira vez
+  avisa cerca de 7 MB, ou menos de 1 MB se o detector de rostos já veio.
+- **Foco e brilho.** A vista voa até o cabelo do maior rosto quando ele não está na tela, e a luz fria
+  acende sobre os fios. Num retrato o cabelo já está na tela, então só o brilho toca.
+- **Automático e Manual.** O Automático aplica nos fios achados numa etapa. O Manual traz pincel, borracha
+  e "Só no cabelo".
+- **Controles.** Cor tem a paleta e a intensidade. Escurecer e Nitidez têm intensidade. Clarear tem
+  intensidade e "Dourado", o tom quente que o cabelo escuro mostra quando clareia. Contraste vai de macio a
+  marcado, com zero no meio.
+- **Ícones.** Paleta, lua, nascer do sol, círculo meio riscado e losango, na mesma grade de 24 px.
+
 ## Filtro em um rosto
 
 Depois de escolher um filtro, o painel pergunta onde ele vale: "Foto toda" ou "Escolher rosto".

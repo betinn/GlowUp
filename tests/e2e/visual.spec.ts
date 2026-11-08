@@ -23,6 +23,7 @@ const FACE: Clip = { x: -0.3, y: -0.42, w: 0.6, h: 0.84 };
 const EYES: Clip = { x: -0.26, y: -0.16, w: 0.52, h: 0.2 };
 const MOUTH: Clip = { x: -0.15, y: 0.16, w: 0.3, h: 0.17 };
 const CHEEK: Clip = { x: -0.28, y: 0.0, w: 0.25, h: 0.25 };
+const HAIR: Clip = { x: -0.4, y: -0.5, w: 0.8, h: 0.9 };
 
 const CHECKS: Check[] = [
   {
@@ -175,12 +176,12 @@ const CHECKS: Check[] = [
   },
   {
     name: '12-cabelo',
-    title: 'Cabelo: trocar a cor',
-    clip: { x: -0.36, y: -0.48, w: 0.72, h: 0.5 },
+    title: 'Cabelo, Cor: acobreado no Automático, só onde o detector achou fios',
+    clip: HAIR,
     run: async (page) => {
-      await pickTool(page, 'makeup', 'hair');
-      await paint(page, [[-0.15, -0.4], [0.15, -0.4]]);
-      await paint(page, [[-0.16, -0.35], [0.16, -0.35]]);
+      await pickTool(page, 'hair', 'haircolor', { auto: true });
+      await page.locator('.swatch').nth(2).click();
+      await setSlider(page, 'Intensidade', 85);
     },
   },
   {
@@ -257,6 +258,43 @@ const CHECKS: Check[] = [
       await setSlider(page, 'Intensidade', 80);
       await setSlider(page, 'Área em foco', 12);
       await setSlider(page, 'Ângulo', 15);
+    },
+  },
+  {
+    name: '23-cabelo-escurecer',
+    title: 'Cabelo, Escurecer: a 80%, o brilho fica',
+    clip: HAIR,
+    run: async (page) => {
+      await pickTool(page, 'hair', 'hairdark', { auto: true });
+      await setSlider(page, 'Intensidade', 80);
+    },
+  },
+  {
+    name: '24-cabelo-clarear',
+    title: 'Cabelo, Clarear: a 80%, com o dourado de fábrica',
+    clip: HAIR,
+    run: async (page) => {
+      await pickTool(page, 'hair', 'hairlight', { auto: true });
+      await setSlider(page, 'Intensidade', 80);
+    },
+  },
+  {
+    name: '25-cabelo-contraste',
+    title: 'Cabelo, Contraste: no máximo',
+    clip: HAIR,
+    run: async (page) => {
+      await pickTool(page, 'hair', 'haircontrast', { auto: true });
+      await setSlider(page, 'Contraste', 100);
+    },
+  },
+  {
+    name: '26-cabelo-nitidez',
+    title: 'Cabelo, Nitidez: no máximo, de perto',
+    clip: { x: -0.4, y: -0.2, w: 0.2, h: 0.25 },
+    zoom: [-0.31, -0.08],
+    run: async (page) => {
+      await pickTool(page, 'hair', 'hairsharp', { auto: true });
+      await setSlider(page, 'Intensidade', 100);
     },
   },
 ];

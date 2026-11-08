@@ -1,5 +1,6 @@
 import { hexToRgb } from '../../core/color';
 import { pct, type ToolModule } from '../types';
+import { HAIR_BRUSH, lowLod } from './low';
 import { controls, defaults } from './panel';
 import FRAGMENT from './shader.glsl?raw';
 
@@ -8,12 +9,12 @@ const MODES: Record<string, number> = { color: 0, darken: 1, depth: 2 };
 const tool: ToolModule = {
   defaults,
   controls,
-  brush: { size: 0.05, hardness: 0.3, flow: 0.6 },
+  brush: HAIR_BRUSH,
   pass: {
     id: 'hair',
     fragment: FRAGMENT,
     prepare({ ctx }) {
-      return { uLow: ctx.slot('healed'), uLowLod: Math.max(0, Math.log2(0.008 * ctx.longSide)) };
+      return { uLow: ctx.slot('healed'), uLowLod: lowLod(ctx, 0.008) };
     },
     uniforms(params) {
       return {

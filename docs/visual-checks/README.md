@@ -15,6 +15,9 @@ de propósito manchas, olheiras, olho vermelho e dentes amarelados. Nenhuma pess
   da foto em grupo (`ui-regiao-grupo`), e o brilho sobre o alcance do pincel (`ui-regiao-brilho`).
 - `ui-auto-olhos.png`, `ui-manual-olhos.png`, `ui-celular-auto.png`: o seletor Automático e Manual, com a cor já
   aplicada pelo Automático e o pincel de volta no Manual.
+- `12-cabelo.png` e `23-` a `26-cabelo-*.png`: as cinco ferramentas de cabelo no Automático. `ui-cabelo-brilho` e
+  `ui-cabelo-auto` mostram a busca e o resultado, e `ui-celular-cabelo` a barra com os oito grupos no celular. O segmentador fica inseguro no meio do cabelo desenhado e
+  deixa partes de fora: em foto real o cabelo é outro, e o pincel livre, no Manual, cobre o que faltar.
 
 Os anéis destas imagens vêm do detector real: o retrato procedural basta para ele. A borda e o pescoço
 foram ajustados em fotos reais de domínio público, que ficaram fora do repositório.

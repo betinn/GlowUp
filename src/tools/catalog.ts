@@ -5,7 +5,7 @@ import type { FaceRegion } from '../core/face/regions';
 import type { ToolModule } from './types';
 
 export type ToolKind = 'mask' | 'heal' | 'liquify' | 'adjust' | 'filters' | 'presets' | 'blur' | 'crop';
-export type GroupId = 'skin' | 'eyes' | 'makeup' | 'shape' | 'looks' | 'light' | 'frame';
+export type GroupId = 'skin' | 'eyes' | 'makeup' | 'hair' | 'shape' | 'looks' | 'light' | 'frame';
 
 export interface ToolMeta {
   id: string;
@@ -22,6 +22,7 @@ export const GROUPS: { id: GroupId; label: string }[] = [
   { id: 'skin', label: 'Pele' },
   { id: 'eyes', label: 'Olhos' },
   { id: 'makeup', label: 'Make' },
+  { id: 'hair', label: 'Cabelo' },
   { id: 'shape', label: 'Forma' },
   { id: 'looks', label: 'Looks' },
   { id: 'light', label: 'Luz' },
@@ -46,8 +47,13 @@ export const TOOLS: ToolMeta[] = [
   { id: 'eyeshadow', label: 'Sombra', group: 'makeup', kind: 'mask', layer: 'eyeshadow', hint: 'Pinte a pálpebra.' },
   { id: 'brow', label: 'Sobrancelha', group: 'makeup', kind: 'mask', layer: 'brow', hint: 'Siga o desenho dos fios.' },
   { id: 'contour', label: 'Contorno', group: 'makeup', kind: 'mask', layer: 'contour', hint: 'Abaixo das maçãs e nas laterais do nariz.' },
-  { id: 'hair', label: 'Cabelo', group: 'makeup', kind: 'mask', layer: 'hair', hint: 'Pinte os fios e escolha o efeito.' },
   { id: 'freckles', label: 'Sardas', group: 'makeup', kind: 'mask', layer: 'freckles', hint: 'Passe onde quer as sardas.' },
+
+  { id: 'haircolor', label: 'Cor', group: 'hair', kind: 'mask', layer: 'hair', region: 'hair', hint: 'Escolha a cor. O brilho e os fios ficam.' },
+  { id: 'hairdark', label: 'Escurecer', group: 'hair', kind: 'mask', layer: 'hairdark', region: 'hair', hint: 'Escurece os fios sem apagar o brilho.' },
+  { id: 'hairlight', label: 'Clarear', group: 'hair', kind: 'mask', layer: 'hairlight', region: 'hair', hint: 'Clareia os fios, puxando para o dourado.' },
+  { id: 'haircontrast', label: 'Contraste', group: 'hair', kind: 'mask', layer: 'haircontrast', region: 'hair', hint: 'Mais contraste dá volume. Menos deixa macio.' },
+  { id: 'hairsharp', label: 'Nitidez', group: 'hair', kind: 'mask', layer: 'hairsharp', region: 'hair', hint: 'Realça os fios um a um.' },
 
   { id: 'liquify', label: 'Liquify', group: 'shape', kind: 'liquify', hint: 'Empurre, infle ou contraia. Devagar fica mais natural.' },
 
@@ -78,5 +84,9 @@ export const loaders: Record<LayerId, () => Promise<{ default: ToolModule }>> = 
   brow: () => import('./brow/index'),
   contour: () => import('./contour/index'),
   hair: () => import('./hair/index'),
+  hairdark: () => import('./hairdark/index'),
+  hairlight: () => import('./hairlight/index'),
+  haircontrast: () => import('./haircontrast/index'),
+  hairsharp: () => import('./hairsharp/index'),
   freckles: () => import('./freckles/index'),
 };

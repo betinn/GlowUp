@@ -1,5 +1,5 @@
 Glowup inclui, sem alterações, os componentes abaixo. Eles rodam só no aparelho de quem usa, para
-achar rostos quando a pessoa pede. Não identificam ninguém.
+achar rostos e cabelo quando a pessoa pede. Não identificam ninguém.
 
 MediaPipe Tasks Vision (@mediapipe/tasks-vision 1.2.2): biblioteca e WebAssembly.
 Copyright The MediaPipe Authors. Licença Apache 2.0.
@@ -9,6 +9,11 @@ MediaPipe Face Landmarker (face_landmarker.task, float16, versão 1): detector d
 BlazeFace, malha de rosto e blendshapes. Copyright Google. Licença Apache 2.0, conforme os
 cartões de modelo publicados pela Google.
 https://developers.google.com/edge/mediapipe/solutions/vision/face_landmarker
+
+MediaPipe Hair Segmenter (hair_segmenter.tflite, float32, versão mais recente em abril de 2023):
+segmentação de cabelo. Copyright Google. Licença Apache 2.0, conforme o cartão de modelo publicado
+pela Google.
+https://developers.google.com/edge/mediapipe/solutions/vision/image_segmenter
 
 Texto da licença:
 

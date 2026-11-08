@@ -1,12 +1,11 @@
 /**
- * Once a tool for eyes or teeth is ready, the view flies to the region and a short light shows the
+ * Once a tool for eyes, teeth or hair is ready, the view flies to the region and a short light shows the
  * pixels the brush can reach. Both give way to the person: a touch on the photo stops them.
  */
 
 import type { Engine } from '../core/engine';
-import { boxOf, FOCUS_FILL, FOCUS_MAX_ZOOM, focusPoints, pickFocus } from '../core/face/focus';
-import type { FaceRegion } from '../core/face/regions';
-import type { Face } from '../core/face/scan';
+import { boxOf, FOCUS_FILL, FOCUS_MAX_ZOOM, pickFocus } from '../core/face/focus';
+import type { Point } from '../core/face/mask';
 import { alreadyShown, frameBox, zoomToFit, type Box, type ViewState } from '../core/view';
 import { reducedMotion } from './motion';
 
@@ -21,12 +20,15 @@ export const regionShow = $state({
 /** Changes to stop what plays. */
 let current = 0;
 
-/** The view that frames the region, or null when there is nothing to frame or it is already in view. */
-export function focusView(e: Engine, faces: readonly Face[], region: FaceRegion): ViewState | null {
+/**
+ * The view that frames the region, or null when there is nothing to frame or it is already in view.
+ * `spots` holds, for each face that shows the region, the points to frame in image UV.
+ */
+export function focusView(e: Engine, spots: readonly (readonly Point[])[]): ViewState | null {
   const out = e.displaySize;
   const vp = e.viewport;
   const fit = (b: Box) => zoomToFit(vp, out, b, FOCUS_FILL, FOCUS_MAX_ZOOM);
-  const boxes = focusPoints(faces, region)
+  const boxes = spots
     .map((points) => boxOf(points.map(([u, v]) => e.imageToShown(u, v))))
     // A face the crop left out has nothing to show.
     .filter((b) => b.x1 > 0 && b.y1 > 0 && b.x0 < 1 && b.y0 < 1);
@@ -42,15 +44,14 @@ export function focusView(e: Engine, faces: readonly Face[], region: FaceRegion)
  */
 export async function showRegion(
   e: Engine,
-  faces: readonly Face[],
-  region: FaceRegion,
+  spots: readonly (readonly Point[])[],
   fly: boolean,
   glow: boolean,
   fill?: () => Promise<void>,
 ): Promise<void> {
   const mine = ++current;
   const still = reducedMotion();
-  const target = fly ? focusView(e, faces, region) : null;
+  const target = fly ? focusView(e, spots) : null;
   if (target) {
     regionShow.phase = 'fly';
     await e.flyTo(target, still ? 0 : FLY_MS);

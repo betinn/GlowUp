@@ -18,6 +18,10 @@ export type LayerId =
   | 'brow'
   | 'contour'
   | 'hair'
+  | 'hairdark'
+  | 'hairlight'
+  | 'haircontrast'
+  | 'hairsharp'
   | 'freckles';
 
 /** Render order of masked tools. Skin first, makeup after, so colors sit on clean skin. */
@@ -37,7 +41,12 @@ export const LAYER_ORDER: readonly LayerId[] = [
   'brow',
   'eyeshadow',
   'lips',
+  // Color first, then light and contrast on the new color, and sharpness on everything.
   'hair',
+  'hairdark',
+  'hairlight',
+  'haircontrast',
+  'hairsharp',
 ];
 
 /** Mask key of a filter limited to part of the photo. It never joins the chain of tools. */

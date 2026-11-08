@@ -94,6 +94,13 @@
 - [x] Brilho sobre o alcance do pincel, fora da exportação e diferente da marca do pincel
 - [x] Automático e Manual, com o automático aplicado numa etapa e a máscara salva como pintada
 
+## M14. Cabelo
+
+- [x] Grupo Cabelo na barra, entre Make e Forma
+- [x] Segmentador de cabelo no próprio site, baixado só na primeira ferramenta de cabelo
+- [x] Cabelo achado ao redor de cada rosto, ou na foto toda quando não há rosto
+- [x] Cor, Escurecer, Clarear, Contraste e Nitidez, com Automático, voo e brilho como nos olhos
+
 ## Metas medidas
 
 Foto gerada de 12 MP (4000 x 3000), Chromium com aceleração, em uma placa dedicada (`node scripts/perf.mjs`):

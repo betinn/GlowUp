@@ -611,9 +611,10 @@
     display: none;
   }
 
+  /* Eight groups fit across a 375 px phone. */
   .group {
     flex: 1;
-    min-width: 46px;
+    min-width: 44px;
     min-height: 50px;
     padding: 5px 0 3px;
   }
