@@ -72,7 +72,32 @@ export const NOSTRILS: readonly (readonly number[])[] = [
   [457, 459, 309, 392, 289, 305, 290, 250, 462, 461, 458, 279, 278, 294, 327, 331],
 ];
 
-/** Where the tools for eyes, teeth and skin may go, in image UV. */
+/**
+ * Lines the makeup follows, one per side of the face, in the order of `EYES`. They come from the mesh of
+ * the model, so they turn with the head, and were checked against a turned and tilted selfie.
+ * First the apple of each cheek going up toward the temple.
+ */
+export const CHEEKS: readonly (readonly number[])[] = [
+  [205, 50, 123],
+  [425, 280, 352],
+];
+/** The hollow under each cheekbone, from near the ear toward the corner of the mouth. */
+export const HOLLOWS: readonly (readonly number[])[] = [
+  [137, 147, 187, 207],
+  [366, 376, 411, 427],
+];
+/** Each side of the nose, from the inner corner of the eye down to the wing. */
+export const NOSE_SIDES: readonly (readonly number[])[] = [
+  [122, 174, 198],
+  [351, 399, 420],
+];
+/** The top of each cheek, from the temple side toward the nose, below the area of the dark circles. */
+export const CHEEK_TOPS: readonly (readonly number[])[] = [
+  [117, 118, 101, 100],
+  [346, 347, 330, 329],
+];
+
+/** Where the tools for eyes, teeth, skin and makeup may go, in image UV. */
 export interface FaceParts {
   eyes: readonly (readonly Point[])[];
   irises: readonly (readonly Point[])[];
@@ -82,6 +107,11 @@ export interface FaceParts {
   brows?: readonly (readonly Point[])[];
   midline?: readonly Point[];
   nostrils?: readonly (readonly Point[])[];
+  /** Absent on faces made by hand in tests, unless the test is about makeup. See the lists above. */
+  cheeks?: readonly (readonly Point[])[];
+  hollows?: readonly (readonly Point[])[];
+  noseSides?: readonly (readonly Point[])[];
+  cheekTops?: readonly (readonly Point[])[];
 }
 
 const NO_PARTS: FaceParts = { eyes: [], irises: [], innerLips: [], outerLips: [] };
@@ -136,6 +166,10 @@ export function readFace(point: (index: number) => Point): Face {
     brows: BROWS.map(read),
     midline: read(MIDLINE),
     nostrils: NOSTRILS.map(read),
+    cheeks: CHEEKS.map(read),
+    hollows: HOLLOWS.map(read),
+    noseSides: NOSE_SIDES.map(read),
+    cheekTops: CHEEK_TOPS.map(read),
   });
 }
 

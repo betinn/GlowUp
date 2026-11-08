@@ -1,5 +1,5 @@
 /**
- * Finding faces, for the filter and for the tools that stay on skin, eyes, teeth or hair. The detector code
+ * Finding faces, for the filter and for the tools that stay on a part of the face or on the hair. The detector code
  * loads here, on the first request. Faces and hair stay in memory for the open photo and never reach
  * the saved project.
  */
@@ -7,6 +7,7 @@
 import type { Engine } from '../core/engine';
 import type { FaceScan } from '../core/face/detector';
 import { focusPoints } from '../core/face/focus';
+import { faceShare } from '../core/face/makeup';
 import { addHair, faceSize, hairCrop } from '../core/face/hair';
 import { buildFaceMask, type MaskTarget, type Point } from '../core/face/mask';
 import { buildRegionMask, type FaceRegion } from '../core/face/regions';
@@ -75,15 +76,27 @@ export const facePick = $state({
   more: false,
 });
 
+const SKIN_WORDS = { name: 'Só na pele', finding: 'Procurando a pele', missing: 'Não achei pele de rosto nesta foto.' };
+const BROW_WORDS = { name: 'Só nas sobrancelhas', finding: 'Procurando as sobrancelhas', missing: 'Não achei sobrancelhas nesta foto.' };
+const LID_WORDS = { name: 'Só nas pálpebras', finding: 'Procurando os olhos', missing: 'Não achei olhos nesta foto.' };
+
 /** Words of each limit: the switch, the wait, and the note when the photo does not show that region. */
 export const LIMIT_WORDS: Record<FaceRegion, { name: string; finding: string; missing: string }> = {
   iris: { name: 'Só na íris', finding: 'Procurando os olhos', missing: 'Não achei olhos abertos nesta foto.' },
   sclera: { name: 'Só no branco do olho', finding: 'Procurando os olhos', missing: 'Não achei olhos abertos nesta foto.' },
   teeth: { name: 'Só nos dentes', finding: 'Procurando os dentes', missing: 'Não achei dentes à mostra nesta foto.' },
   hair: { name: 'Só no cabelo', finding: 'Procurando o cabelo', missing: 'Não achei cabelo nesta foto.' },
-  skin: { name: 'Só na pele', finding: 'Procurando a pele', missing: 'Não achei pele de rosto nesta foto.' },
+  skin: SKIN_WORDS,
   undereye: { name: 'Só nas olheiras', finding: 'Procurando os olhos', missing: 'Não achei olhos nesta foto.' },
-  glow: { name: 'Só na pele', finding: 'Procurando a pele', missing: 'Não achei pele de rosto nesta foto.' },
+  glow: SKIN_WORDS,
+  lips: { name: 'Só nos lábios', finding: 'Procurando os lábios', missing: 'Não achei lábios nesta foto.' },
+  brows: BROW_WORDS,
+  browhair: BROW_WORDS,
+  lids: LID_WORDS,
+  shadow: LID_WORDS,
+  cheeks: SKIN_WORDS,
+  sculpt: SKIN_WORDS,
+  sprinkle: SKIN_WORDS,
 };
 
 /** Where each region is, in the words of the panel. */
@@ -95,6 +108,14 @@ export const PLACES: Record<FaceRegion, string> = {
   skin: 'na pele',
   undereye: 'nas olheiras',
   glow: 'nos pontos de luz do rosto',
+  lips: 'nos lábios',
+  brows: 'nas sobrancelhas',
+  browhair: 'nas sobrancelhas',
+  lids: 'nas pálpebras',
+  shadow: 'nas pálpebras',
+  cheeks: 'nas maçãs do rosto',
+  sculpt: 'nas áreas de contorno do rosto',
+  sprinkle: 'no nariz e nas bochechas',
 };
 
 /** Where the automatic mode of a tool goes, in the words of the panel. */
@@ -378,6 +399,20 @@ function modeFor(e: Engine, tool: string): ToolMode {
   return hasWork(e, tool) ? 'manual' : 'auto';
 }
 
+/**
+ * Tells a tool how large the faces of this photo are, for what has a size on the skin. Only a number, and
+ * it follows the photo, so it is no step of its own in the undo.
+ */
+function tellFaceSize(e: Engine, tool: string, source: SourceImage): void {
+  const meta = toolById(tool);
+  const layer = meta?.faceSized && meta.layer ? e.doc.layers[meta.layer] : undefined;
+  const share = faceShare(facePick.faces, source.w, source.h);
+  if (!layer || !share || layer.params.face === share) return;
+  layer.params.face = share;
+  e.ctx?.invalidate('prefix');
+  e.requestRender();
+}
+
 /** Fills the open tool from what was found, as one undo step: its mask, or the spots it heals. */
 async function fillRegion(e: Engine, tool: string): Promise<void> {
   const fill = regionFill;
@@ -388,6 +423,7 @@ async function fillRegion(e: Engine, tool: string): Promise<void> {
   } else {
     const layer = layerOf(tool);
     if (!layer) return;
+    if (e.source) tellFaceSize(e, tool, e.source);
     await e.fillLayer(layer, fill.mask, 'Automático', reducedMotion() ? 0 : FILL_FADE_MS);
   }
   bump();
@@ -425,12 +461,14 @@ export async function limitTool(e: Engine, tool: string, region: FaceRegion, dee
     if (!scan) return;
     let data: Uint8Array | null;
     let spots: Point[][];
+    // One target for the limit and the fill, so they share the skin they find.
+    const target = maskTarget(masks, source);
     if (region === 'hair') {
       const found = await findHair(source, masks, scan.list, task, stopped);
       if (!found) return;
       ({ data, spots } = found);
     } else {
-      data = buildRegionMask(scan.list, region, maskTarget(masks, source));
+      data = buildRegionMask(scan.list, region, target);
       spots = focusPoints(scan.list, region);
     }
     // The automatic mode fills with the region, with its own shape, or for Manchas heals spots in it.
@@ -441,9 +479,10 @@ export async function limitTool(e: Engine, tool: string, region: FaceRegion, dee
       if (!list) return;
       fill = { spots: list };
     } else if (data && meta?.fill && meta.fill !== region && meta.fill !== 'hair') {
-      const shape = buildRegionMask(scan.list, meta.fill, maskTarget(masks, source));
+      const shape = buildRegionMask(scan.list, meta.fill, target);
       fill = shape ? { mask: shape } : null;
     }
+    tellFaceSize(e, tool, source);
     e.setPaintLimit(data);
     // The hair segmenter also looks at a photo without faces, so for hair the photo has none.
     toolLimit.state = data ? 'on' : scan.list.length || hair ? 'no-region' : 'no-face';

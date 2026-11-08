@@ -1,10 +1,11 @@
 /**
- * Where the view goes when a tool for eyes or teeth is ready. Plain math, so the choice can be tested.
+ * Where the view goes when a tool for eyes, teeth or makeup is ready. Plain math, so the choice can be tested.
  */
 
 import type { Box } from '../view';
 import type { Point } from './mask';
-import { lipReach, type LandmarkRegion } from './regions';
+import { lipReach } from './makeup';
+import type { LandmarkRegion } from './regions';
 import type { Face } from './scan';
 
 /** Of the free area, the share the eyes or the mouth fill once the view arrives. */
@@ -20,8 +21,15 @@ const WORTH_ZOOM = 1.6;
 export function focusPoints(faces: readonly Face[], region: LandmarkRegion): Point[][] {
   const list: Point[][] = [];
   for (const { parts, outline } of faces) {
-    if (region === 'skin' || region === 'glow') {
+    if (region === 'skin' || region === 'glow' || region === 'cheeks' || region === 'sculpt' || region === 'sprinkle') {
       list.push([...outline]);
+    } else if (region === 'lips') {
+      if (parts.outerLips.length) list.push([...parts.outerLips]);
+    } else if (region === 'brows' || region === 'browhair') {
+      if (parts.brows?.length) list.push(parts.brows.flat());
+    } else if (region === 'lids' || region === 'shadow') {
+      // The eyes and the brows above them: the lid lies between the two.
+      if (parts.eyes.length) list.push([...parts.eyes.flat(), ...(parts.brows ?? []).flat()]);
     } else if (region === 'undereye') {
       // The eyes and a little below them, where the dark circles are.
       if (parts.eyes.length) list.push([...parts.eyes.flat(), ...below(parts.eyes)]);

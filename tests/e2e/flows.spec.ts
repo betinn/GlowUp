@@ -148,7 +148,7 @@ test.describe('fluxos', () => {
 
   test('borracha remove o que foi pintado', async ({ page }) => {
     await openEditor(page);
-    await pickTool(page, 'makeup', 'lips');
+    await pickTool(page, 'makeup', 'blush');
     await page.mouse.move(2, 2);
     await settle(page, 300);
     const clean = await canvasShot(page);
@@ -273,7 +273,7 @@ test.describe('fluxos', () => {
   test('zoom mantém o pincel no lugar certo', async ({ page }) => {
     await openEditor(page);
     await pickTool(page, 'makeup', 'lips');
-    const [x, y] = facePoint(page, 0, 0.1);
+    const [x, y] = facePoint(page, 0, 0.28);
     await page.mouse.move(x, y);
     await page.mouse.wheel(0, -400);
     await settle(page, 400);

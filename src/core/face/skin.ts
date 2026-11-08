@@ -50,10 +50,10 @@ const UNDER_GAP = 0.1;
 const UNDER_DEPTH = 0.48;
 const UNDER_FEATHER = 0.11;
 
-const toGrid = (points: readonly Point[], { w, h }: MaskTarget) => points.map(([u, v]): Point => [u * w, v * h]);
+export const toGrid = (points: readonly Point[], { w, h }: MaskTarget) => points.map(([u, v]): Point => [u * w, v * h]);
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
-function smooth(lo: number, hi: number, v: number): number {
+export function smooth(lo: number, hi: number, v: number): number {
   const t = clamp((v - lo) / (hi - lo), 0, 1);
   return t * t * (3 - 2 * t);
 }
@@ -66,7 +66,7 @@ function around(points: readonly Point[], fx: number, fy = fx): Point[] {
   return points.map(([x, y]): Point => [cx + (x - cx) * fx, cy + (y - cy) * fy]);
 }
 
-function cover(points: readonly Point[], area: Area): Float32Array {
+export function cover(points: readonly Point[], area: Area): Float32Array {
   return fillPolygon(
     points.map(([x, y]): Point => [x - area.x, y - area.y]),
     area.w,
@@ -74,7 +74,15 @@ function cover(points: readonly Point[], area: Area): Float32Array {
   );
 }
 
-function place(out: Uint8Array, target: MaskTarget, area: Area, shape: Float32Array): void {
+/** Pixels around a shape, with room for the blur, cut by the edges of the grid. */
+export function areaAround(points: readonly Point[], room: number, { w, h }: MaskTarget): Area {
+  const box = bounds(points);
+  const x = Math.max(0, Math.floor(box.x - room));
+  const y = Math.max(0, Math.floor(box.y - room));
+  return { x, y, w: Math.min(w, Math.ceil(box.x + box.w + room)) - x, h: Math.min(h, Math.ceil(box.y + box.h + room)) - y };
+}
+
+export function place(out: Uint8Array, target: MaskTarget, area: Area, shape: Float32Array): void {
   for (let y = 0; y < area.h; y++) {
     for (let x = 0; x < area.w; x++) {
       const at = (y + area.y) * target.w + x + area.x;
@@ -175,7 +183,23 @@ export function withForehead(grid: readonly Point[], size: number): Point[] {
   });
 }
 
+/**
+ * The skin found for one target. A tool asks for the skin twice when it opens, for the limit and for what
+ * the automatic mode fills with, and finding it is the slow part. It goes away with the target.
+ */
+const foundSkin = new WeakMap<MaskTarget, Map<Face, Float32Array>>();
+
 function faceSkin(face: Face, target: MaskTarget, area: Area): Float32Array {
+  let known = foundSkin.get(target);
+  if (!known) foundSkin.set(target, (known = new Map()));
+  const held = known.get(face);
+  if (held) return held;
+  const skin = findFaceSkin(face, target, area);
+  known.set(face, skin);
+  return skin;
+}
+
+function findFaceSkin(face: Face, target: MaskTarget, area: Area): Float32Array {
   const size = faceSpan(face, target);
   const grid = withForehead(toGrid(face.outline, target), size);
   let shape = cover(grid, area);
@@ -227,7 +251,7 @@ export function buildSkinMask(faces: readonly Face[], target: MaskTarget): Uint8
 }
 
 /** The two ends of an eye and the way down from it, on the grid. */
-function eyeFrame(eye: readonly Point[]) {
+export function eyeFrame(eye: readonly Point[]) {
   // The contour goes from the outer corner along the lower lid to the inner corner, then back on top.
   const outer = eye[0];
   const inner = eye[8];
@@ -267,11 +291,7 @@ export function buildUnderEyeMask(faces: readonly Face[], target: MaskTarget): U
       const contour = toGrid(eye, target);
       const shape = underEyeShape(contour);
       const sigma = eyeFrame(contour).width * UNDER_FEATHER;
-      const box = bounds(shape);
-      const room = sigma * 3 + 2;
-      const x = Math.max(0, Math.floor(box.x - room));
-      const y = Math.max(0, Math.floor(box.y - room));
-      const area = { x, y, w: Math.min(target.w, Math.ceil(box.x + box.w + room)) - x, h: Math.min(target.h, Math.ceil(box.y + box.h + room)) - y };
+      const area = areaAround(shape, sigma * 3 + 2, target);
       if (area.w < 2 || area.h < 2) continue;
       place(out, target, area, softBlur(cover(shape, area), area.w, area.h, sigma));
     }
@@ -280,7 +300,7 @@ export function buildUnderEyeMask(faces: readonly Face[], target: MaskTarget): U
 }
 
 /** A soft ellipse added to `shape`, centered at (cx, cy) on the grid and turned along (ax, ay). */
-function addGlow(shape: Float32Array, area: Area, c: Point, rx: number, ry: number, axis: Point, peak: number): void {
+export function addGlow(shape: Float32Array, area: Area, c: Point, rx: number, ry: number, axis: Point, peak: number): void {
   const reach = Math.max(rx, ry) * 2.2;
   const x0 = Math.max(0, Math.floor(c[0] - reach - area.x));
   const x1 = Math.min(area.w, Math.ceil(c[0] + reach - area.x));
@@ -299,7 +319,7 @@ function addGlow(shape: Float32Array, area: Area, c: Point, rx: number, ry: numb
   }
 }
 
-const mid = (a: Point, b: Point, t = 0.5): Point => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+export const mid = (a: Point, b: Point, t = 0.5): Point => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
 
 /**
  * Where a highlighter goes on one face, on the grid: the cheekbones, the bridge of the nose, the middle
@@ -339,19 +359,28 @@ function glowSpots(parts: FaceParts, target: MaskTarget, shape: Float32Array, ar
   }
 }
 
-/** The spots of light of every face, kept on its skin, as a mask from 0 to 255. Null when there is no face. */
-export function buildGlowMask(faces: readonly Face[], target: MaskTarget): Uint8Array | null {
+/** The shape `paint` draws on each face, kept on its skin, as a mask from 0 to 255. Null when it draws nothing. */
+export function buildOnSkin(
+  faces: readonly Face[],
+  target: MaskTarget,
+  paint: (face: Face, shape: Float32Array, area: Area) => void,
+): Uint8Array | null {
   const out = new Uint8Array(target.w * target.h);
   for (const face of faces) {
     const area = skinArea(face, target);
     if (area.w < 2 || area.h < 2) continue;
     const spots = new Float32Array(area.w * area.h);
-    glowSpots(face.parts, target, spots, area);
+    paint(face, spots, area);
     const skin = faceSkin(face, target, area);
     for (let i = 0; i < spots.length; i++) spots[i] *= smooth(0.15, 0.7, skin[i]);
     place(out, target, area, spots);
   }
   return out.some((v) => v > 0) ? out : null;
+}
+
+/** The spots of light of every face, kept on its skin, as a mask from 0 to 255. Null when there is no face. */
+export function buildGlowMask(faces: readonly Face[], target: MaskTarget): Uint8Array | null {
+  return buildOnSkin(faces, target, (face, shape, area) => glowSpots(face.parts, target, shape, area));
 }
 
 /** Points of the outline that sit on the ears when the head turns: the top of each ear, its middle and the lobe. */

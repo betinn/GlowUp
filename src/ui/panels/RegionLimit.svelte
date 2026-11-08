@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Says where the brush stands: searching, kept on eyes, teeth or hair, or free and why. When the region
+   * Says where the brush stands: searching, kept on its region, or free and why. When the region
    * was found, it also offers the automatic mode, which fills the mask from it.
    */
   import type { LayerId } from '../../core/doc';
