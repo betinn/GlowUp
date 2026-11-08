@@ -36,7 +36,7 @@ const MOUTH_DARK_LOW = 0.35;
 const MOUTH_DARK_HIGH = 0.55;
 const MIN_LIP_SAMPLES = 30;
 /** How far each point of the outer contour may move, out and in, as shares of the mouth width. */
-const FIT_OUT = 0.08;
+const FIT_OUT = 0.05;
 const FIT_IN = 0.05;
 /** Length of each search step, the stretch read on each side of it and the blur of the map, the same way. */
 const FIT_STEP = 0.005;
@@ -45,6 +45,8 @@ const FIT_BLUR = 0.008;
 /** A step of the map below the first is no edge, and above the second it is sure. */
 const FIT_WEAK = 0.08;
 const FIT_CLEAR = 0.3;
+/** To move out, a step must also be this much darker on its inner side, as a share of the outer one. */
+const FIT_OUT_DARKER = 0.04;
 /** What the farthest step loses against one on the contour. */
 const FIT_FAR = 0.2;
 /**
@@ -186,11 +188,12 @@ function sampleAt(map: Float32Array, area: Area, x: number, y: number): number {
 /**
  * Moves a closed contour onto the edge of a map from 0 outside to 1 inside. Each point looks along its
  * normal for the strongest step, and a step far from the contour must be stronger to win. A clear step
- * farther out goes first, from a paler part of the lip to the skin. A point with no clear step takes after
+ * farther out goes first, from a paler part of the lip to the skin, and with `bright` going out also takes
+ * a darker inner side. A point with no clear step takes after
  * its neighbors, and the offsets are smoothed along the contour, so the result is a clean line that still
  * follows the bow of the lip and the corners of the mouth.
  */
-export function fitContour(contour: readonly Point[], like: Float32Array, area: Area, width: number): Point[] {
+export function fitContour(contour: readonly Point[], like: Float32Array, area: Area, width: number, bright?: Float32Array): Point[] {
   const n = contour.length;
   const cx = contour.reduce((sum, p) => sum + p[0], 0) / n;
   const cy = contour.reduce((sum, p) => sum + p[1], 0) / n;
@@ -223,6 +226,14 @@ export function fitContour(contour: readonly Point[], like: Float32Array, area: 
       }
       const score = (inside - outside) / side;
       const fair = score - (FIT_FAR * Math.abs(k)) / Math.max(reachOut, reachIn);
+      // Reddish skin around a mouth has a step of color with nothing under it. A lip is also darker.
+      let allowed = true;
+      if (k > 0 && bright) {
+        const within = sampleAt(bright, area, x + nx * (k - side / 2) * step, y + ny * (k - side / 2) * step);
+        const beyond = sampleAt(bright, area, x + nx * (k + side / 2) * step, y + ny * (k + side / 2) * step);
+        allowed = beyond - within >= beyond * FIT_OUT_DARKER;
+      }
+      if (!allowed) continue;
       steps.push({ k, score, inside: inside / side, outside: outside / side });
       if (fair > top) {
         top = fair;
@@ -234,6 +245,7 @@ export function fitContour(contour: readonly Point[], like: Float32Array, area: 
     let chosen = best;
     for (let at = 1; at < strongest; at++) {
       const c = steps[at];
+      if (steps[at - 1].k !== c.k + 1 || steps[at + 1].k !== c.k - 1) continue;
       if (c.score < steps[at - 1].score || c.score < steps[at + 1].score) continue;
       if (c.score < best.score * FIT_OUTER_SHARE || c.score < FIT_OUTER_STEP || c.inside < FIT_OUTER_IN || c.outside > FIT_OUTER_OUT) continue;
       chosen = c;
@@ -348,9 +360,16 @@ export function lipsFromPhoto(
   const glint = new Float32Array(n);
   for (let i = 0; i < n; i++) glint[i] = smooth(light * GLINT_FROM, light * GLINT_TO, y[i]) * body[i];
   const halo = softBlur(glint, area.w, area.h, Math.max(0.6, width * GLINT_HALO));
-  for (let i = 0; i < n; i++) along[i] = Math.max(along[i], smooth(0.08, 0.35, halo[i]) * body[i]);
+  // Its brightness does not count against the lip either, when the fit asks what is darker.
+  const shaded = Float32Array.from(y);
+  for (let i = 0; i < n; i++) {
+    const held = smooth(0.08, 0.35, halo[i]) * body[i];
+    along[i] = Math.max(along[i], held);
+    shaded[i] = y[i] + (Math.min(y[i], my) - y[i]) * held;
+  }
   const map = softBlur(along, area.w, area.h, Math.max(0.6, width * FIT_BLUR));
-  const fitted = fitContour(smoothLoop(outer, FIT_POINTS), map, area, width);
+  const bright = softBlur(shaded, area.w, area.h, Math.max(0.6, width * FIT_BLUR));
+  const fitted = fitContour(smoothLoop(outer, FIT_POINTS), map, area, width, bright);
   const soft = Math.max(0.5, width * LIP_FEATHER * 0.6);
   const edge = softBlur(cover(fitted, area), area.w, area.h, soft);
   if (!opening) return edge;
