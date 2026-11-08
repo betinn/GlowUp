@@ -147,7 +147,7 @@
       <ProgressCard
         task={facePick.task}
         title="Procurando rostos"
-        note={facePick.firstUse ? 'Só na primeira vez, cerca de 6 MB. A foto não sai do seu aparelho.' : ''}
+        note={facePick.download}
       />
     </div>
   {:else if ui.faceChoosing}

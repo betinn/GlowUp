@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Says where the brush stands: searching, kept on eyes or teeth, or free and why. When the region
+   * Says where the brush stands: searching, kept on eyes, teeth or hair, or free and why. When the region
    * was found, it also offers the automatic mode, which fills the mask from it.
    */
   import type { LayerId } from '../../core/doc';
@@ -39,7 +39,7 @@
     <ProgressCard
       task={facePick.task}
       title={words?.finding ?? ''}
-      note={facePick.firstUse ? 'Só na primeira vez, cerca de 6 MB. A foto não sai do seu aparelho.' : ''}
+      note={facePick.download}
     />
     <button type="button" class="btn" data-testid="limit-free" onclick={() => setToolLimit(e, false)}>Pintar livre</button>
   {:else if toolLimit.state === 'on' || toolLimit.state === 'off'}

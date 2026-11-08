@@ -33,7 +33,9 @@ export async function ensureField(engine: Engine): Promise<void> {
 export async function ensureDocTools(engine: Engine): Promise<void> {
   const { doc } = engine;
   const ids = Object.keys(doc.layers) as LayerId[];
-  await Promise.all(ids.map((id) => ensureLayerTool(engine, id)));
+  // A project may hold a tool that no longer exists, as the hair length that was tried and removed.
+  for (const id of ids) if (!loaders[id]) delete doc.layers[id];
+  await Promise.all(ids.filter((id) => loaders[id]).map((id) => ensureLayerTool(engine, id)));
   if (doc.heals.length) await ensureHeal(engine);
   if (doc.hasField) await ensureField(engine);
 }

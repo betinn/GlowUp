@@ -7,7 +7,11 @@
 import { bounds, fillPolygon, guidedFilter, softBlur, type Area, type MaskTarget, type Point } from './mask';
 import type { Face, FaceParts } from './scan';
 
-export type FaceRegion = 'iris' | 'sclera' | 'teeth';
+/** Parts of the face drawn from the landmarks. */
+export type LandmarkRegion = 'iris' | 'sclera' | 'teeth';
+
+/** Hair comes from its own segmenter, not from the landmarks: see `hair.ts`. */
+export type FaceRegion = LandmarkRegion | 'hair';
 
 /** The contour of the eye runs on the lash line, so the iris gets a little room past it. */
 const EYE_ROOM = 1.12;
@@ -116,7 +120,7 @@ function addTeeth(out: Uint8Array, target: MaskTarget, { innerLips, outerLips }:
 }
 
 /** Limit for one region over all the faces, as a mask from 0 to 255. Null when no face shows that region. */
-export function buildRegionMask(faces: readonly Face[], region: FaceRegion, target: MaskTarget): Uint8Array | null {
+export function buildRegionMask(faces: readonly Face[], region: LandmarkRegion, target: MaskTarget): Uint8Array | null {
   const out = new Uint8Array(target.w * target.h);
   for (const { parts } of faces) {
     if (region === 'teeth') addTeeth(out, target, parts);

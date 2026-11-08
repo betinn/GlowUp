@@ -4,7 +4,7 @@
 
 import type { Box } from '../view';
 import type { Point } from './mask';
-import { lipReach, type FaceRegion } from './regions';
+import { lipReach, type LandmarkRegion } from './regions';
 import type { Face } from './scan';
 
 /** Of the free area, the share the eyes or the mouth fill once the view arrives. */
@@ -17,7 +17,7 @@ const KEEP_ALL = 0.6;
 const WORTH_ZOOM = 1.6;
 
 /** The points to frame on each face that shows the region, in image UV. Faces without it are left out. */
-export function focusPoints(faces: readonly Face[], region: FaceRegion): Point[][] {
+export function focusPoints(faces: readonly Face[], region: LandmarkRegion): Point[][] {
   const list: Point[][] = [];
   for (const { parts } of faces) {
     if (region === 'teeth') {

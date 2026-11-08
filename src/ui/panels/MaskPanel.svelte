@@ -32,8 +32,11 @@
   /** The automatic mode has no brush: the detector draws the mask. */
   const brushShown = $derived(!toolLimit.region || toolLimit.mode === 'manual');
 
+  /** Hair color hides the old modes, which only projects saved before the Cabelo group still use. */
   function visible(key: string) {
-    return !(layer === 'hair' && key === 'color' && state?.params.mode !== 'color');
+    if (layer !== 'hair') return true;
+    const color = state?.params.mode === 'color';
+    return key === 'mode' ? !color : key !== 'color' || color;
   }
 </script>
 

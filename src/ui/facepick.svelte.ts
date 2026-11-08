@@ -1,14 +1,17 @@
 /**
- * Finding faces, for the filter and for the tools that stay on eyes or teeth. The detector code loads
- * here, on the first request. Faces stay in memory for the open photo and never reach the saved project.
+ * Finding faces, for the filter and for the tools that stay on eyes, teeth or hair. The detector code
+ * loads here, on the first request. Faces and hair stay in memory for the open photo and never reach
+ * the saved project.
  */
 
 import type { Engine } from '../core/engine';
 import type { FaceScan } from '../core/face/detector';
-import { buildFaceMask, type MaskTarget } from '../core/face/mask';
+import { focusPoints } from '../core/face/focus';
+import { addHair, faceSize, hairCrop } from '../core/face/hair';
+import { buildFaceMask, type MaskTarget, type Point } from '../core/face/mask';
 import { buildRegionMask, type FaceRegion } from '../core/face/regions';
 import { CHIN, type Face } from '../core/face/scan';
-import type { Stage } from '../core/progress';
+import { nextPaint, type Stage } from '../core/progress';
 import { toolById } from '../tools/catalog';
 import type { SourceImage } from '../core/source';
 import { showRegion, stopRegionShow } from './regionshow.svelte';
@@ -21,19 +24,39 @@ const FACE_FEATHER = 25;
 /** Size given to a hand-painted area, for the softness slider. */
 const PAINTED_REACH = 0.25;
 
-const FIRST_USE: Stage[] = [
-  { id: 'download', label: 'Baixando o detector', weight: 62 },
-  { id: 'start', label: 'Ligando o detector', weight: 6, estimate: 400 },
-  { id: 'scan', label: 'Procurando rostos', weight: 32 },
-];
+/** Without a face, the hair segmenter looks at the whole photo as if the face took this share of it. */
+const WHOLE_PHOTO_FACE = 0.3;
 
-const NEXT_USE: Stage[] = [{ id: 'scan', label: 'Procurando rostos', weight: 1 }];
+const SCAN: Stage = { id: 'scan', label: 'Procurando rostos', weight: 32 };
+const HAIR: Stage = { id: 'hair', label: 'Achando os fios', weight: 30 };
+
+/** The steps of a search. The downloads happen once, and the hair segmenter only for the hair tools. */
+function stagesFor(hair: boolean): Stage[] {
+  const list: Stage[] = [];
+  if (!detectorStarted) {
+    list.push({ id: 'download', label: 'Baixando o detector', weight: 62 }, { id: 'start', label: 'Ligando o detector', weight: 6, estimate: 400 });
+  } else if (hair && !hairStarted) {
+    list.push(
+      { id: 'download', label: 'Baixando o detector de cabelo', weight: 20 },
+      { id: 'start', label: 'Ligando o detector de cabelo', weight: 6, estimate: 300 },
+    );
+  }
+  list.push(SCAN);
+  if (hair) list.push(HAIR);
+  return list;
+}
+
+/** What the first search still has to download, in the words of the progress card. */
+function downloadNote(hair: boolean): string {
+  const size = !detectorStarted ? (hair ? 'cerca de 7 MB' : 'cerca de 6 MB') : hair && !hairStarted ? 'menos de 1 MB' : '';
+  return size ? `Só na primeira vez, ${size}. A foto não sai do seu aparelho.` : '';
+}
 
 export const facePick = $state({
   /** The job on screen, while there is one. */
   task: null as Task | null,
-  /** True while the detector downloads, which happens once. */
-  firstUse: false,
+  /** How much the job downloads, for the progress card. Empty when nothing. */
+  download: '',
   faces: [] as Face[],
   /** A finer search is still possible. */
   more: false,
@@ -44,10 +67,11 @@ export const LIMIT_WORDS: Record<FaceRegion, { name: string; finding: string; mi
   iris: { name: 'Só na íris', finding: 'Procurando os olhos', missing: 'Não achei olhos abertos nesta foto.' },
   sclera: { name: 'Só no branco do olho', finding: 'Procurando os olhos', missing: 'Não achei olhos abertos nesta foto.' },
   teeth: { name: 'Só nos dentes', finding: 'Procurando os dentes', missing: 'Não achei dentes à mostra nesta foto.' },
+  hair: { name: 'Só no cabelo', finding: 'Procurando o cabelo', missing: 'Não achei cabelo nesta foto.' },
 };
 
 /** Where each region is, in the words of the panel. */
-export const PLACES: Record<FaceRegion, string> = { iris: 'nas íris', sclera: 'no branco dos olhos', teeth: 'nos dentes' };
+export const PLACES: Record<FaceRegion, string> = { iris: 'nas íris', sclera: 'no branco dos olhos', teeth: 'nos dentes', hair: 'no cabelo' };
 
 /** The hint of the panel in the automatic mode, which has no brush to talk about. */
 export function autoHint(): string | null {
@@ -84,6 +108,16 @@ const modes = new Map<string, ToolMode>();
 /** The region of the open tool, kept to fill the mask with. */
 let regionData: Uint8Array | null = null;
 let detectorStarted = false;
+let hairStarted = false;
+
+/** The hair found on a photo, for one mask size and one list of faces. The five hair tools share it. */
+interface HairFound {
+  data: Uint8Array | null;
+  spots: Point[][];
+  faces: number;
+  w: number;
+}
+const hairs = new WeakMap<SourceImage, HairFound>();
 /** Changes to stop the search in progress. */
 let current = 0;
 
@@ -106,22 +140,27 @@ export async function paintArea(e: Engine): Promise<void> {
   bump();
 }
 
-function openJob(): Task {
-  const task = new Task(detectorStarted ? NEXT_USE : FIRST_USE);
+function openJob(hair = false): Task {
+  const task = new Task(stagesFor(hair));
   facePick.task = task;
-  facePick.firstUse = !detectorStarted;
+  facePick.download = downloadNote(hair);
   return task;
 }
 
-/** Loads the detector if needed and goes through the photo. Returns null when the search was stopped. */
-async function scanPhoto(source: SourceImage, task: Task, deeper: boolean, stopped: () => boolean): Promise<FaceScan | null> {
-  if (!detectorStarted) task.stage('download');
+/**
+ * Loads the detector if needed and goes through the photo. `hair` also loads the hair segmenter.
+ * Returns null when the search was stopped.
+ */
+async function scanPhoto(source: SourceImage, task: Task, deeper: boolean, stopped: () => boolean, hair = false): Promise<FaceScan | null> {
+  if (!detectorStarted || (hair && !hairStarted)) task.stage('download');
   const { FaceScan, loadDetector } = await import('../core/face/detector');
   await loadDetector(
     (fraction) => task.report(fraction),
     () => task.stage('start'),
+    hair,
   );
   detectorStarted = true;
+  if (hair) hairStarted = true;
   if (stopped()) return null;
   task.stage('scan');
   let scan = scans.get(source);
@@ -145,6 +184,43 @@ function maskTarget(masks: NonNullable<Engine['masks']>, source: SourceImage): M
     h: masks.h,
     luma: (a) => source.luma(a.x * kx, a.y * ky, a.w * kx, a.h * ky, a.w, a.h),
   };
+}
+
+/**
+ * Asks the hair segmenter about the square around each face, or about the whole photo when there is no
+ * face, and joins the answers. Returns null when the search was stopped.
+ */
+async function findHair(
+  source: SourceImage,
+  masks: NonNullable<Engine['masks']>,
+  faces: readonly Face[],
+  task: Task,
+  stopped: () => boolean,
+): Promise<HairFound | null> {
+  const known = hairs.get(source);
+  if (known && known.faces === faces.length && known.w === masks.w) return known;
+  task.stage('hair');
+  const { segmentHair } = await import('../core/face/detector');
+  const target = maskTarget(masks, source);
+  const kx = target.w / source.w;
+  const ky = target.h / source.h;
+  const crops = faces.length
+    ? faces.map((f) => ({ area: hairCrop(f.box, source.w, source.h), size: faceSize(f.box, target.w, target.h) }))
+    : [{ area: { x: 0, y: 0, w: source.w, h: source.h }, size: Math.max(target.w, target.h) * WHOLE_PHOTO_FACE }];
+  const out = new Uint8Array(target.w * target.h);
+  const spots: Point[][] = [];
+  for (const [i, crop] of crops.entries()) {
+    await nextPaint();
+    if (stopped()) return null;
+    const cut = segmentHair(source, crop.area);
+    const { x, y, w, h } = crop.area;
+    const box = addHair(out, target, { x: x * kx, y: y * ky, w: w * kx, h: h * ky }, cut, crop.size);
+    if (box) spots.push(box);
+    task.report((i + 1) / crops.length);
+  }
+  const found: HairFound = { data: spots.length ? out : null, spots, faces: faces.length, w: masks.w };
+  hairs.set(source, found);
+  return found;
 }
 
 /** Finds faces and shows the rings. With `deeper`, tries the next level of a finished search. */
@@ -231,23 +307,34 @@ export async function limitTool(e: Engine, tool: string, region: FaceRegion, dee
   }
   const mine = ++current;
   const stopped = () => mine !== current || e.source !== source;
-  const task = openJob();
+  const hair = region === 'hair';
+  const task = openJob(hair);
   const moves = e.viewMoves;
   toolLimit.state = 'searching';
   e.holdStroke = `${LIMIT_WORDS[region].finding}. O pincel já vem.`;
   try {
-    const scan = await scanPhoto(source, task, deeper, stopped);
+    const scan = await scanPhoto(source, task, deeper, stopped, hair);
     if (!scan) return;
-    const data = buildRegionMask(scan.list, region, maskTarget(masks, source));
+    let data: Uint8Array | null;
+    let spots: Point[][];
+    if (region === 'hair') {
+      const found = await findHair(source, masks, scan.list, task, stopped);
+      if (!found) return;
+      ({ data, spots } = found);
+    } else {
+      data = buildRegionMask(scan.list, region, maskTarget(masks, source));
+      spots = focusPoints(scan.list, region);
+    }
     e.setPaintLimit(data);
-    toolLimit.state = data ? 'on' : scan.list.length ? 'no-region' : 'no-face';
+    // The hair segmenter also looks at a photo without faces, so for hair the photo has none.
+    toolLimit.state = data ? 'on' : scan.list.length || hair ? 'no-region' : 'no-face';
     if (data) {
       regionData = data;
       const auto = toolLimit.mode === 'auto';
       const layer = layerOf(tool);
       const fill = auto && (refill || !(layer && e.doc.layers[layer]?.painted));
       e.brushOff = auto;
-      void showRegion(e, scan.list, region, e.viewMoves === moves, !shown.has(tool), fill ? () => fillRegion(e, tool) : undefined);
+      void showRegion(e, spots, e.viewMoves === moves, !shown.has(tool), fill ? () => fillRegion(e, tool) : undefined);
       shown.add(tool);
     } else {
       // Nothing to fill from: the brush is the way.

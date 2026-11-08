@@ -127,3 +127,29 @@ Medido em 9 fotos reais de domínio público, fora do repositório, com 99 rosto
 | # | Decisão | Motivo |
 | --- | --- | --- |
 | 74 | e2e na GPU real e em paralelo, com SwiftShader como opção | Os 81 testes levavam 14 min um por vez em SwiftShader, que roda os shaders na CPU. Na GPU e em 6 processos, 96 testes (o teste das 15 ferramentas virou um por ferramenta) levam 2,4 a 2,7 min, verdes em 3 rodadas seguidas. Os testes comparam quadros da mesma rodada, então a troca de GPU não muda os limites. Cada teste abre o próprio contexto do navegador, e nada é compartilhado entre eles. |
+
+## Cabelo
+
+| # | Decisão | Motivo |
+| --- | --- | --- |
+| 75 | Cabelo virou um grupo da barra, entre Make e Forma, com Cor, Escurecer, Clarear, Contraste e Nitidez | Pedido de quem usa, no mesmo modelo de Olhos: uma ferramenta por efeito, cada uma com máscara, Automático e desfazer próprios. Uma ferramenta só com vários sliders misturaria efeitos numa máscara e não deixaria limpar um sem os outros. |
+| 76 | Cabelo vem do MediaPipe Hair Segmenter, não dos pontos do rosto | Os 478 pontos param na testa e não dizem onde o cabelo termina. O modelo é Apache 2.0, roda no mesmo runtime de 1.2.2, pesa 782 KB (680 KB em brotli) e fica fora do precache, como o detector de rostos. O seletor de selfie com classe de cabelo pesava 16 MB. |
+| 77 | O WebAssembly é compilado uma vez e entregue às duas tarefas pelo hook `instantiateWasm` | O segmentador não baixa o runtime de novo. A primeira ferramenta de cabelo, com o detector de rostos já ligado, baixa só o modelo. |
+| 78 | O segmentador olha um quadrado de 3,2 vezes o tamanho de cada rosto, um pouco abaixo dele, e sem rosto olha a foto toda | Ele foi feito para selfie, com a cabeça enchendo os 512 px de entrada. Numa foto de grupo a foto inteira mostraria cabeças minúsculas. O quadrado desce para pegar cabelo comprido, e a área vai inteira para a entrada, com borda cinza, sem ser achatada. Cabelo de costas ou sem rosto achado ainda tem chance pela foto toda. |
+| 79 | Confiança de 0,3 a 0,6 vira a borda suave, e a borda refinada não passa de onde o modelo deu 0,1 | O guided filter colava a borda nos fios, mas em cabelo escuro sobre fundo escuro o brilho dos dois lados é igual e ele espalhava um halo claro com Clarear. O teto pela confiança tirou o halo. |
+| 80 | Onde o modelo fica inseguro, o pixel com o brilho do cabelo certo, ou um pouco mais escuro, conta como cabelo | No retrato procedural o modelo deixava manchas no topo da cabeça. A regra usa o brilho dos pixels de que o modelo tem certeza, então pele e fundo claro ficam de fora, e a sombra entre fios entra. Fica limitada ao alcance do item 79. |
+| 81 | As cinco ferramentas dividem o cabelo achado em uma foto, enquanto a lista de rostos e o tamanho da máscara não mudam | Trocar de Cor para Nitidez não roda o segmentador de novo. |
+| 82 | Escurecer, Clarear, Contraste e Nitidez mexem só na luminosidade em Lab, lida da foto antes dos retoques | Cor de cabelo é delicada: mexer em RGB tinge as bordas. Clarear sobe o tom local por igual e cada fio mantém sua diferença, e soma um dourado que cai a zero no cabelo claro. Contraste age em duas escalas, fio contra fio e brilho contra sombra. Nitidez ignora diferenças mínimas, que são grão. |
+| 83 | Cor manteve a camada `hair` e os modos antigos, mostrados só em projeto salvo com um deles | Projeto antigo com Escurecer ou Profundidade abre igual, e dá para voltar a Cor. Nos novos, esses efeitos são ferramentas próprias. |
+
+Medido só no retrato procedural, com a GPU: o cabelo de um retrato fica pronto junto com a busca de rostos,
+e trocar de ferramenta reaproveita o resultado. Falta conferir em fotos reais de domínio público, como foi
+feito com olhos e dentes.
+
+## Voltar ao original
+
+| # | Decisão | Motivo |
+| --- | --- | --- |
+| 84 | Zerar e Voltar ao original são uma etapa só do desfazer, com máscaras, manchas, liquify, filtro, ajustes, desfoque e recorte guardados juntos | O desfazer traz tudo de uma vez. Ferramentas voltam aos controles de fábrica, como se nunca tivessem aberto. |
+| 85 | Voltar ao original pede um segundo toque, Zerar não | O histórico não vai para o projeto salvo: depois de sair do editor, tirar tudo não tem volta. Um menu só custa menos, e o aviso lembra do desfazer. |
+| 86 | Comprimento do cabelo foi tentado e saiu | Esticar o último trecho de cada fio para baixo ficou artificial. Alongar de forma convincente pede um modelo generativo de 1 a 2 GB, lento no computador e inviável no celular, ou um servidor, que quebra a promessa de nada sair do aparelho. Projeto salvo durante o teste abre sem a ferramenta, e o próximo salvamento a descarta. |

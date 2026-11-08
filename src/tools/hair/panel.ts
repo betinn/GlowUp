@@ -1,6 +1,11 @@
 import type { Params } from '../../core/doc';
 import type { Control } from '../types';
 
+/**
+ * Hair color. Darkening and depth used to be modes of this tool and are now tools of their own, in the
+ * Cabelo group. Projects saved with one of those modes keep it, and the panel shows the choice only
+ * for them.
+ */
 export const defaults: Params = { mode: 'color', color: '#7a3d28', amount: 65 };
 
 export const controls: Control[] = [
