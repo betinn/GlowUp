@@ -4,15 +4,30 @@
  * it lives in memory and never reaches the saved project.
  */
 
-import { bounds, fillPolygon, guidedFilter, softBlur, type Area, type MaskTarget, type Point } from './mask';
+import { buildBrowMask, buildCheekMask, buildLidMask, buildLipMask, buildSculptMask, buildSprinkleMask, lipReach } from './makeup';
+import { bounds, guidedFilter, softBlur, type Area, type MaskTarget, type Point } from './mask';
 import type { Face, FaceParts } from './scan';
-import { buildGlowMask, buildSkinMask, buildUnderEyeMask } from './skin';
+import { areaAround, buildGlowMask, buildSkinMask, buildUnderEyeMask, cover, place, smooth, toGrid } from './skin';
 
 /**
- * Parts of the face drawn from the landmarks. `glow` holds the spots of the highlighter, which is not a
- * limit but a shape the automatic mode fills with: see `skin.ts`.
+ * Parts of the face drawn from the landmarks. `glow`, `browhair`, `shadow`, `cheeks`, `sculpt` and
+ * `sprinkle` are not limits but shapes the automatic mode fills with: see `skin.ts` and `makeup.ts`.
  */
-export type LandmarkRegion = 'iris' | 'sclera' | 'teeth' | 'skin' | 'undereye' | 'glow';
+export type LandmarkRegion =
+  | 'iris'
+  | 'sclera'
+  | 'teeth'
+  | 'skin'
+  | 'undereye'
+  | 'glow'
+  | 'lips'
+  | 'brows'
+  | 'browhair'
+  | 'lids'
+  | 'shadow'
+  | 'cheeks'
+  | 'sculpt'
+  | 'sprinkle';
 
 /** Hair comes from its own segmenter, not from the landmarks: see `hair.ts`. */
 export type FaceRegion = LandmarkRegion | 'hair';
@@ -54,18 +69,8 @@ const CIRCLE_SIDES = 24;
 /** Softness of the edges, as a share of the radius of the iris and of the width of the mouth. */
 const IRIS_FEATHER = 0.12;
 const MOUTH_FEATHER = 0.012;
-/**
- * The inner contour of the lips left out over 20% of the teeth on 9 of 45 real smiles. Going this far
- * toward the outer contour brought that down to 5, and the photo pulls the edge back onto the teeth.
- */
-const LIP_REACH = 0.4;
-/** Gap between the lips, as a share of the mouth width. Below the first the mouth is closed. */
-const CLOSED_MOUTH = 0.05;
-const OPEN_MOUTH = 0.12;
 const REFINE_RADIUS = 0.03;
 const REFINE_EPS = 0.0015;
-
-const toGrid = (points: readonly Point[], { w, h }: MaskTarget) => points.map(([u, v]): Point => [u * w, v * h]);
 
 const distance = (a: Point, b: Point) => Math.hypot(a[0] - b[0], a[1] - b[1]);
 
@@ -86,36 +91,6 @@ function circleThrough(ring: readonly Point[]): { outline: Point[]; radius: numb
     return [x + Math.cos(angle) * radius, y + Math.sin(angle) * radius];
   });
   return { outline, radius };
-}
-
-/** Pixels around a shape, with room for the blur, cut by the edges of the grid. */
-function areaAround(points: readonly Point[], room: number, { w, h }: MaskTarget): Area {
-  const box = bounds(points);
-  const x = Math.max(0, Math.floor(box.x - room));
-  const y = Math.max(0, Math.floor(box.y - room));
-  return { x, y, w: Math.min(w, Math.ceil(box.x + box.w + room)) - x, h: Math.min(h, Math.ceil(box.y + box.h + room)) - y };
-}
-
-function cover(points: readonly Point[], area: Area): Float32Array {
-  return fillPolygon(
-    points.map(([x, y]): Point => [x - area.x, y - area.y]),
-    area.w,
-    area.h,
-  );
-}
-
-function place(out: Uint8Array, target: MaskTarget, area: Area, shape: Float32Array): void {
-  for (let y = 0; y < area.h; y++) {
-    for (let x = 0; x < area.w; x++) {
-      const at = (y + area.y) * target.w + x + area.x;
-      out[at] = Math.max(out[at], Math.round(Math.min(1, shape[y * area.w + x]) * 255));
-    }
-  }
-}
-
-function smooth(lo: number, hi: number, v: number): number {
-  const t = Math.min(1, Math.max(0, (v - lo) / (hi - lo)));
-  return t * t * (3 - 2 * t);
 }
 
 const median = (list: number[]) => list.sort((a, b) => a - b)[list.length >> 1];
@@ -247,14 +222,6 @@ function addEye(out: Uint8Array, target: MaskTarget, region: 'iris' | 'sclera', 
   place(out, target, area, softBlur(shape, area.w, area.h, sigma));
 }
 
-/** How far the inner contour moves toward the outer one. Zero on a closed mouth: it has no teeth to show. */
-export function lipReach(innerLips: readonly Point[]): number {
-  const width = distance(innerLips[0], innerLips[10]);
-  const gap = distance(innerLips[5], innerLips[15]) / Math.max(width, 1e-6);
-  if (gap < CLOSED_MOUTH) return 0;
-  return LIP_REACH * Math.min(1, (gap - CLOSED_MOUTH) / (OPEN_MOUTH - CLOSED_MOUTH));
-}
-
 function addTeeth(out: Uint8Array, target: MaskTarget, { innerLips, outerLips }: FaceParts): void {
   if (innerLips.length === 0) return;
   const inner = toGrid(innerLips, target);
@@ -279,6 +246,12 @@ export function buildRegionMask(faces: readonly Face[], region: LandmarkRegion, 
   if (region === 'skin') return buildSkinMask(faces, target);
   if (region === 'undereye') return buildUnderEyeMask(faces, target);
   if (region === 'glow') return buildGlowMask(faces, target);
+  if (region === 'lips') return buildLipMask(faces, target);
+  if (region === 'brows' || region === 'browhair') return buildBrowMask(faces, target, region === 'browhair');
+  if (region === 'lids' || region === 'shadow') return buildLidMask(faces, target, region === 'shadow');
+  if (region === 'cheeks') return buildCheekMask(faces, target);
+  if (region === 'sculpt') return buildSculptMask(faces, target);
+  if (region === 'sprinkle') return buildSprinkleMask(faces, target);
   const out = new Uint8Array(target.w * target.h);
   for (const { parts } of faces) {
     if (region === 'teeth') addTeeth(out, target, parts);

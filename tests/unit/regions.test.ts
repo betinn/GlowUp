@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Point } from '../../src/core/face/mask';
-import { buildRegionMask, lipReach } from '../../src/core/face/regions';
+import { lipReach } from '../../src/core/face/makeup';
+import { buildRegionMask } from '../../src/core/face/regions';
 import type { MaskTarget } from '../../src/core/face/mask';
 import { EYES, FACE_OVAL, INNER_LIPS, IRISES, makeFace, OUTER_LIPS, readFace, type FaceParts } from '../../src/core/face/scan';
 

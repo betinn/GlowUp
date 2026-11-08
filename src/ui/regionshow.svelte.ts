@@ -1,5 +1,5 @@
 /**
- * Once a tool for eyes, teeth or hair is ready, the view flies to the region and a short light shows the
+ * Once a tool with a region is ready, the view flies to the region and a short light shows the
  * pixels the brush can reach. Both give way to the person: a touch on the photo stops them.
  */
 

@@ -152,26 +152,10 @@ const CHECKS: Check[] = [
   },
   {
     name: '11-maquiagem',
-    title: 'Batom, blush, sombra, sobrancelha e contorno',
+    title: 'Batom, blush, sombra, sobrancelha e contorno, cada um no Automático',
     clip: FACE,
     run: async (page) => {
-      await pickTool(page, 'makeup', 'lips');
-      await setSlider(page, 'Tamanho', 28);
-      await paint(page, [[-0.08, 0.232], [-0.04, 0.212], [0, 0.209], [0.04, 0.212], [0.08, 0.232]]);
-      await setSlider(page, 'Tamanho', 36);
-      await paint(page, [[-0.07, 0.268], [-0.04, 0.282], [0, 0.285], [0.04, 0.282], [0.07, 0.268]]);
-      await pickTool(page, 'makeup', 'blush');
-      await paint(page, [[-0.19, 0.09], [-0.13, 0.08]], 3);
-      await paint(page, [[0.13, 0.08], [0.19, 0.09]], 3);
-      await pickTool(page, 'makeup', 'eyeshadow');
-      await paint(page, [[-0.21, -0.1], [-0.1, -0.1]], 2);
-      await paint(page, [[0.1, -0.1], [0.21, -0.1]], 2);
-      await pickTool(page, 'makeup', 'brow');
-      await paint(page, [[-0.235, -0.13], [-0.08, -0.14]], 2);
-      await paint(page, [[0.08, -0.14], [0.235, -0.13]], 2);
-      await pickTool(page, 'makeup', 'contour');
-      await paint(page, [[-0.25, 0.16], [-0.16, 0.24]], 3);
-      await paint(page, [[0.25, 0.16], [0.16, 0.24]], 3);
+      for (const tool of ['lips', 'blush', 'eyeshadow', 'brow', 'contour']) await pickTool(page, 'makeup', tool, { auto: true });
     },
   },
   {
@@ -189,9 +173,8 @@ const CHECKS: Check[] = [
     title: 'Sardas sobre nariz e bochechas',
     clip: FACE,
     run: async (page) => {
-      await pickTool(page, 'makeup', 'freckles');
+      await pickTool(page, 'makeup', 'freckles', { auto: true });
       await setSlider(page, 'Densidade', 60);
-      await paint(page, [[-0.2, 0.06], [0, 0.03], [0.2, 0.06]], 2);
     },
   },
   {
