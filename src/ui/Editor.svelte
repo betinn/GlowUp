@@ -2,7 +2,7 @@
   import { onDestroy, onMount, tick, untrack, type Component } from 'svelte';
   import { scale } from 'svelte/transition';
   import { Engine, type EngineEvents } from '../core/engine';
-  import { Autosave, loadOriginal, loadProject, unpack } from '../core/project';
+  import { Autosave, InvalidProjectError, loadOriginal, loadProject, unpack, validProject } from '../core/project';
   import { nextPaint } from '../core/progress';
   import { readFile, SourceImage } from '../core/source';
   import { FILTER_MASK, type LayerId } from '../core/doc';
@@ -20,7 +20,7 @@
   import { reveal, rise } from './motion';
   import { regionShow } from './regionshow.svelte';
   import { groupChanged, photoChanged, resetGroup, resetPhoto } from './reset';
-  import { cancelOpening, finishOpening } from './open';
+  import { cancelOpening, finishOpening, reportOpenFailure } from './open';
   import HealPanel from './panels/HealPanel.svelte';
   import MaskPanel from './panels/MaskPanel.svelte';
   import { autosave, bump, clearEditorCloser, closeEditor, engine, hasEngine, prefs, setAutosave, setEditorCloser, setEngine, toast, ui } from './state.svelte';
@@ -117,11 +117,13 @@
     ui.pending = null;
     if (pending?.projectId) {
       await stage('read');
-      const record = await loadProject(pending.projectId);
-      const original = await loadOriginal(pending.projectId);
-      if (!record || !original) throw new Error('project-missing');
+      const { record, original } = validProject(await loadProject(pending.projectId), await loadOriginal(pending.projectId));
       await stage('decode');
       const source = await SourceImage.decode(original);
+      if (source.w !== record.doc.width || source.h !== record.doc.height) {
+        source.close();
+        throw new InvalidProjectError('the document is of another photo');
+      }
       await stage('upload');
       await e.open(source, record.doc);
       await stage('retouch');
@@ -139,6 +141,7 @@
       }
       if (record.field && e.field) {
         const bytes = await unpack(record.field);
+        if (bytes.byteLength !== e.field.serialize().byteLength) throw new InvalidProjectError('field size');
         e.field.restore(new Float32Array(bytes.buffer as ArrayBuffer, bytes.byteOffset, bytes.byteLength / 4));
       }
       await syncFilter(e);
@@ -191,6 +194,8 @@
       if (ready) failed = 'O navegador apagou a luz para poupar memória. Volte e reabra a foto: o projeto está salvo.';
     });
     updateViewport();
+    // Taken here, because opening clears it.
+    const projectId = ui.pending?.projectId;
     try {
       await openPending(e);
       resetToolMemory();
@@ -204,8 +209,7 @@
     } catch (err) {
       console.error(err);
       cancelOpening();
-      const big = err instanceof Error && err.message === 'image-too-large';
-      toast(big ? 'Essa foto é grande demais para este aparelho.' : 'Não consegui abrir esse arquivo. Tenta um JPG, PNG ou WebP?');
+      await reportOpenFailure(err, projectId);
       await leave();
     }
   });
