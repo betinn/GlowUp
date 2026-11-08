@@ -6,9 +6,13 @@
 
 import { bounds, fillPolygon, guidedFilter, softBlur, type Area, type MaskTarget, type Point } from './mask';
 import type { Face, FaceParts } from './scan';
+import { buildGlowMask, buildSkinMask, buildUnderEyeMask } from './skin';
 
-/** Parts of the face drawn from the landmarks. */
-export type LandmarkRegion = 'iris' | 'sclera' | 'teeth';
+/**
+ * Parts of the face drawn from the landmarks. `glow` holds the spots of the highlighter, which is not a
+ * limit but a shape the automatic mode fills with: see `skin.ts`.
+ */
+export type LandmarkRegion = 'iris' | 'sclera' | 'teeth' | 'skin' | 'undereye' | 'glow';
 
 /** Hair comes from its own segmenter, not from the landmarks: see `hair.ts`. */
 export type FaceRegion = LandmarkRegion | 'hair';
@@ -121,6 +125,9 @@ function addTeeth(out: Uint8Array, target: MaskTarget, { innerLips, outerLips }:
 
 /** Limit for one region over all the faces, as a mask from 0 to 255. Null when no face shows that region. */
 export function buildRegionMask(faces: readonly Face[], region: LandmarkRegion, target: MaskTarget): Uint8Array | null {
+  if (region === 'skin') return buildSkinMask(faces, target);
+  if (region === 'undereye') return buildUnderEyeMask(faces, target);
+  if (region === 'glow') return buildGlowMask(faces, target);
   const out = new Uint8Array(target.w * target.h);
   for (const { parts } of faces) {
     if (region === 'teeth') addTeeth(out, target, parts);

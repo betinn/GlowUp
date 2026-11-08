@@ -24,6 +24,8 @@
 - [x] Remover manchas (healing), toque único automático
 - [x] Suavização por separação de frequências + guided filter (Leve, Intenso)
 - [x] Olheiras, tom de pele, iluminador
+- [x] Pele, olheiras e pontos de luz pelo detector, com Automático e Manual em todas as ferramentas do menu
+- [x] Manchas no Automático: busca na pele, cura uma a uma, numa etapa do desfazer
 
 ## M4. Olhos e dentes
 

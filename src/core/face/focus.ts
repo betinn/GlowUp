@@ -19,14 +19,27 @@ const WORTH_ZOOM = 1.6;
 /** The points to frame on each face that shows the region, in image UV. Faces without it are left out. */
 export function focusPoints(faces: readonly Face[], region: LandmarkRegion): Point[][] {
   const list: Point[][] = [];
-  for (const { parts } of faces) {
-    if (region === 'teeth') {
+  for (const { parts, outline } of faces) {
+    if (region === 'skin' || region === 'glow') {
+      list.push([...outline]);
+    } else if (region === 'undereye') {
+      // The eyes and a little below them, where the dark circles are.
+      if (parts.eyes.length) list.push([...parts.eyes.flat(), ...below(parts.eyes)]);
+    } else if (region === 'teeth') {
       if (parts.innerLips.length && lipReach(parts.innerLips) > 0) list.push([...parts.outerLips]);
     } else if (parts.eyes.length) {
       list.push(parts.eyes.flat());
     }
   }
   return list;
+}
+
+/** Points under each eye, as deep as the area of the dark circles. Image UV is close enough to frame them. */
+function below(eyes: readonly (readonly Point[])[]): Point[] {
+  return eyes.map((eye) => {
+    const width = Math.hypot(eye[8][0] - eye[0][0], eye[8][1] - eye[0][1]);
+    return [eye[4][0], eye[4][1] + width * 0.6] as Point;
+  });
 }
 
 export function boxOf(points: readonly Point[]): Box {

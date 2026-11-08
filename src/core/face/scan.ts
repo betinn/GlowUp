@@ -51,12 +51,27 @@ export const IRISES: readonly (readonly number[])[] = [
 export const INNER_LIPS: readonly number[] = [78, 95, 88, 178, 87, 14, 317, 402, 318, 324, 308, 415, 310, 311, 312, 13, 82, 81, 80, 191];
 export const OUTER_LIPS: readonly number[] = [61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 409, 270, 269, 267, 0, 37, 39, 40, 185];
 
-/** Where the tools for eyes and teeth may go, in image UV. */
+/** Eyebrows, along the top from the outer end, then back along the bottom. Same order as `EYES`. */
+export const BROWS: readonly (readonly number[])[] = [
+  [70, 63, 105, 66, 107, 55, 65, 52, 53, 46],
+  [300, 293, 334, 296, 336, 285, 295, 282, 283, 276],
+];
+
+/**
+ * Points down the middle of the face: the forehead, the bridge of the nose to its tip, then the chin.
+ * Along the bridge each one touches the next in the mesh of the model.
+ */
+export const MIDLINE: readonly number[] = [151, 168, 6, 197, 195, 5, 4, 1, 199];
+
+/** Where the tools for eyes, teeth and skin may go, in image UV. */
 export interface FaceParts {
   eyes: readonly (readonly Point[])[];
   irises: readonly (readonly Point[])[];
   innerLips: readonly Point[];
   outerLips: readonly Point[];
+  /** Absent on faces made by hand in tests. The skin tools then do without them. */
+  brows?: readonly (readonly Point[])[];
+  midline?: readonly Point[];
 }
 
 const NO_PARTS: FaceParts = { eyes: [], irises: [], innerLips: [], outerLips: [] };
@@ -108,6 +123,8 @@ export function readFace(point: (index: number) => Point): Face {
     irises: IRISES.map(read),
     innerLips: read(INNER_LIPS),
     outerLips: read(OUTER_LIPS),
+    brows: BROWS.map(read),
+    midline: read(MIDLINE),
   });
 }
 

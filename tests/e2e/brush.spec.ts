@@ -51,8 +51,17 @@ test.describe('marca do pincel', () => {
       const clip = photo(page);
       await pickTool(page, t.group, t.id);
       const before = await page.screenshot({ clip });
-      // Tools for eyes and teeth stay on their region, and the others can go anywhere.
-      const [x, y, r] = t.region === 'teeth' ? [0, 0.245, 0.06] : t.region ? [IRIS[0], IRIS[1], 0.05] : [0, 0.05, 0.1];
+      // Tools for skin, eyes and teeth stay on their region, and the others can go anywhere.
+      const [x, y, r] =
+        t.region === 'teeth'
+          ? [0, 0.245, 0.06]
+          : t.region === 'skin'
+            ? [-0.15, 0.12, 0.06]
+            : t.region === 'undereye'
+              ? [-0.16, -0.012, 0.04]
+              : t.region
+                ? [IRIS[0], IRIS[1], 0.05]
+                : [0, 0.05, 0.1];
       await paint(page, scribble(x, y, r, r * 0.6, 4));
       const open = await page.screenshot({ clip });
       await page.keyboard.press('Escape');

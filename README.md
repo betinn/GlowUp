@@ -5,8 +5,8 @@ e exportação em resolução total, tudo processado na GPU do aparelho de quem 
 
 - **Nada sai do aparelho.** Não há backend, API nem upload. O servidor só entrega arquivos estáticos.
 - **IA só para achar rostos e cabelo, no seu aparelho.** Quando você aplica um filtro em um rosto, ou
-  abre uma ferramenta de olhos, dentes ou cabelo, um detector roda no navegador e diz onde estão rostos,
-  olhos, bocas e fios. Ele nunca diz quem é a pessoa, e nada disso é salvo. O resto é processamento de
+  abre uma ferramenta de pele, olhos, dentes ou cabelo, um detector roda no navegador e diz onde estão
+  rostos, olhos, bocas e fios. Ele nunca diz quem é a pessoa, e nada disso é salvo. O resto é processamento de
   imagem clássico em shaders.
 - **Não destrutivo.** A original fica intacta. Cada edição é uma operação que pode ser desfeita,
   ajustada ou apagada.
@@ -35,8 +35,8 @@ sem GPU, e `E2E_PORT` troca a porta do preview, para duas cópias do repositóri
 
 ## Ferramentas
 
-**Pele:** manchas (healing com toque único automático), suavizar (Leve e Intenso), olheiras, tom de
-pele, iluminador.
+**Pele:** manchas (healing com toque único automático, e no Automático acha e tira as manchas sozinho),
+suavizar (Leve e Intenso), olheiras, tom de pele, iluminador, cada um na pele que o detector achou.
 
 **Olhos:** branco do olho, olho vermelho, cor dos olhos, brilho no olhar.
 
@@ -56,16 +56,18 @@ antes/depois (segurar ou dividir, com a foto original ou só sem o filtro), expo
 Um filtro vale para a foto toda ou para um rosto escolhido: um anel aparece em cada rosto, um toque
 escolhe, e pincel e borracha acertam a área. Sem rosto na foto, a área é pintada à mão.
 
-As ferramentas de olhos, dentes e cabelo ficam onde devem: o traço só marca a íris, o branco do olho, os
-dentes ou os fios, em todos os rostos achados, e um interruptor libera o pincel. Se o detector não acha
+As ferramentas de pele, olhos, dentes e cabelo ficam onde devem: o traço só marca a pele, a área das
+olheiras, a íris, o branco do olho, os dentes ou os fios, em todos os rostos achados, e um interruptor
+libera o pincel. Se o detector não acha
 rosto, a boca está fechada ou o download falha, o pincel fica livre. O detector baixa só na primeira vez
 que alguém abre uma dessas ferramentas ou escolhe um rosto, cerca de 6 MB, do próprio site. O de cabelo
 soma menos de 1 MB, só na primeira ferramenta de cabelo.
 
-Ao abrir uma delas, a foto aproxima dos olhos, da boca ou do cabelo e um brilho rápido mostra onde o
-pincel alcança. No modo Automático, que vem ligado, a ferramenta já aplica em todos os olhos, dentes ou
-cabelos achados, numa etapa só que dá para desfazer, e os controles ajustam o efeito. No Manual voltam
-pincel e borracha, a partir do que o Automático fez.
+Ao abrir uma delas, a foto aproxima do rosto, dos olhos, da boca ou do cabelo e um brilho rápido mostra onde
+o pincel alcança. No modo Automático, que vem ligado, a ferramenta já aplica em todos os rostos achados,
+numa etapa só que dá para desfazer, e os controles ajustam o efeito: o efeito chega aos poucos, e em Manchas
+cada mancha some por vez. O Iluminador vai nas maçãs, na ponte do nariz, no meio da testa, no arco do
+cupido e no queixo. No Manual voltam pincel e borracha, a partir do que o Automático fez.
 
 Solte a foto em qualquer lugar da tela, inclusive no editor. Abrir e exportar mostram a porcentagem e o
 passo atual, com a própria foto revelando na tela.
@@ -115,7 +117,7 @@ passo atual, com a própria foto revelando na tela.
 | `src/core/pipeline` | contextos de render, cadeia de estágios, pull-push |
 | `src/core/history` | pilha de desfazer e codec de tiles |
 | `src/core` | documento, geometria, pincel, máscaras, exportação, projetos |
-| `src/core/face` | busca de rostos em tiles, máscara do rosto, limites de olhos, dentes e cabelo e detector carregado sob demanda |
+| `src/core/face` | busca de rostos em tiles, máscara do rosto, limites de pele, olhos, dentes e cabelo, busca de manchas e detector carregado sob demanda |
 | `src/tools/<ferramenta>` | shader, lógica e painel de cada ferramenta, carregados sob demanda |
 | `src/presets` | LUTs procedurais, receitas e miniaturas |
 | `src/ui` | interface em Svelte |

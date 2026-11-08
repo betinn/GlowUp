@@ -153,3 +153,19 @@ feito com olhos e dentes.
 | 84 | Zerar e Voltar ao original são uma etapa só do desfazer, com máscaras, manchas, liquify, filtro, ajustes, desfoque e recorte guardados juntos | O desfazer traz tudo de uma vez. Ferramentas voltam aos controles de fábrica, como se nunca tivessem aberto. |
 | 85 | Voltar ao original pede um segundo toque, Zerar não | O histórico não vai para o projeto salvo: depois de sair do editor, tirar tudo não tem volta. Um menu só custa menos, e o aviso lembra do desfazer. |
 | 86 | Comprimento do cabelo foi tentado e saiu | Esticar o último trecho de cada fio para baixo ficou artificial. Alongar de forma convincente pede um modelo generativo de 1 a 2 GB, lento no computador e inviável no celular, ou um servidor, que quebra a promessa de nada sair do aparelho. Projeto salvo durante o teste abre sem a ferramenta, e o próximo salvamento a descarta. |
+
+## Pele
+
+Medido só no retrato procedural, com a GPU, como foi feito com o cabelo. Falta conferir em fotos reais de
+domínio público, como foi feito com olhos e dentes.
+
+| # | Decisão | Motivo |
+| --- | --- | --- |
+| 87 | As cinco ferramentas de Pele ganharam o mesmo caminho de Olhos e Cabelo: busca, voo, brilho, Automático e Manual | Pedido de quem usa. O código é o mesmo das outras regiões: cada ferramenta diz no catálogo qual região limita o pincel e, quando é outra, com que forma o Automático preenche. |
+| 88 | Pele é o contorno do rosto, com o pescoço sumindo para baixo, menos olhos, sobrancelhas e lábios com folga, e só onde a cor parece a da pele | O contorno dos 478 pontos passa por cima da franja. A cor da pele vem dos pixels do fundo da forma, em croma sem brilho, então a sombra da bochecha continua pele e cabelo, olho, fundo e roupa saem. Puxar para o vermelho conta 4,5 vezes menos, porque espinha, mancha e rubor são pele. |
+| 89 | Buracos pequenos na pele são fechados depois do refino de borda | O guided filter segue o brilho da foto e abria um buraco em cada espinha. Suavizar e Tom de pele deixavam a mancha de fora e Manchas não via metade delas. Pele dos dois lados fecha o buraco; a borda do rosto, com pele de um lado só, fica onde estava. |
+| 90 | Olheiras é uma meia-lua sob cada olho, de 10% a 58% da largura do olho abaixo dos cílios, mais funda perto do canto interno | É onde a olheira escurece. A folga dos cílios evita escurecer a linha d'água, e a borda suave dá ao shader a pele de fora como referência. |
+| 91 | O Iluminador fica preso à pele, mas o Automático acende só maçãs, ponte do nariz, meio da testa, arco do cupido e queixo | Iluminar a pele toda é só clarear. Os pontos saem da largura dos olhos e da linha do meio do rosto (151, 168 a 1 e 199 no modelo), e cada um é multiplicado pela pele, para não acender cabelo na testa. |
+| 92 | Manchas no Automático procura pontos mais escuros ou mais vermelhos que a pele em volta, com o rosto lido a 640 px | O fundo é a média só da pele em volta, para olho e cabelo não contarem. Pico com menos de 3,5% de destaque é poro, crescer além de 3% do rosto é sombra ou traço, e as narinas ficam de fora. No retrato, 20 das 26 manchas desenhadas e nenhum falso positivo; as que ficaram encostam em lábio, olho ou sobrancelha. |
+| 93 | Cada mancha achada passa pelo mesmo toque do pincel de Manchas, e todas viram uma etapa "Automático" | O toque reajusta o centro e escolhe a pele emprestada como sempre. Quando o toque vê um contorno, a mancha é curada no círculo achado, porque a busca já garantiu que ela fica dentro da pele. Mancha de rosto com menos de 140 px não é procurada. |
+| 94 | O efeito do Automático chega em 520 ms, e as manchas somem uma a uma, de cima para baixo | Mostra onde a foto mudou sem precisar comparar. Só a máscara final entra no desfazer. Com movimento reduzido, o efeito aparece de uma vez. |

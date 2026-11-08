@@ -20,8 +20,8 @@
   import { regionShow } from './regionshow.svelte';
   import { groupChanged, photoChanged, resetGroup, resetPhoto } from './reset';
   import { cancelOpening, finishOpening } from './open';
+  import HealPanel from './panels/HealPanel.svelte';
   import MaskPanel from './panels/MaskPanel.svelte';
-  import BrushControls from './BrushControls.svelte';
   import { autosave, bump, clearEditorCloser, closeEditor, engine, hasEngine, prefs, setAutosave, setEditorCloser, setEngine, toast, ui } from './state.svelte';
 
   /** Panels and overlays of the non-brush tools load on demand. */
@@ -424,7 +424,7 @@
                 {#if meta.kind === 'mask' && ui.toolModule && meta.layer}
                   <MaskPanel layer={meta.layer} tool={ui.toolModule} />
                 {:else if meta.kind === 'heal'}
-                  <BrushControls erasable={false} full={false} />
+                  <HealPanel />
                 {:else if PANELS[meta.kind]}
                   {#await PANELS[meta.kind]() then { default: Panel }}
                     <Panel />

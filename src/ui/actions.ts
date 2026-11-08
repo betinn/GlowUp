@@ -52,8 +52,10 @@ export async function selectTool(id: string | null): Promise<void> {
       }
       case 'heal':
         await ensureHeal(e);
+        if (ui.tool !== id) return;
         e.brush = brushFor('heal', HEAL_BRUSH);
         e.setTool('heal');
+        if (meta.region) void limitTool(e, meta.id, meta.region);
         break;
       case 'liquify':
         await ensureField(e);

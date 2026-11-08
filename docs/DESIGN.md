@@ -135,6 +135,23 @@ rostos achados.
   Automático fez. Voltar ao Automático troca o que foi pintado pela região. Projeto reaberto com máscara
   abre no Manual, para não apagar trabalho.
 
+## Pele
+
+Manchas, Suavizar, Olheiras, Tom de pele e Iluminador seguem o mesmo caminho dos olhos e dentes, com as
+palavras da pele.
+
+- **Busca.** O cartão diz "Procurando a pele", ou "Procurando os olhos" em Olheiras, com o aviso dos 6 MB
+  na primeira vez. A pele de um rosto já achado sai na hora ao trocar de ferramenta.
+- **Foco e brilho.** A vista vai até o rosto, ou até os olhos em Olheiras, quando eles não estão na tela, e a
+  luz fria acende sobre a pele.
+- **Automático.** O efeito chega em meio segundo, em vez de aparecer de uma vez, para a pessoa ver onde a
+  foto mudou. Em Manchas cada mancha some por vez, de cima para baixo, e o botão "Tirar as N correções" tira
+  todas numa etapa. Sem mancha achada, um aviso manda para o Manual.
+- **Manual.** Suavizar, Tom de pele e Iluminador trazem pincel, borracha e "Só na pele". Olheiras traz "Só
+  nas olheiras". Manchas traz o pincel de healing, também preso à pele.
+- **Iluminador.** O limite é a pele, mas o Automático acende só os pontos onde a luz cai: maçãs, ponte do
+  nariz, meio da testa, arco do cupido e queixo.
+
 ## Cabelo
 
 Menu próprio na barra de grupos, entre Make e Forma, com Cor, Escurecer, Clarear, Contraste e Nitidez.

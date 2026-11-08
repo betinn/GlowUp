@@ -15,6 +15,8 @@ export interface ToolMeta {
   layer?: LayerId;
   /** Part of the face the brush stays on, when the detector finds it. */
   region?: FaceRegion;
+  /** Shape the automatic mode fills the mask with, when it is not the region itself. */
+  fill?: FaceRegion;
   hint: string;
 }
 
@@ -30,11 +32,11 @@ export const GROUPS: { id: GroupId; label: string }[] = [
 ];
 
 export const TOOLS: ToolMeta[] = [
-  { id: 'heal', label: 'Manchas', group: 'skin', kind: 'heal', hint: 'Toque na mancha. Para áreas maiores, pinte por cima.' },
-  { id: 'smooth', label: 'Suavizar', group: 'skin', kind: 'mask', layer: 'smooth', hint: 'Pinte a pele. Os poros ficam.' },
-  { id: 'undereye', label: 'Olheiras', group: 'skin', kind: 'mask', layer: 'undereye', hint: 'Pinte logo abaixo dos olhos, sem encostar nos cílios.' },
-  { id: 'skintone', label: 'Tom de pele', group: 'skin', kind: 'mask', layer: 'skintone', hint: 'Pinte a área e ajuste matiz, saturação e luz.' },
-  { id: 'highlight', label: 'Iluminador', group: 'skin', kind: 'mask', layer: 'highlight', hint: 'Passe nas maçãs, no nariz e no arco do cupido.' },
+  { id: 'heal', label: 'Manchas', group: 'skin', kind: 'heal', region: 'skin', hint: 'Toque na mancha. Para áreas maiores, pinte por cima.' },
+  { id: 'smooth', label: 'Suavizar', group: 'skin', kind: 'mask', layer: 'smooth', region: 'skin', hint: 'Pinte a pele. Os poros ficam.' },
+  { id: 'undereye', label: 'Olheiras', group: 'skin', kind: 'mask', layer: 'undereye', region: 'undereye', hint: 'Pinte logo abaixo dos olhos, sem encostar nos cílios.' },
+  { id: 'skintone', label: 'Tom de pele', group: 'skin', kind: 'mask', layer: 'skintone', region: 'skin', hint: 'Pinte a área e ajuste matiz, saturação e luz.' },
+  { id: 'highlight', label: 'Iluminador', group: 'skin', kind: 'mask', layer: 'highlight', region: 'skin', fill: 'glow', hint: 'Passe nas maçãs, no nariz e no arco do cupido.' },
 
   { id: 'sclera', label: 'Branco do olho', group: 'eyes', kind: 'mask', layer: 'sclera', region: 'sclera', hint: 'Passe de leve no branco dos olhos, sem encostar na íris.' },
   { id: 'redeye', label: 'Olho vermelho', group: 'eyes', kind: 'mask', layer: 'redeye', region: 'iris', hint: 'Pinte sobre a pupila vermelha.' },

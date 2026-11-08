@@ -102,7 +102,8 @@ test.describe('fluxos', () => {
     errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
     page.on('console', (m) => {
-      if (m.type() === 'error') errors.push(m.text());
+      // The face detector logs its CPU delegate as an error. Skin tools open it now.
+      if (m.type() === 'error' && !m.text().includes('XNNPACK')) errors.push(m.text());
     });
   });
 

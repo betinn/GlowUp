@@ -1,5 +1,5 @@
 /**
- * Finding faces, for the filter and for the tools that stay on eyes, teeth or hair. The detector code
+ * Finding faces, for the filter and for the tools that stay on skin, eyes, teeth or hair. The detector code
  * loads here, on the first request. Faces and hair stay in memory for the open photo and never reach
  * the saved project.
  */
@@ -11,8 +11,11 @@ import { addHair, faceSize, hairCrop } from '../core/face/hair';
 import { buildFaceMask, type MaskTarget, type Point } from '../core/face/mask';
 import { buildRegionMask, type FaceRegion } from '../core/face/regions';
 import { CHIN, type Face } from '../core/face/scan';
+import { faceSpan, skinArea, spotGuard } from '../core/face/skin';
+import type { HealOp } from '../core/doc';
 import { nextPaint, type Stage } from '../core/progress';
 import { toolById } from '../tools/catalog';
+import { reducedMotion } from './motion';
 import type { SourceImage } from '../core/source';
 import { showRegion, stopRegionShow } from './regionshow.svelte';
 import { bump, engine, hasEngine, toast, ui } from './state.svelte';
@@ -23,6 +26,16 @@ const FACE_FEATHER = 25;
 
 /** Size given to a hand-painted area, for the softness slider. */
 const PAINTED_REACH = 0.25;
+
+/** The effect of the automatic mode arrives over this long, so the person sees it come. */
+const FILL_FADE_MS = 520;
+
+/** Faces are searched for spots at this size, in pixels. Smaller ones are searched as they are. */
+const SPOT_FACE = 640;
+/** Below this face size, in pixels of the photo, a spot is a pixel or two: Manchas leaves the face alone. */
+const SPOT_MIN_FACE = 140;
+/** At most this many spots over the whole photo. */
+const SPOT_LIMIT = 120;
 
 /** Without a face, the hair segmenter looks at the whole photo as if the face took this share of it. */
 const WHOLE_PHOTO_FACE = 0.3;
@@ -68,16 +81,36 @@ export const LIMIT_WORDS: Record<FaceRegion, { name: string; finding: string; mi
   sclera: { name: 'Só no branco do olho', finding: 'Procurando os olhos', missing: 'Não achei olhos abertos nesta foto.' },
   teeth: { name: 'Só nos dentes', finding: 'Procurando os dentes', missing: 'Não achei dentes à mostra nesta foto.' },
   hair: { name: 'Só no cabelo', finding: 'Procurando o cabelo', missing: 'Não achei cabelo nesta foto.' },
+  skin: { name: 'Só na pele', finding: 'Procurando a pele', missing: 'Não achei pele de rosto nesta foto.' },
+  undereye: { name: 'Só nas olheiras', finding: 'Procurando os olhos', missing: 'Não achei olhos nesta foto.' },
+  glow: { name: 'Só na pele', finding: 'Procurando a pele', missing: 'Não achei pele de rosto nesta foto.' },
 };
 
 /** Where each region is, in the words of the panel. */
-export const PLACES: Record<FaceRegion, string> = { iris: 'nas íris', sclera: 'no branco dos olhos', teeth: 'nos dentes', hair: 'no cabelo' };
+export const PLACES: Record<FaceRegion, string> = {
+  iris: 'nas íris',
+  sclera: 'no branco dos olhos',
+  teeth: 'nos dentes',
+  hair: 'no cabelo',
+  skin: 'na pele',
+  undereye: 'nas olheiras',
+  glow: 'nos pontos de luz do rosto',
+};
+
+/** Where the automatic mode of a tool goes, in the words of the panel. */
+export function placeOf(tool: string | null): string {
+  const meta = tool ? toolById(tool) : undefined;
+  if (meta?.kind === 'heal') return 'nas manchas';
+  const region = meta?.fill ?? meta?.region;
+  return region ? PLACES[region] : '';
+}
 
 /** The hint of the panel in the automatic mode, which has no brush to talk about. */
 export function autoHint(): string | null {
-  const { region, mode, state } = toolLimit;
+  const { tool, region, mode, state } = toolLimit;
   if (!region || mode !== 'auto' || !['searching', 'on', 'off'].includes(state)) return null;
-  return 'No Automático o efeito vai ' + PLACES[region] + ' sozinho. Ajuste nos controles.';
+  if (toolById(tool ?? '')?.kind === 'heal') return 'No Automático as manchas somem sozinhas, uma a uma. Para uma que ficou, use Manual.';
+  return 'No Automático o efeito vai ' + placeOf(tool) + ' sozinho. Ajuste nos controles.';
 }
 
 /** Where the brush of the open tool stands. It waits while `searching`, stays on the region when `on`, and the rest leave it free. */
@@ -105,8 +138,9 @@ const freed = new Set<string>();
 const shown = new Set<string>();
 /** The mode each tool had on this photo, so going back to a tool keeps it. */
 const modes = new Map<string, ToolMode>();
-/** The region of the open tool, kept to fill the mask with. */
-let regionData: Uint8Array | null = null;
+/** What the automatic mode of the open tool fills with: a mask, or the spots Manchas heals. */
+type Fill = { mask: Uint8Array } | { spots: HealOp['dabs'] };
+let regionFill: Fill | null = null;
 let detectorStarted = false;
 let hairStarted = false;
 
@@ -183,7 +217,64 @@ function maskTarget(masks: NonNullable<Engine['masks']>, source: SourceImage): M
     w: masks.w,
     h: masks.h,
     luma: (a) => source.luma(a.x * kx, a.y * ky, a.w * kx, a.h * ky, a.w, a.h),
+    color: (a) => source.draw(a.x * kx, a.y * ky, a.w * kx, a.h * ky, a.w, a.h).getContext('2d')!.getImageData(0, 0, a.w, a.h).data,
   };
+}
+
+/**
+ * Looks for the spots Manchas heals on every face, inside the skin found for it. Each face is read from
+ * the photo at a size where a spot still has some pixels. The spots come out in image UV, with the radius
+ * as a share of the long side, as the healing brush keeps them. Null when the search was stopped.
+ */
+async function findSpots(
+  source: SourceImage,
+  masks: NonNullable<Engine['masks']>,
+  faces: readonly Face[],
+  skin: Uint8Array,
+  stopped: () => boolean,
+): Promise<HealOp['dabs'] | null> {
+  const { findSkinSpots } = await import('../core/face/blemish');
+  const target = { w: masks.w, h: masks.h };
+  const kx = source.w / masks.w;
+  const ky = source.h / masks.h;
+  const long = Math.max(source.w, source.h);
+  const found: (HealOp['dabs'][number] & { strength: number })[] = [];
+  for (const face of faces) {
+    await nextPaint();
+    if (stopped()) return null;
+    const area = skinArea(face, target);
+    const size = faceSpan(face, target) * kx;
+    if (area.w < 2 || area.h < 2 || size < SPOT_MIN_FACE) continue;
+    const s = Math.min(1, SPOT_FACE / size);
+    const sw = area.w * kx;
+    const sh = area.h * ky;
+    const ow = Math.max(2, Math.round(sw * s));
+    const oh = Math.max(2, Math.round(sh * s));
+    const rgba = source.draw(area.x * kx, area.y * ky, sw, sh, ow, oh).getContext('2d')!.getImageData(0, 0, ow, oh).data;
+    const guard = spotGuard(face, target, area);
+    const weights = new Float32Array(ow * oh);
+    for (let y = 0; y < oh; y++) {
+      const ay = Math.min(area.h - 1, Math.floor(((y + 0.5) / oh) * area.h));
+      for (let x = 0; x < ow; x++) {
+        const ax = Math.min(area.w - 1, Math.floor(((x + 0.5) / ow) * area.w));
+        weights[y * ow + x] = (skin[(ay + area.y) * masks.w + ax + area.x] / 255) * (1 - guard[ay * area.w + ax]);
+      }
+    }
+    for (const spot of findSkinSpots(rgba, weights, ow, oh, size * s)) {
+      found.push({
+        u: (area.x * kx + spot.x / s) / source.w,
+        v: (area.y * ky + spot.y / s) / source.h,
+        r: spot.r / s / long,
+        strength: spot.strength,
+      });
+    }
+  }
+  found.sort((a, b) => b.strength - a.strength);
+  // From the top of the photo down, so the spots go in an order the eye can follow.
+  return found
+    .slice(0, SPOT_LIMIT)
+    .sort((a, b) => a.v - b.v || a.u - b.u)
+    .map(({ u, v, r }) => ({ u, v, r }));
 }
 
 /**
@@ -267,21 +358,33 @@ export async function chooseFace(e: Engine, face: Face): Promise<void> {
 /** The mask a tool paints on. */
 const layerOf = (tool: string) => toolById(tool)?.layer ?? null;
 
-/** Automatic, unless the person chose otherwise or the mask already holds work, as in a reopened project. */
+/** The tool already changed this photo: a mask with paint, or healed spots for Manchas. */
+export function hasWork(e: Engine, tool: string): boolean {
+  if (toolById(tool)?.kind === 'heal') return e.doc.heals.length > 0;
+  const layer = layerOf(tool);
+  return !!layer && !!e.doc.layers[layer]?.painted;
+}
+
+/** Automatic, unless the person chose otherwise or the tool already holds work, as in a reopened project. */
 function modeFor(e: Engine, tool: string): ToolMode {
   if (freed.has(tool)) return 'manual';
   const remembered = modes.get(tool);
   if (remembered) return remembered;
-  const layer = layerOf(tool);
-  return layer && e.doc.layers[layer]?.painted ? 'manual' : 'auto';
+  return hasWork(e, tool) ? 'manual' : 'auto';
 }
 
-/** Fills the mask of the open tool with its region, as one undo step. */
+/** Fills the open tool from what was found, as one undo step: its mask, or the spots it heals. */
 async function fillRegion(e: Engine, tool: string): Promise<void> {
-  const layer = layerOf(tool);
-  const data = regionData;
-  if (!layer || !data || toolLimit.tool !== tool || toolLimit.mode !== 'auto' || toolLimit.state !== 'on') return;
-  await e.fillLayer(layer, data, 'Automático');
+  const fill = regionFill;
+  if (!fill || toolLimit.tool !== tool || toolLimit.mode !== 'auto' || toolLimit.state !== 'on') return;
+  if ('spots' in fill) {
+    const healed = await e.healSpots(fill.spots, 'Automático', async () => bump());
+    if (healed === 0 && toolLimit.tool === tool) toast('Não achei manchas nesta pele. No Manual, toque na que quiser tirar.');
+  } else {
+    const layer = layerOf(tool);
+    if (!layer) return;
+    await e.fillLayer(layer, fill.mask, 'Automático', reducedMotion() ? 0 : FILL_FADE_MS);
+  }
   bump();
 }
 
@@ -299,7 +402,7 @@ export async function limitTool(e: Engine, tool: string, region: FaceRegion, dee
   toolLimit.region = region;
   toolLimit.missed = false;
   toolLimit.mode = modeFor(e, tool);
-  regionData = null;
+  regionFill = null;
   e.brushOff = false;
   if (freed.has(tool)) {
     toolLimit.state = 'off';
@@ -325,16 +428,27 @@ export async function limitTool(e: Engine, tool: string, region: FaceRegion, dee
       data = buildRegionMask(scan.list, region, maskTarget(masks, source));
       spots = focusPoints(scan.list, region);
     }
+    // The automatic mode fills with the region, with its own shape, or for Manchas heals spots in it.
+    let fill: Fill | null = data ? { mask: data } : null;
+    const meta = toolById(tool);
+    if (data && meta?.kind === 'heal') {
+      const list = await findSpots(source, masks, scan.list, data, stopped);
+      if (!list) return;
+      fill = { spots: list };
+    } else if (data && meta?.fill && meta.fill !== region && meta.fill !== 'hair') {
+      const shape = buildRegionMask(scan.list, meta.fill, maskTarget(masks, source));
+      fill = shape ? { mask: shape } : null;
+    }
     e.setPaintLimit(data);
     // The hair segmenter also looks at a photo without faces, so for hair the photo has none.
     toolLimit.state = data ? 'on' : scan.list.length || hair ? 'no-region' : 'no-face';
     if (data) {
-      regionData = data;
-      const auto = toolLimit.mode === 'auto';
-      const layer = layerOf(tool);
-      const fill = auto && (refill || !(layer && e.doc.layers[layer]?.painted));
+      regionFill = fill;
+      const auto = toolLimit.mode === 'auto' && !!fill;
+      if (!fill) toolLimit.mode = 'manual';
+      const filling = auto && (refill || !hasWork(e, tool));
       e.brushOff = auto;
-      void showRegion(e, spots, e.viewMoves === moves, !shown.has(tool), fill ? () => fillRegion(e, tool) : undefined);
+      void showRegion(e, spots, e.viewMoves === moves, !shown.has(tool), filling ? () => fillRegion(e, tool) : undefined);
       shown.add(tool);
     } else {
       // Nothing to fill from: the brush is the way.
@@ -390,7 +504,7 @@ export function setToolMode(e: Engine, mode: ToolMode): void {
   toolLimit.mode = mode;
   if (mode === 'manual') {
     e.brushOff = false;
-  } else if (toolLimit.state === 'on' && regionData) {
+  } else if (toolLimit.state === 'on' && regionFill) {
     e.brushOff = true;
     void fillRegion(e, tool);
   } else {
@@ -414,7 +528,7 @@ export function dropToolLimit(): void {
   toolLimit.tool = null;
   toolLimit.region = null;
   toolLimit.state = 'off';
-  regionData = null;
+  regionFill = null;
 }
 
 export function forgetFreedTools(): void {
