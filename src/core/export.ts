@@ -11,6 +11,9 @@ import { RenderContext } from './pipeline/context';
 import { shader } from './pipeline/pipeline';
 import { nextPaint } from './progress';
 import EXPORT_FRAG from './shaders/export.frag?raw';
+import { lengthReach } from '../tools/hairlength/reach';
+
+const sumReach = ({ grow, band }: { grow: number; band: number }) => grow + band;
 
 export type ExportFormat = 'image/jpeg' | 'image/png' | 'image/webp';
 
@@ -56,7 +59,10 @@ export async function exportImage(
     const reach = Math.hypot(op.du * doc.width, op.dv * doc.height);
     return Math.max(m, reach + Math.max(...op.dabs.map((d) => d.r * long)) * 3);
   }, 0);
-  const margin = Math.ceil(Math.max(192, 0.05 * long) + blurPx + fieldPx + healPx);
+  const hairLength = doc.layers.hairlength;
+  // Longer hair is drawn from the hair above it, up to grow + band image heights away.
+  const lengthPx = hairLength?.painted ? sumReach(lengthReach(hairLength.params)) * doc.height : 0;
+  const margin = Math.ceil(Math.max(192, 0.05 * long) + blurPx + fieldPx + healPx + lengthPx);
 
   const canvas = new OffscreenCanvas(out.w, out.h);
   const c2d = canvas.getContext('2d', { alpha: false });

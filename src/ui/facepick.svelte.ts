@@ -4,10 +4,11 @@
  * the saved project.
  */
 
+import type { Params } from '../core/doc';
 import type { Engine } from '../core/engine';
 import type { FaceScan } from '../core/face/detector';
 import { focusPoints } from '../core/face/focus';
-import { addHair, faceSize, hairCrop } from '../core/face/hair';
+import { addHair, faceSize, hairCrop, lengthenable } from '../core/face/hair';
 import { buildFaceMask, type MaskTarget, type Point } from '../core/face/mask';
 import { buildRegionMask, type FaceRegion } from '../core/face/regions';
 import { CHIN, type Face } from '../core/face/scan';
@@ -105,8 +106,9 @@ const freed = new Set<string>();
 const shown = new Set<string>();
 /** The mode each tool had on this photo, so going back to a tool keeps it. */
 const modes = new Map<string, ToolMode>();
-/** The region of the open tool, kept to fill the mask with. */
+/** The region of the open tool, kept to fill the mask with, and settings that come with it. */
 let regionData: Uint8Array | null = null;
+let regionParams: Params | undefined;
 let detectorStarted = false;
 let hairStarted = false;
 
@@ -264,6 +266,16 @@ export async function chooseFace(e: Engine, face: Face): Promise<void> {
   bump();
 }
 
+/**
+ * What the automatic mode fills for each tool. Most fill the whole region. Longer hair skips the hair
+ * over each face, and learns the face size, which sets how far the hair grows.
+ */
+function shapeFor(tool: string, data: Uint8Array, masks: NonNullable<Engine['masks']>, faces: readonly Face[]): { data: Uint8Array; params?: Params } {
+  if (tool !== 'hairlength' || faces.length === 0) return { data };
+  const reach = Math.max(...faces.map((f) => f.box.h));
+  return { data: lengthenable(data, masks.w, masks.h, faces.map((f) => f.outline)), params: { reach } };
+}
+
 /** The mask a tool paints on. */
 const layerOf = (tool: string) => toolById(tool)?.layer ?? null;
 
@@ -281,7 +293,7 @@ async function fillRegion(e: Engine, tool: string): Promise<void> {
   const layer = layerOf(tool);
   const data = regionData;
   if (!layer || !data || toolLimit.tool !== tool || toolLimit.mode !== 'auto' || toolLimit.state !== 'on') return;
-  await e.fillLayer(layer, data, 'Automático');
+  await e.fillLayer(layer, data, 'Automático', regionParams);
   bump();
 }
 
@@ -300,6 +312,7 @@ export async function limitTool(e: Engine, tool: string, region: FaceRegion, dee
   toolLimit.missed = false;
   toolLimit.mode = modeFor(e, tool);
   regionData = null;
+  regionParams = undefined;
   e.brushOff = false;
   if (freed.has(tool)) {
     toolLimit.state = 'off';
@@ -329,7 +342,7 @@ export async function limitTool(e: Engine, tool: string, region: FaceRegion, dee
     // The hair segmenter also looks at a photo without faces, so for hair the photo has none.
     toolLimit.state = data ? 'on' : scan.list.length || hair ? 'no-region' : 'no-face';
     if (data) {
-      regionData = data;
+      ({ data: regionData, params: regionParams } = shapeFor(tool, data, masks, scan.list));
       const auto = toolLimit.mode === 'auto';
       const layer = layerOf(tool);
       const fill = auto && (refill || !(layer && e.doc.layers[layer]?.painted));
@@ -415,6 +428,7 @@ export function dropToolLimit(): void {
   toolLimit.region = null;
   toolLimit.state = 'off';
   regionData = null;
+  regionParams = undefined;
 }
 
 export function forgetFreedTools(): void {

@@ -36,14 +36,14 @@ async function applied(page: Page, tool: string): Promise<Buffer> {
 }
 
 test.describe('cabelo', () => {
-  test('Cabelo tem menu próprio, entre Make e Forma, com cinco ferramentas', async ({ page }) => {
+  test('Cabelo tem menu próprio, entre Make e Forma, com seis ferramentas', async ({ page }) => {
     await openEditor(page);
     const groups = await page.locator('[data-group]').evaluateAll((list) => list.map((b) => b.getAttribute('data-group')));
     expect(groups.indexOf('hair')).toBe(groups.indexOf('makeup') + 1);
     await page.locator('[data-group=makeup]').click();
     await expect(page.locator('[data-tool=haircolor]')).toHaveCount(0);
     await page.locator('[data-group=hair]').click();
-    for (const tool of ['haircolor', 'hairdark', 'hairlight', 'haircontrast', 'hairsharp']) {
+    for (const tool of ['haircolor', 'hairdark', 'hairlight', 'haircontrast', 'hairsharp', 'hairlength']) {
       await expect(page.locator(`[data-tool=${tool}]`)).toBeVisible();
     }
   });
@@ -105,6 +105,22 @@ test.describe('cabelo', () => {
     const sharper = await page.screenshot();
     expect(await meanDiff(page, sharp, sharper, around(page, SIDE))).toBeGreaterThan(0.3);
     expect(await meanDiff(page, more, sharper, around(page, CHEEK))).toBeLessThan(1);
+    expectNoErrors(errors);
+  });
+
+  test('Comprimento faz o cabelo do lado descer abaixo do ombro, sem tocar a franja nem o rosto', async ({ page }) => {
+    const errors = watch(page);
+    await openEditor(page);
+    const plain = await page.screenshot();
+    await pickTool(page, 'hair', 'hairlength', { auto: true });
+    await setSlider(page, 'Comprimento', 70);
+    await settle(page, 400);
+    const longer = await page.screenshot();
+    // Below the end of the hair on the left, where there was only the shirt.
+    expect(await meanDiff(page, plain, longer, around(page, [-0.335, 0.35]))).toBeGreaterThan(3);
+    expect(await meanDiff(page, plain, longer, around(page, CHEEK))).toBeLessThan(1);
+    // The fringe ends over the forehead and stays there.
+    expect(await meanDiff(page, plain, longer, around(page, [0.05, -0.2]))).toBeLessThan(1);
     expectNoErrors(errors);
   });
 

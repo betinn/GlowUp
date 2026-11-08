@@ -42,7 +42,11 @@ pele, iluminador.
 
 **Make:** batom, dentes, blush, sombra, sobrancelha, contorno, sardas procedurais.
 
-**Cabelo:** cor, escurecer, clarear, contraste e nitidez, cada um só nos fios que o detector achou.
+**Cabelo:** cor, escurecer, clarear, contraste e nitidez, cada um só nos fios que o detector achou, e
+comprimento, que alonga os fios soltos ao lado do rosto.
+
+**Voltar ao original:** "Zerar" tira tudo de um menu, e o botão no topo tira tudo da foto. Os dois são uma
+etapa do desfazer.
 
 **Forma:** liquify (empurrar, inflar, contrair, restaurar).
 

@@ -149,7 +149,18 @@ Cada uma segue o mesmo caminho dos olhos e dentes, com as palavras do cabelo.
 - **Controles.** Cor tem a paleta e a intensidade. Escurecer e Nitidez têm intensidade. Clarear tem
   intensidade e "Dourado", o tom quente que o cabelo escuro mostra quando clareia. Contraste vai de macio a
   marcado, com zero no meio.
-- **Ícones.** Paleta, lua, nascer do sol, círculo meio riscado e losango, na mesma grade de 24 px.
+- **Comprimento.** Sexta ferramenta. O Automático escolhe o cabelo ao lado do rosto e abaixo do queixo, nunca a
+  franja, e o slider diz quanto ele desce, em altura de rosto. "Pontas" vai de corte reto a pontas desfiadas.
+- **Ícones.** Paleta, lua, nascer do sol, círculo meio riscado, losango e cabelo com seta para baixo, na mesma
+  grade de 24 px.
+
+## Voltar ao original
+
+- **Por menu.** "Zerar" aparece no fim da fila de ferramentas quando o menu tem algo a tirar. Tira as máscaras e
+  os controles das ferramentas do menu, e também o que é só dele: manchas em Pele, liquify em Forma, filtro e
+  área em Looks, ajustes e desfoque em Luz, recorte em Quadro. Um aviso diz que o desfazer traz de volta.
+- **A foto toda.** Ícone no topo, ao lado do desfazer, apagado quando não há nada a tirar. Pede um segundo sim
+  num aviso sobre a foto, porque sair do editor perde o desfazer. `Esc` cancela.
 
 ## Filtro em um rosto
 

@@ -30,6 +30,8 @@ const LUMA_ROOM = 0.03;
 /** Reach of the refinement, as a share of the face size. */
 const REFINE_RADIUS = 0.006;
 const REFINE_EPS = 0.002;
+/** Where longer hair stops beside a face, the cut fades over this share of the face width. */
+const RAMP = 0.06;
 /** A value above this, out of 255, counts as hair when framing the view. */
 const FRAME_LEVEL = 128;
 
@@ -81,6 +83,53 @@ function sample(cut: HairCut, fx: number, fy: number): number {
 function smooth(v: number, lo: number, hi: number): number {
   const t = clamp((v - lo) / (hi - lo), 0, 1);
   return t * t * (3 - 2 * t);
+}
+
+/**
+ * The hair that may grow longer: all of it except, in each column that crosses a face, the hair above
+ * the bottom of that face. A fringe or the top of the head would grow over the eyes, while hair beside
+ * the jaw or below the chin grows freely. The cut fades over `RAMP` of the face width on each side.
+ * `outlines` run around each face in image UV.
+ */
+export function lengthenable(hair: Uint8Array, w: number, h: number, outlines: readonly (readonly Point[])[]): Uint8Array {
+  // Lowest row of a face in each column, or -1.
+  const bottom = new Float32Array(w).fill(-1);
+  for (const outline of outlines) {
+    const grid = outline.map(([u, v]): Point => [u * w, v * h]);
+    for (let i = 0, j = grid.length - 1; i < grid.length; j = i++) {
+      const [ax, ay] = grid[j];
+      const [bx, by] = grid[i];
+      const steps = Math.max(1, Math.ceil(Math.abs(bx - ax)));
+      for (let k = 0; k <= steps; k++) {
+        const t = k / steps;
+        const x = Math.floor(ax + (bx - ax) * t);
+        if (x >= 0 && x < w) bottom[x] = Math.max(bottom[x], ay + (by - ay) * t);
+      }
+    }
+  }
+  let width = 0;
+  for (const outline of outlines) {
+    const xs = outline.map(([u]) => u * w);
+    width = Math.max(width, Math.max(...xs) - Math.min(...xs));
+  }
+  const ramp = Math.max(1, Math.round(width * RAMP));
+  const out = hair.slice();
+  const span = 2 * ramp + 1;
+  const isAbove = (x: number, y: number) => {
+    const b = bottom[Math.min(w - 1, Math.max(0, x))];
+    return b >= 0 && y < b ? 1 : 0;
+  };
+  for (let y = 0; y < h; y++) {
+    // Share of the nearby columns where this row sits above a face, as a sliding sum.
+    let above = 0;
+    for (let dx = -ramp; dx <= ramp; dx++) above += isAbove(dx, y);
+    for (let x = 0; x < w; x++) {
+      const at = y * w + x;
+      if (above && out[at]) out[at] = Math.round(out[at] * (1 - above / span));
+      above += isAbove(x + ramp + 1, y) - isAbove(x - ramp, y);
+    }
+  }
+  return out;
 }
 
 /**

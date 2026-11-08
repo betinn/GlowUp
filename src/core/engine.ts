@@ -5,8 +5,8 @@
 
 import { GLContext, type Tex } from './gl/context';
 import { DEFAULT_BRUSH, StrokeInterpolator, type BrushSettings, type Dab } from './brush';
-import { clone, createDoc, FILTER_MASK, type Adjustments, type BlurSettings, type EditDoc, type FilterState, type HealOp, type LayerId, type ParamValue } from './doc';
-import { applyMat3, imageToOutput, outputSize, outputToImage, rotatedBounds, type Crop } from './geometry';
+import { clone, createDoc, DEFAULT_ADJUST, DEFAULT_BLUR, FILTER_MASK, type Adjustments, type BlurSettings, type EditDoc, type FilterState, type HealOp, type LayerId, type ParamValue, type Params } from './doc';
+import { applyMat3, defaultCrop, imageToOutput, outputSize, outputToImage, rotatedBounds, type Crop } from './geometry';
 import { decodeTile, encodeTile } from './history/codec';
 import { History, type HistoryEntry } from './history/history';
 import { MaskStore, type MaskTile } from './masks';
@@ -31,6 +31,21 @@ const smooth = (a: number, b: number, x: number) => {
   const k = Math.min(1, Math.max(0, (x - a) / (b - a)));
   return k * k * (3 - 2 * k);
 };
+
+/**
+ * What a reset puts back to the original. Tools lose their mask and go back to their default settings,
+ * as if never opened.
+ */
+export interface ResetScope {
+  layers: readonly LayerId[];
+  heals?: boolean;
+  field?: boolean;
+  adjust?: boolean;
+  /** The filter, its area and the softness of the area. */
+  filter?: boolean;
+  blur?: boolean;
+  crop?: boolean;
+}
 
 /** What the before side of the comparison shows. */
 export type CompareBase = 'original' | 'unfiltered';
@@ -134,6 +149,8 @@ export class Engine {
     last: [number, number];
   } | null = null;
   private pendingParams: { label: string; before: EditDoc } | null = null;
+  /** Starting settings of each tool, for a reset. */
+  private readonly toolDefaults = new Map<LayerId, Record<string, ParamValue>>();
   private readonly listeners: Partial<EngineEvents>[] = [];
 
   constructor(readonly canvas: HTMLCanvasElement) {
@@ -226,6 +243,7 @@ export class Engine {
   registerTool(pass: ToolPass, defaults: Record<string, ParamValue>): void {
     if (!this.pipeline) return;
     this.pipeline.tools.set(pass.id, pass);
+    this.toolDefaults.set(pass.id, { ...defaults });
     if (!this.doc.layers[pass.id]) {
       this.doc.layers[pass.id] = { enabled: true, painted: false, params: { ...defaults } };
     }
@@ -348,22 +366,25 @@ export class Engine {
 
   /**
    * Replaces a whole layer mask with `data`, as one undo step. The result is a mask like any painted
-   * one: brush, eraser, sliders and the saved project treat it the same.
+   * one: brush, eraser, sliders and the saved project treat it the same. `params` change in the same step.
    */
-  async fillLayer(id: LayerId, data: Uint8Array, label: string): Promise<void> {
+  async fillLayer(id: LayerId, data: Uint8Array, label: string, params?: Params): Promise<void> {
     const layer = this.doc.layers[id];
     const masks = this.masks;
     if (!layer || !masks) return;
     this.commit();
     const { w, h } = masks;
     const previous = await masks.read(id);
-    const before = { mask: previous ? encodeTile(previous, w, h) : null, painted: layer.painted };
-    const after = { mask: encodeTile(data, w, h), painted: true };
+    const before = { mask: previous ? encodeTile(previous, w, h) : null, painted: layer.painted, params: { ...layer.params } };
+    const after = { mask: encodeTile(data, w, h), painted: true, params: { ...layer.params, ...params } };
     const apply = (state: typeof before) => {
       if (state.mask) masks.write(id, decodeTile(state.mask, w, h));
       else masks.clear(id);
       const current = this.doc.layers[id];
-      if (current) current.painted = state.painted;
+      if (current) {
+        current.painted = state.painted;
+        current.params = { ...state.params };
+      }
       this.ctx?.invalidate('prefix');
       this.requestRender();
     };
@@ -452,6 +473,80 @@ export class Engine {
     this.ctx?.invalidate('prefix');
     this.commit();
     this.requestRender();
+  }
+
+  /** True when something in `scope` differs from the original photo. */
+  changed(scope: ResetScope): boolean {
+    const { doc } = this;
+    const crop = defaultCrop(doc.width, doc.height);
+    return (
+      scope.layers.some((id) => doc.layers[id]?.painted) ||
+      (!!scope.heals && doc.heals.length > 0) ||
+      (!!scope.field && doc.hasField) ||
+      (!!scope.adjust && Object.values(doc.adjust).some((v) => v !== 0)) ||
+      (!!scope.filter && (!!doc.filter.id || !!doc.filter.masked)) ||
+      (!!scope.blur && doc.blur.mode !== 'off') ||
+      (!!scope.crop && JSON.stringify(doc.crop) !== JSON.stringify(crop))
+    );
+  }
+
+  /**
+   * Puts part of the edit, or all of it, back to the original photo, as one undo step. Masks, healing,
+   * liquify, filter, adjustments, blur and crop each go back only when `scope` names them. Returns
+   * false when there was nothing to put back.
+   */
+  async resetParts(label: string, scope: ResetScope): Promise<boolean> {
+    const masks = this.masks;
+    if (!masks || !this.changed(scope)) return false;
+    this.commit();
+    const { w, h } = masks;
+    const ids = scope.layers.filter((id) => this.doc.layers[id]);
+    const maskIds: LayerId[] = scope.filter ? [...ids, FILTER_MASK] : ids;
+    const saved = new Map<LayerId, Uint8Array | null>();
+    for (const id of maskIds) {
+      const data = await masks.read(id);
+      saved.set(id, data ? encodeTile(data, w, h) : null);
+    }
+    const field = scope.field && this.field && !this.field.isEmpty() ? this.field.serialize().slice() : null;
+    const before = clone(this.doc);
+    const after = clone(this.doc);
+    for (const id of ids) {
+      after.layers[id] = { enabled: true, painted: false, params: { ...(this.toolDefaults.get(id) ?? after.layers[id]!.params) } };
+    }
+    if (scope.heals) after.heals = [];
+    if (scope.field) after.hasField = false;
+    if (scope.adjust) after.adjust = { ...DEFAULT_ADJUST };
+    if (scope.filter) after.filter = { id: null, intensity: 1 };
+    if (scope.blur) after.blur = { ...DEFAULT_BLUR };
+    if (scope.crop) after.crop = defaultCrop(after.width, after.height);
+
+    const apply = (doc: EditDoc, back: boolean) => {
+      const cropMoved = JSON.stringify(doc.crop) !== JSON.stringify(this.doc.crop);
+      this.doc = clone(doc);
+      for (const id of maskIds) {
+        const packed = back ? saved.get(id) : null;
+        if (packed) masks.write(id, decodeTile(packed, w, h));
+        else masks.clear(id);
+      }
+      if (scope.field && this.field) {
+        this.field.restore(back && field ? field : new Float32Array(this.field.serialize().length));
+        this.fieldRev++;
+      }
+      if (this.pipeline) this.pipeline.lutMix = this.doc.filter.intensity;
+      this.onFilterRestore?.();
+      if (cropMoved && !this.cropEditing) {
+        this.stopFlight();
+        this.view = fitView();
+      }
+      this.ctx?.invalidate('healed');
+      this.emit('view');
+      this.requestRender();
+    };
+    apply(after, false);
+    let bytes = 4096 + (field?.byteLength ?? 0);
+    for (const packed of saved.values()) bytes += packed?.length ?? 0;
+    this.history.push({ label, bytes, undo: () => apply(before, true), redo: () => apply(after, false) });
+    return true;
   }
 
   /* Parameter history: a snapshot of the small document fields, taken at the first change. */

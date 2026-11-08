@@ -53,6 +53,7 @@ export const TOOLS: ToolMeta[] = [
   { id: 'hairdark', label: 'Escurecer', group: 'hair', kind: 'mask', layer: 'hairdark', region: 'hair', hint: 'Escurece os fios sem apagar o brilho.' },
   { id: 'hairlight', label: 'Clarear', group: 'hair', kind: 'mask', layer: 'hairlight', region: 'hair', hint: 'Clareia os fios, puxando para o dourado.' },
   { id: 'haircontrast', label: 'Contraste', group: 'hair', kind: 'mask', layer: 'haircontrast', region: 'hair', hint: 'Mais contraste dá volume. Menos deixa macio.' },
+  { id: 'hairlength', label: 'Comprimento', group: 'hair', kind: 'mask', layer: 'hairlength', region: 'hair', hint: 'Alonga os fios soltos ao lado do rosto. A franja fica como está.' },
   { id: 'hairsharp', label: 'Nitidez', group: 'hair', kind: 'mask', layer: 'hairsharp', region: 'hair', hint: 'Realça os fios um a um.' },
 
   { id: 'liquify', label: 'Liquify', group: 'shape', kind: 'liquify', hint: 'Empurre, infle ou contraia. Devagar fica mais natural.' },
@@ -88,5 +89,6 @@ export const loaders: Record<LayerId, () => Promise<{ default: ToolModule }>> = 
   hairlight: () => import('./hairlight/index'),
   haircontrast: () => import('./haircontrast/index'),
   hairsharp: () => import('./hairsharp/index'),
+  hairlength: () => import('./hairlength/index'),
   freckles: () => import('./freckles/index'),
 };
