@@ -3,6 +3,9 @@ import { defineConfig, devices } from '@playwright/test';
 /** Port of the preview server. Another one lets two checkouts run their tests at the same time. */
 const port = Number(process.env.E2E_PORT ?? 4173);
 const origin = `http://localhost:${port}`;
+/** The dev server, for the tests of what has no button yet: its modules can be imported by address. */
+const devPort = port + 1;
+export const DEV_ORIGIN = `http://localhost:${devPort}`;
 
 /**
  * The editor is shaders from end to end, and SwiftShader runs them on the CPU, so the tests use the
@@ -30,10 +33,18 @@ export default defineConfig({
     launchOptions: { args },
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
-  webServer: {
-    command: `npm run preview -- --port ${port} --strictPort`,
-    url: origin,
-    reuseExistingServer: true,
-    timeout: 60_000,
-  },
+  webServer: [
+    {
+      command: `npm run preview -- --port ${port} --strictPort`,
+      url: origin,
+      reuseExistingServer: true,
+      timeout: 60_000,
+    },
+    {
+      command: `npm run dev -- --port ${devPort} --strictPort`,
+      url: DEV_ORIGIN,
+      reuseExistingServer: true,
+      timeout: 60_000,
+    },
+  ],
 });

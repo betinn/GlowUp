@@ -5,13 +5,13 @@
    */
   import BrushControls from '../BrushControls.svelte';
   import { toolLimit } from '../facepick.svelte';
-  import RegionLimit from './RegionLimit.svelte';
+  import AutoMode from './AutoMode.svelte';
   import Switch from '../Switch.svelte';
   import { engine, HEAL_RINGS_KEY, prefs, ui } from '../state.svelte';
 
   const e = engine();
   const healed = $derived((ui.rev, e.doc.heals.length));
-  const brushShown = $derived(!toolLimit.region || toolLimit.mode === 'manual');
+  const brushShown = $derived(!toolLimit.tool || toolLimit.mode === 'manual');
   const ringsOffered = $derived(healed > 0 && !!toolLimit.region && toolLimit.mode === 'auto' && toolLimit.state === 'on');
 
   function showRings(on: boolean) {
@@ -20,9 +20,7 @@
   }
 </script>
 
-{#if toolLimit.region}
-  <RegionLimit />
-{/if}
+<AutoMode />
 
 {#if brushShown}
   <BrushControls erasable={false} full={false} />

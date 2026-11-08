@@ -14,11 +14,30 @@ export interface HistoryEntry {
   dispose?(): void;
 }
 
+/** Several entries as one: undo goes through them backwards, redo forwards. */
+function joined(label: string, parts: readonly HistoryEntry[]): HistoryEntry {
+  return {
+    label,
+    bytes: parts.reduce((n, part) => n + part.bytes, 0),
+    undo: async () => {
+      for (const part of [...parts].reverse()) await part.undo();
+    },
+    redo: async () => {
+      for (const part of parts) await part.redo();
+    },
+    dispose: () => {
+      for (const part of parts) part.dispose?.();
+    },
+  };
+}
+
 export class History {
   private readonly past: HistoryEntry[] = [];
   private readonly future: HistoryEntry[] = [];
   private queue: Promise<unknown> = Promise.resolve();
   private bytes = 0;
+  /** While a group runs, new entries wait here to become one step. */
+  private gathering: HistoryEntry[] | null = null;
 
   /** Soft memory limit: above it the oldest entries are dropped. */
   constructor(
@@ -51,6 +70,10 @@ export class History {
   }
 
   push(entry: HistoryEntry): void {
+    if (this.gathering) {
+      this.gathering.push(entry);
+      return;
+    }
     for (const e of this.future.splice(0)) {
       this.bytes -= e.bytes;
       e.dispose?.();
@@ -68,7 +91,28 @@ export class History {
   /** Updates the size of the newest entry once its async payload arrives. */
   grow(entry: HistoryEntry, extra: number): void {
     entry.bytes += extra;
-    this.bytes += extra;
+    if (!this.gathering?.includes(entry)) this.bytes += extra;
+  }
+
+  /**
+   * Everything pushed while `run` works becomes one step, labelled `label`. Undo and redo wait for it. If
+   * `run` fails, what it already did stays undoable, and the error goes on to the caller.
+   */
+  group(label: string, run: () => void | Promise<void>): Promise<void> {
+    if (this.gathering) return Promise.resolve().then(run);
+    return this.enqueue(async () => {
+      const parts: HistoryEntry[] = [];
+      this.gathering = parts;
+      try {
+        await run();
+      } finally {
+        // A clear in the meantime means the photo is gone, and these entries with it.
+        if (this.gathering === parts) {
+          this.gathering = null;
+          if (parts.length) this.push(joined(label, parts));
+        }
+      }
+    });
   }
 
   private enqueue(job: () => void | Promise<void>): Promise<void> {
@@ -96,7 +140,8 @@ export class History {
   }
 
   clear(): void {
-    for (const e of [...this.past, ...this.future]) e.dispose?.();
+    for (const e of [...this.past, ...this.future, ...(this.gathering ?? [])]) e.dispose?.();
+    this.gathering = null;
     this.past.length = 0;
     this.future.length = 0;
     this.bytes = 0;

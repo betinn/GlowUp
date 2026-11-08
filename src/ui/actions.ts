@@ -1,9 +1,13 @@
 /** UI actions that coordinate the engine, tool chunks and shared state. */
 
 import { DEFAULT_BRUSH, type BrushSettings } from '../core/brush';
+import type { LayerId } from '../core/doc';
+import { applyPreset } from '../presets/apply';
+import type { RetouchPreset } from '../presets/recipes';
 import { ensureField, ensureHeal, ensureLayerTool } from '../tools/activate';
-import { toolById, type ToolMeta } from '../tools/catalog';
-import { dropToolLimit, forgetFreedTools, hasWork, limitTool, refillRegion, toolLimit } from './facepick.svelte';
+import { autoAction } from '../tools/auto';
+import { toolById, TOOLS, type ToolMeta } from '../tools/catalog';
+import { applyToolFills, clearWork, dropToolLimit, forgetFreedTools, hasWork, limitTool, prepareToolFills, refillRegion, toolLimit } from './facepick.svelte';
 import { regionShow } from './regionshow.svelte';
 import { bump, engine, toast, ui } from './state.svelte';
 
@@ -48,7 +52,6 @@ export async function selectTool(id: string | null): Promise<void> {
         e.brush = brushFor(meta.id, mod.brush);
         e.setTool('mask', meta.layer!);
         ui.toolModule = mod;
-        if (meta.region) void limitTool(e, meta.id, meta.region);
         break;
       }
       case 'heal':
@@ -56,10 +59,10 @@ export async function selectTool(id: string | null): Promise<void> {
         if (ui.tool !== id) return;
         e.brush = brushFor('heal', HEAL_BRUSH);
         e.setTool('heal');
-        if (meta.region) void limitTool(e, meta.id, meta.region);
         break;
       case 'liquify':
         await ensureField(e);
+        if (ui.tool !== id) return;
         e.brush = brushFor('liquify', LIQUIFY_BRUSH);
         e.setTool('liquify');
         break;
@@ -70,6 +73,8 @@ export async function selectTool(id: string | null): Promise<void> {
       default:
         e.setTool('none');
     }
+    // Last, because opening a tool drops the limit of the one before.
+    if (meta && (meta.region || autoAction(meta.id))) void limitTool(e, meta.id, meta.region ?? null);
   } catch (err) {
     console.error(err);
     toast('Essa ferramenta não carregou. Confere a conexão e tenta de novo.');
@@ -100,10 +105,10 @@ export function changeBrushSize(factor: number): void {
   bump();
 }
 
-/** Tools whose effect lives in a mask or in healed spots, so a second tap on the tool can turn it off. */
+/** Tools with an effect of their own on the photo, so a second tap on the tool can turn it off. */
 export const switchable = (id: string) => {
   const kind = toolById(id)?.kind;
-  return kind === 'mask' || kind === 'heal';
+  return kind === 'mask' || kind === 'heal' || !!autoAction(id);
 };
 
 /**
@@ -116,10 +121,42 @@ export async function toggleEffect(id: string): Promise<void> {
   const meta = toolById(id);
   if (!meta || !switchable(id) || toolLimit.state === 'searching' || regionShow.phase || ui.painting) return;
   if (hasWork(e, id)) {
-    if (meta.kind === 'heal') await e.healSpots([], 'Limpar');
-    else await e.clearLayer(meta.layer!);
+    await clearWork(e, id);
   } else if (toolLimit.tool === id && toolLimit.mode === 'auto' && toolLimit.state === 'on') {
     refillRegion(e);
   }
   bump();
+}
+
+/** How a recipe landed on the photo. */
+export interface RecipeOutcome {
+  /** Tools the automatic mode filled. */
+  filled: string[];
+  /** Tools of the recipe the photo gave nothing to work on. Their settings are in the document all the same. */
+  missed: string[];
+  /** The detector did not load. The settings of the recipe were applied, with no mask. */
+  failed: boolean;
+  /** Another search or another photo took over, and nothing was applied. */
+  stopped: boolean;
+}
+
+/**
+ * Applies a recipe and fills the masks of its tools from the detector, all as one undo step, so one undo
+ * takes the look off. The open tool closes first. A mask holding work keeps it, unless `refill`. The
+ * search shows on `facePick.task`, for whoever wants a progress card. Throws when the code of a tool does
+ * not load, with the photo as it was.
+ */
+export async function applyRecipe(preset: RetouchPreset, { refill = false, fadeMs }: { refill?: boolean; fadeMs?: number } = {}): Promise<RecipeOutcome> {
+  const e = engine();
+  await selectTool(null);
+  const layers = Object.keys(preset.tools) as LayerId[];
+  const tools = layers.flatMap((layer) => TOOLS.find((t) => t.layer === layer)?.id ?? []);
+  const { fills, missed, failed, stopped } = await prepareToolFills(e, tools, { refill });
+  if (stopped) return { filled: [], missed: [], failed: false, stopped: true };
+  await e.history.group('Receita', async () => {
+    await applyPreset(e, preset);
+    await applyToolFills(e, fills, { label: 'Receita', fadeMs });
+  });
+  bump();
+  return { filled: [...fills.keys()], missed, failed, stopped: false };
 }
