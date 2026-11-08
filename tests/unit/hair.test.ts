@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addHair, faceSize, hairCrop, lengthenable, lookAlike, type HairCut } from '../../src/core/face/hair';
+import { addHair, faceSize, hairCrop, lookAlike, type HairCut } from '../../src/core/face/hair';
 
 /** A cut that is sure of hair inside a box given as shares of its sides, and of nothing outside. */
 function cutWith(x0: number, y0: number, x1: number, y1: number, side = 64, inside = 1): HairCut {
@@ -119,34 +119,5 @@ describe('lookAlike', () => {
     const reach = new Float32Array(200).fill(1);
     lookAlike(shape, reach, new Float32Array(200).fill(0.2));
     expect(shape[1]).toBe(0);
-  });
-});
-
-describe('lengthenable', () => {
-  /** A face from 0.3 to 0.7 across and from 0.2 to 0.6 down, as an outline in image UV. */
-  const face = [
-    [0.3, 0.2],
-    [0.7, 0.2],
-    [0.7, 0.6],
-    [0.3, 0.6],
-  ] as const;
-
-  it('keeps hair beside the face and below the chin, and drops the hair above the face', () => {
-    const w = 100;
-    const hair = new Uint8Array(w * w).fill(255);
-    const out = lengthenable(hair, w, w, [face]);
-    // A fringe over the forehead.
-    expect(out[15 * w + 50]).toBe(0);
-    // Beside the jaw and below the chin.
-    expect(out[50 * w + 15]).toBe(255);
-    expect(out[80 * w + 50]).toBe(255);
-  });
-
-  it('fades the cut at the side of the face instead of a hard line', () => {
-    const w = 100;
-    const out = lengthenable(new Uint8Array(w * w).fill(255), w, w, [face]);
-    const edge = out[15 * w + 29];
-    expect(edge).toBeGreaterThan(0);
-    expect(edge).toBeLessThan(255);
   });
 });

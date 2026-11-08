@@ -101,10 +101,8 @@
 - [x] Cabelo achado ao redor de cada rosto, ou na foto toda quando não há rosto
 - [x] Cor, Escurecer, Clarear, Contraste e Nitidez, com Automático, voo e brilho como nos olhos
 
-## M15. Comprimento e voltar ao original
+## M15. Voltar ao original
 
-- [x] Comprimento do cabelo: a ponta de cada coluna estica para baixo, com pontas desfiadas
-- [x] Automático só no cabelo ao lado do rosto e abaixo do queixo
 - [x] Zerar por menu e voltar a foto toda ao original, cada um numa etapa do desfazer
 
 ## Metas medidas

@@ -146,13 +146,10 @@ Medido só no retrato procedural, com a GPU: o cabelo de um retrato fica pronto 
 e trocar de ferramenta reaproveita o resultado. Falta conferir em fotos reais de domínio público, como foi
 feito com olhos e dentes.
 
-## Comprimento do cabelo e voltar ao original
+## Voltar ao original
 
 | # | Decisão | Motivo |
 | --- | --- | --- |
-| 84 | Comprimento estica para baixo o último trecho de cada coluna de cabelo, a partir da ponta achada na máscara | Gerar fios do nada pediria um modelo generativo de centenas de MB, fora do que roda no aparelho. Esticar o próprio cabelo mantém cor, brilho e textura, e fio liso cai na vertical. O trecho esticado é 1,2 vez o que cresce, então o fio estica menos de 2 vezes. Cabelo cacheado ou caído sobre o ombro sai esticado: fica para o Manual e o pincel. |
-| 85 | O Automático de Comprimento tira, em cada coluna que cruza um rosto, o cabelo acima do queixo | Sem isso a franja e o topo da cabeça desciam sobre os olhos. O corte usa o contorno do rosto, não a caixa, para o cabelo ao lado do queixo crescer, e se desfaz em 6% da largura do rosto. |
-| 86 | O tamanho do rosto vai para um parâmetro sem controle, gravado junto com a máscara do Automático | A mesma porcentagem alonga igual numa selfie e numa foto de grupo. Fica no projeto como os outros parâmetros, então a exportação sabe quanto espaço deixar acima de cada tile. |
-| 87 | As pontas somem em alturas diferentes a cada 2 pixels da foto original | Ponta reta denuncia o efeito. O sorteio usa pixels da foto, não da tela, e sai igual no preview, no zoom e na exportação. |
-| 88 | Zerar e Voltar ao original são uma etapa só do desfazer, com máscaras, manchas, liquify, filtro, ajustes, desfoque e recorte guardados juntos | O desfazer traz tudo de uma vez. Ferramentas voltam aos controles de fábrica, como se nunca tivessem aberto. |
-| 89 | Voltar ao original pede um segundo toque, Zerar não | O histórico não vai para o projeto salvo: depois de sair do editor, tirar tudo não tem volta. Um menu só custa menos, e o aviso lembra do desfazer. |
+| 84 | Zerar e Voltar ao original são uma etapa só do desfazer, com máscaras, manchas, liquify, filtro, ajustes, desfoque e recorte guardados juntos | O desfazer traz tudo de uma vez. Ferramentas voltam aos controles de fábrica, como se nunca tivessem aberto. |
+| 85 | Voltar ao original pede um segundo toque, Zerar não | O histórico não vai para o projeto salvo: depois de sair do editor, tirar tudo não tem volta. Um menu só custa menos, e o aviso lembra do desfazer. |
+| 86 | Comprimento do cabelo foi tentado e saiu | Esticar o último trecho de cada fio para baixo ficou artificial. Alongar de forma convincente pede um modelo generativo de 1 a 2 GB, lento no computador e inviável no celular, ou um servidor, que quebra a promessa de nada sair do aparelho. Projeto salvo durante o teste abre sem a ferramenta, e o próximo salvamento a descarta. |

@@ -288,15 +288,6 @@ const CHECKS: Check[] = [
     },
   },
   {
-    name: '27-cabelo-comprimento',
-    title: 'Cabelo, Comprimento: a 70%, pontas no padrão',
-    clip: { x: -0.42, y: -0.5, w: 0.84, h: 1 },
-    run: async (page) => {
-      await pickTool(page, 'hair', 'hairlength', { auto: true });
-      await setSlider(page, 'Comprimento', 70);
-    },
-  },
-  {
     name: '26-cabelo-nitidez',
     title: 'Cabelo, Nitidez: no máximo, de perto',
     clip: { x: -0.4, y: -0.2, w: 0.2, h: 0.25 },

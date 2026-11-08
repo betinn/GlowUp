@@ -5,7 +5,7 @@
 
 import { GLContext, type Tex } from './gl/context';
 import { DEFAULT_BRUSH, StrokeInterpolator, type BrushSettings, type Dab } from './brush';
-import { clone, createDoc, DEFAULT_ADJUST, DEFAULT_BLUR, FILTER_MASK, type Adjustments, type BlurSettings, type EditDoc, type FilterState, type HealOp, type LayerId, type ParamValue, type Params } from './doc';
+import { clone, createDoc, DEFAULT_ADJUST, DEFAULT_BLUR, FILTER_MASK, type Adjustments, type BlurSettings, type EditDoc, type FilterState, type HealOp, type LayerId, type ParamValue } from './doc';
 import { applyMat3, defaultCrop, imageToOutput, outputSize, outputToImage, rotatedBounds, type Crop } from './geometry';
 import { decodeTile, encodeTile } from './history/codec';
 import { History, type HistoryEntry } from './history/history';
@@ -366,25 +366,22 @@ export class Engine {
 
   /**
    * Replaces a whole layer mask with `data`, as one undo step. The result is a mask like any painted
-   * one: brush, eraser, sliders and the saved project treat it the same. `params` change in the same step.
+   * one: brush, eraser, sliders and the saved project treat it the same.
    */
-  async fillLayer(id: LayerId, data: Uint8Array, label: string, params?: Params): Promise<void> {
+  async fillLayer(id: LayerId, data: Uint8Array, label: string): Promise<void> {
     const layer = this.doc.layers[id];
     const masks = this.masks;
     if (!layer || !masks) return;
     this.commit();
     const { w, h } = masks;
     const previous = await masks.read(id);
-    const before = { mask: previous ? encodeTile(previous, w, h) : null, painted: layer.painted, params: { ...layer.params } };
-    const after = { mask: encodeTile(data, w, h), painted: true, params: { ...layer.params, ...params } };
+    const before = { mask: previous ? encodeTile(previous, w, h) : null, painted: layer.painted };
+    const after = { mask: encodeTile(data, w, h), painted: true };
     const apply = (state: typeof before) => {
       if (state.mask) masks.write(id, decodeTile(state.mask, w, h));
       else masks.clear(id);
       const current = this.doc.layers[id];
-      if (current) {
-        current.painted = state.painted;
-        current.params = { ...state.params };
-      }
+      if (current) current.painted = state.painted;
       this.ctx?.invalidate('prefix');
       this.requestRender();
     };

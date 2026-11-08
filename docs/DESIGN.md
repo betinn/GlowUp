@@ -149,10 +149,7 @@ Cada uma segue o mesmo caminho dos olhos e dentes, com as palavras do cabelo.
 - **Controles.** Cor tem a paleta e a intensidade. Escurecer e Nitidez têm intensidade. Clarear tem
   intensidade e "Dourado", o tom quente que o cabelo escuro mostra quando clareia. Contraste vai de macio a
   marcado, com zero no meio.
-- **Comprimento.** Sexta ferramenta. O Automático escolhe o cabelo ao lado do rosto e abaixo do queixo, nunca a
-  franja, e o slider diz quanto ele desce, em altura de rosto. "Pontas" vai de corte reto a pontas desfiadas.
-- **Ícones.** Paleta, lua, nascer do sol, círculo meio riscado, losango e cabelo com seta para baixo, na mesma
-  grade de 24 px.
+- **Ícones.** Paleta, lua, nascer do sol, círculo meio riscado e losango, na mesma grade de 24 px.
 
 ## Voltar ao original
 

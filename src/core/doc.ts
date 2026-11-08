@@ -22,7 +22,6 @@ export type LayerId =
   | 'hairlight'
   | 'haircontrast'
   | 'hairsharp'
-  | 'hairlength'
   | 'freckles';
 
 /** Render order of masked tools. Skin first, makeup after, so colors sit on clean skin. */
@@ -48,8 +47,6 @@ export const LAYER_ORDER: readonly LayerId[] = [
   'hairlight',
   'haircontrast',
   'hairsharp',
-  // Last, so the longer hair carries every change made to the hair above it.
-  'hairlength',
 ];
 
 /** Mask key of a filter limited to part of the photo. It never joins the chain of tools. */

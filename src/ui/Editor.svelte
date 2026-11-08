@@ -116,6 +116,8 @@
       for (const [i, [id, blob]] of masks.entries()) {
         const bytes = await unpack(blob);
         const store = e.masks!;
+        // The mask of a tool that no longer exists stays out, so the next save drops it.
+        if (id !== FILTER_MASK && !e.doc.layers[id]) continue;
         if (bytes.length === store.w * store.h) store.write(id, bytes);
         // A mask made for another screen size is lost, and a filter with no mask would just vanish.
         else if (id === FILTER_MASK) e.doc.filter = { ...e.doc.filter, masked: false, reach: undefined };
