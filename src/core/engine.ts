@@ -924,6 +924,11 @@ export class Engine {
       this.doc.heals = [];
       ctx.invalidate('healed');
       pipeline.update(ctx, this.doc);
+      // The update above leaves nothing marked to redraw, so the detail kept for a zoomed view would
+      // stay healed. With no spot to heal, or none that holds, the photo would keep showing them.
+      this.dropRoi();
+      this.unfilteredFresh = false;
+      this.requestRender();
       for (const spot of spots) {
         // A touch refits the spot. When it sees a contour instead, the search already found a spot
         // that stays inside the skin, so its circle is healed as it is.
@@ -955,6 +960,32 @@ export class Engine {
       redo: () => set(after),
     });
     return made.length;
+  }
+
+  /**
+   * Takes one healed spot back to the photo, as one undo step, and keeps the others. False when it is
+   * no longer there or the automatic mode is still healing. Ids may repeat after a project is reopened,
+   * so the op itself says which one.
+   */
+  removeHeal(op: HealOp): boolean {
+    if (this.healingSpots || this.stroke) return false;
+    const before = this.doc.heals.slice();
+    const after = before.filter((other) => other !== op);
+    if (after.length === before.length) return false;
+    this.commit();
+    const set = (list: HealOp[]) => {
+      this.doc.heals = list.slice();
+      this.ctx?.invalidate('healed');
+      this.requestRender();
+    };
+    set(after);
+    this.history.push({
+      label: 'Tirar correção',
+      bytes: 128 + (before.length + after.length) * 96,
+      undo: () => set(before),
+      redo: () => set(after),
+    });
+    return true;
   }
 
   /** Adds the newest healing op on top of the cached result instead of replaying all of them. */

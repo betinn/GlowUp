@@ -66,7 +66,8 @@ soma menos de 1 MB, só na primeira ferramenta de cabelo.
 Ao abrir uma delas, a foto aproxima do rosto, dos olhos, da boca ou do cabelo e um brilho rápido mostra onde
 o pincel alcança. No modo Automático, que vem ligado, a ferramenta já aplica em todos os rostos achados,
 numa etapa só que dá para desfazer, e os controles ajustam o efeito: o efeito chega aos poucos, e em Manchas
-cada mancha some por vez. O Iluminador vai nas maçãs, na ponte do nariz, no meio da testa, no arco do
+cada mancha some por vez. Cada mancha corrigida fica marcada por um círculo, e um toque nele desfaz só
+aquela correção. O Iluminador vai nas maçãs, na ponte do nariz, no meio da testa, no arco do
 cupido e no queixo. No Manual voltam pincel e borracha, a partir do que o Automático fez.
 
 Solte a foto em qualquer lugar da tela, inclusive no editor. Abrir e exportar mostram a porcentagem e o

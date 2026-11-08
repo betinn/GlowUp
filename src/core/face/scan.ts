@@ -63,6 +63,15 @@ export const BROWS: readonly (readonly number[])[] = [
  */
 export const MIDLINE: readonly number[] = [151, 168, 6, 197, 195, 5, 4, 1, 199];
 
+/**
+ * Points around each nostril and its wing, out to the crease where the wing meets the cheek. Same order
+ * as `EYES`. Checked against a photo of a turned and tilted head.
+ */
+export const NOSTRILS: readonly (readonly number[])[] = [
+  [237, 239, 79, 166, 59, 75, 60, 20, 242, 241, 238, 49, 48, 64, 98, 102],
+  [457, 459, 309, 392, 289, 305, 290, 250, 462, 461, 458, 279, 278, 294, 327, 331],
+];
+
 /** Where the tools for eyes, teeth and skin may go, in image UV. */
 export interface FaceParts {
   eyes: readonly (readonly Point[])[];
@@ -72,6 +81,7 @@ export interface FaceParts {
   /** Absent on faces made by hand in tests. The skin tools then do without them. */
   brows?: readonly (readonly Point[])[];
   midline?: readonly Point[];
+  nostrils?: readonly (readonly Point[])[];
 }
 
 const NO_PARTS: FaceParts = { eyes: [], irises: [], innerLips: [], outerLips: [] };
@@ -125,6 +135,7 @@ export function readFace(point: (index: number) => Point): Face {
     outerLips: read(OUTER_LIPS),
     brows: BROWS.map(read),
     midline: read(MIDLINE),
+    nostrils: NOSTRILS.map(read),
   });
 }
 

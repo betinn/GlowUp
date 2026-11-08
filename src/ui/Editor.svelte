@@ -15,7 +15,7 @@
   import Stage from './Stage.svelte';
   import { changeBrushSize, resetToolMemory, selectTool, toggleMark } from './actions';
   import { comparePress, holdCompare, toggleCompare } from './compare';
-  import { autoHint, dropToolLimit, strokeOutside } from './facepick.svelte';
+  import { autoHint, dropToolLimit, strokeOutside, toolLimit } from './facepick.svelte';
   import { reveal, rise } from './motion';
   import { regionShow } from './regionshow.svelte';
   import { groupChanged, photoChanged, resetGroup, resetPhoto } from './reset';
@@ -36,6 +36,7 @@
   const loadCropOverlay = () => import('./CropOverlay.svelte');
   const loadBlurOverlay = () => import('./BlurOverlay.svelte');
   const loadFaceOverlay = () => import('./FaceOverlay.svelte');
+  const loadHealOverlay = () => import('./HealOverlay.svelte');
 
   let canvas = $state<HTMLCanvasElement>();
   let ready = $state(false);
@@ -52,6 +53,10 @@
   const desktop = $derived(w >= 900);
   const meta = $derived(ui.tool ? toolById(ui.tool) : undefined);
   const groupTools = $derived(TOOLS.filter((t) => t.group === ui.group));
+  /** In the automatic mode of Manchas each healed spot has a ring, to take it back alone. */
+  const healRings = $derived(
+    meta?.kind === 'heal' && toolLimit.region !== null && toolLimit.mode === 'auto' && toolLimit.state === 'on' && !ui.splitOn && !ui.compareHold,
+  );
   const canUndo = $derived((ui.rev, ready && engine().history.canUndo));
   const canRedo = $derived((ui.rev, ready && engine().history.canRedo));
   // The label changes with each step, so it follows every change, not only canUndo.
@@ -354,6 +359,11 @@
     {#if ui.tool === 'blur'}
       {#await loadBlurOverlay() then { default: BlurOverlay }}
         <BlurOverlay />
+      {/await}
+    {/if}
+    {#if healRings}
+      {#await loadHealOverlay() then { default: HealOverlay }}
+        <HealOverlay />
       {/await}
     {/if}
     {#if ui.faceChoosing}

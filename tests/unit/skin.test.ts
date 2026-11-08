@@ -3,7 +3,7 @@ import type { Area, MaskTarget, Point } from '../../src/core/face/mask';
 import { focusPoints } from '../../src/core/face/focus';
 import { buildRegionMask } from '../../src/core/face/regions';
 import { BROWS, FACE_OVAL, makeFace, MIDLINE, readFace, type Face, type FaceParts } from '../../src/core/face/scan';
-import { closeSmallHoles, skinArea, skinLikeness, spotGuard, underEyeShape } from '../../src/core/face/skin';
+import { closeSmallHoles, skinArea, skinLikeness, spotGuard, underEyeShape, withForehead } from '../../src/core/face/skin';
 
 const SIZE = 240;
 const at = (mask: Uint8Array, u: number, v: number) => mask[Math.round(v * SIZE) * SIZE + Math.round(u * SIZE)];
@@ -180,14 +180,59 @@ describe('spots of light', () => {
 });
 
 describe('where Manchas does not look', () => {
-  it('leaves out the nostrils, not the cheeks', () => {
-    const f = face();
+  const guardOf = (f: Face) => {
     const target = { w: SIZE, h: SIZE };
     const area = skinArea(f, target);
     const guard = spotGuard(f, target, area);
-    const g = (u: number, v: number) => guard[(Math.round(v * SIZE) - area.y) * area.w + Math.round(u * SIZE) - area.x];
+    return (u: number, v: number) => guard[(Math.round(v * SIZE) - area.y) * area.w + Math.round(u * SIZE) - area.x];
+  };
+
+  it('leaves out the nostrils, not the cheeks', () => {
+    const g = guardOf(face());
     expect(g(0.5, 0.61)).toBeGreaterThan(0.9);
-    expect(g(0.35, 0.55)).toBe(0);
+    expect(g(0.35, 0.55)).toBeLessThan(0.05);
+  });
+
+  it('follows the nostrils the model gives, wherever the head turns them', () => {
+    const f = face();
+    const nostrils = [lens(0.42, 0.6, 0.025, 0.012, 16), lens(0.53, 0.63, 0.025, 0.012, 16)];
+    const g = guardOf(makeFace(f.outline, { ...f.parts, nostrils }));
+    expect(g(0.42, 0.6)).toBeGreaterThan(0.9);
+    expect(g(0.53, 0.63)).toBeGreaterThan(0.9);
+    expect(g(0.35, 0.55)).toBeLessThan(0.05);
+    expect(g(0.6, 0.5)).toBeLessThan(0.05);
+  });
+
+  it('leaves out the hollow of the ears, where the outline runs over them', () => {
+    const f = face();
+    const g = guardOf(f);
+    for (const index of [454, 323, 234, 93]) {
+      const [u, v] = f.outline[FACE_OVAL.indexOf(index)];
+      expect(g(u, v)).toBeGreaterThan(0.9);
+      // The cheek just inside the outline is skin like any other.
+      expect(g(u < 0.5 ? u + 0.06 : u - 0.06, v)).toBeLessThan(0.05);
+    }
+    expect(g(0.4, 0.55)).toBeLessThan(0.05);
+  });
+});
+
+describe('the forehead', () => {
+  it('goes up to the hairline: the top of the outline rises, the chin and the cheeks stay', () => {
+    const grid = oval(120, 120, 60, 80);
+    const raised = withForehead(grid, 160);
+    expect(raised[0][1]).toBeCloseTo(grid[0][1] - 16, 5);
+    const chin = FACE_OVAL.indexOf(152);
+    expect(raised[chin]).toEqual(grid[chin]);
+    // The widest point of the face, halfway down, does not move.
+    expect(raised[FACE_OVAL.length / 4]).toEqual(grid[FACE_OVAL.length / 4]);
+  });
+
+  it('is skin under a raised outline, and the hair above it is not', () => {
+    // The outline stops well below the hair, as the model does.
+    const f = makeFace(oval(0.5, 0.56, 0.25, 0.3), face().parts);
+    const mask = buildRegionMask([f], 'skin', photo((_u, v) => (v < 0.2 ? HAIR : SKIN)))!;
+    expect(at(mask, 0.5, 0.25)).toBeGreaterThan(200);
+    expect(at(mask, 0.5, 0.17)).toBeLessThan(40);
   });
 });
 

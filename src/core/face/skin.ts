@@ -13,6 +13,11 @@ const MARGIN = 0.12;
 const MARGIN_BELOW = 0.55;
 /** The skin goes on fading down the neck this far, as the face mask of the filter does. */
 const NECK_REACH = 0.35;
+/**
+ * The outline of the model stops short of the hairline. The top of it is raised this much, as a share
+ * of the face size, and the color of the skin then stops it at the hair.
+ */
+const FOREHEAD = 0.1;
 /** Eyes, brows and lips are cut out with this much room around their outline, across and up and down. */
 const EYE_ROOM: Point = [1.15, 1.7];
 const BROW_ROOM: Point = [1.08, 1.5];
@@ -156,9 +161,23 @@ export function skinLikeness(rgba: Uint8ClampedArray, shape: Float32Array): Floa
 }
 
 /** The skin of one face, over `area`, from 0 to 1. */
+/** The outline with its top raised toward the hairline. Only the upper half moves, the most at the top. */
+export function withForehead(grid: readonly Point[], size: number): Point[] {
+  if (grid.length !== FACE_OVAL.length) return [...grid];
+  const [topX, topY] = grid[0];
+  const [chinX, chinY] = grid[CHIN];
+  const length = Math.hypot(topX - chinX, topY - chinY) || 1;
+  const up: Point = [(topX - chinX) / length, (topY - chinY) / length];
+  return grid.map(([x, y]): Point => {
+    const t = ((x - chinX) * up[0] + (y - chinY) * up[1]) / length;
+    const lift = size * FOREHEAD * smooth(0.55, 1, t);
+    return [x + up[0] * lift, y + up[1] * lift];
+  });
+}
+
 function faceSkin(face: Face, target: MaskTarget, area: Area): Float32Array {
-  const grid = toGrid(face.outline, target);
   const size = faceSpan(face, target);
+  const grid = withForehead(toGrid(face.outline, target), size);
   let shape = cover(grid, area);
   const [topX, topY] = grid[0];
   const [chinX, chinY] = grid[CHIN] ?? grid[Math.floor(grid.length / 2)];
@@ -335,9 +354,39 @@ export function buildGlowMask(faces: readonly Face[], target: MaskTarget): Uint8
   return out.some((v) => v > 0) ? out : null;
 }
 
+/** Points of the outline that sit on the ears when the head turns: the top of each ear, its middle and the lobe. */
+const EAR_POINTS = [454, 323, 361, 234, 93, 132];
 /**
- * Where Manchas does not look for spots on one face, over `area`, from 0 to 1: the nostrils, which are
- * round and dark like a spot and must stay.
+ * Room left around each of those points, and around the nostrils, as a share of the eye width. Around
+ * the ears only a band along the outline counts: the hollow of the ear falls on it, and the cheek just
+ * inside is skin like any other.
+ */
+const EAR_ROOM = 0.42;
+const EAR_BAND = 0.12;
+const NOSTRIL_ROOM = 1.3;
+const NOSTRIL_FEATHER = 0.08;
+
+/** The smallest convex shape around some points, in order. */
+function hull(points: readonly Point[]): Point[] {
+  const list = [...points].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  if (list.length < 3) return list;
+  const cross = (o: Point, a: Point, b: Point) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const half = (from: Point[]) => {
+    const out: Point[] = [];
+    for (const p of from) {
+      while (out.length >= 2 && cross(out[out.length - 2], out[out.length - 1], p) <= 0) out.pop();
+      out.push(p);
+    }
+    out.pop();
+    return out;
+  };
+  return [...half(list), ...half([...list].reverse())];
+}
+
+/**
+ * Where Manchas does not look for spots on one face, over `area`, from 0 to 1: the nostrils and the
+ * hollow of the ears, which are round and dark like a spot and must stay. The outline of the face runs
+ * over the ear when the head turns, so the ear can fall inside the skin.
  */
 export function spotGuard(face: Face, target: MaskTarget, area: Area): Float32Array {
   const guard = new Float32Array(area.w * area.h);
@@ -346,15 +395,35 @@ export function spotGuard(face: Face, target: MaskTarget, area: Area): Float32Ar
   const lips = toGrid(parts.outerLips, target);
   if (eyes.length === 0 || lips.length < 16) return guard;
   const ew = eyes.reduce((s, e) => s + e.width, 0) / eyes.length;
-  const eyeLine = eyes.map((e) => mid(e.lid[0], e.lid[8]));
-  const between = eyeLine.length === 2 ? mid(eyeLine[0], eyeLine[1]) : eyeLine[0];
-  const line = parts.midline ? toGrid(parts.midline, target) : null;
-  // The tip of the nose, or where it usually is between the eyes and the mouth.
-  const tip = line && line.length >= 9 ? line[7] : mid(between, lips[15], 0.62);
-  const nostrils = mid(tip, lips[15], 0.4);
-  const length = Math.hypot(lips[15][0] - between[0], lips[15][1] - between[1]) || 1;
-  const down: Point = [(lips[15][0] - between[0]) / length, (lips[15][1] - between[1]) / length];
-  addGlow(guard, area, nostrils, ew * 0.42, ew * 0.2, [down[1], -down[0]], 1);
+  if (face.outline.length === FACE_OVAL.length) {
+    const outline = toGrid(face.outline, target);
+    const ears = new Float32Array(guard.length);
+    for (const index of EAR_POINTS) addGlow(ears, area, outline[FACE_OVAL.indexOf(index)], ew * EAR_ROOM, ew * EAR_ROOM, [1, 0], 1);
+    // Half on the outline, near 1 a few band widths inside it.
+    const inside = softBlur(cover(outline, area), area.w, area.h, Math.max(1, ew * EAR_BAND));
+    for (let i = 0; i < guard.length; i++) guard[i] = Math.max(guard[i], ears[i] * (1 - smooth(0.75, 0.95, inside[i])));
+  }
+  const nostrils = (parts.nostrils ?? []).filter((n) => n.length >= 3);
+  if (nostrils.length) {
+    const holes = new Float32Array(guard.length);
+    for (const nostril of nostrils) {
+      const shape = cover(around(hull(toGrid(nostril, target)), NOSTRIL_ROOM), area);
+      for (let i = 0; i < holes.length; i++) holes[i] = Math.max(holes[i], shape[i]);
+    }
+    const soft = softBlur(holes, area.w, area.h, Math.max(1, ew * NOSTRIL_FEATHER));
+    for (let i = 0; i < guard.length; i++) guard[i] = Math.max(guard[i], soft[i]);
+  } else {
+    // Faces made by hand have no nostrils: they are where they usually are, between the tip and the lips.
+    const eyeLine = eyes.map((e) => mid(e.lid[0], e.lid[8]));
+    const between = eyeLine.length === 2 ? mid(eyeLine[0], eyeLine[1]) : eyeLine[0];
+    const line = parts.midline ? toGrid(parts.midline, target) : null;
+    const tip = line && line.length >= 9 ? line[7] : mid(between, lips[15], 0.62);
+    const length = Math.hypot(lips[15][0] - between[0], lips[15][1] - between[1]) || 1;
+    const down: Point = [(lips[15][0] - between[0]) / length, (lips[15][1] - between[1]) / length];
+    const nose = new Float32Array(guard.length);
+    addGlow(nose, area, mid(tip, lips[15], 0.4), ew * 0.42, ew * 0.2, [down[1], -down[0]], 1);
+    for (let i = 0; i < guard.length; i++) guard[i] = Math.max(guard[i], nose[i]);
+  }
   for (let i = 0; i < guard.length; i++) guard[i] = Math.min(1, guard[i] * 2);
   return guard;
 }

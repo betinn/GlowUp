@@ -146,7 +146,10 @@ palavras da pele.
   luz fria acende sobre a pele.
 - **Automático.** O efeito chega em meio segundo, em vez de aparecer de uma vez, para a pessoa ver onde a
   foto mudou. Em Manchas cada mancha some por vez, de cima para baixo, e o botão "Tirar as N correções" tira
-  todas numa etapa. Sem mancha achada, um aviso manda para o Manual.
+  todas numa etapa. Cada correção ganha um círculo fino sobre a foto: passar o mouse acende o círculo e
+  mostra um X, e um toque tira só aquela correção, numa etapa "Tirar correção". Assim um erro entre muitos
+  acertos não obriga a perder tudo. Os círculos somem no Manual e na comparação. Sem
+  mancha achada, um aviso manda para o Manual.
 - **Manual.** Suavizar, Tom de pele e Iluminador trazem pincel, borracha e "Só na pele". Olheiras traz "Só
   nas olheiras". Manchas traz o pincel de healing, também preso à pele.
 - **Iluminador.** O limite é a pele, mas o Automático acende só os pontos onde a luz cai: maçãs, ponte do

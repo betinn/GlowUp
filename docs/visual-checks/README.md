@@ -20,7 +20,7 @@ de propósito manchas, olheiras, olho vermelho e dentes amarelados. Nenhuma pess
   deixa partes de fora: em foto real o cabelo é outro, e o pincel livre, no Manual, cobre o que faltar.
 
 - `ui-pele-brilho`, `ui-pele-auto`, `ui-manchas-auto`, `ui-pele-iluminador` e `ui-celular-pele`: o menu Pele
-  no Automático. Manchas tira 20 das 26 manchas desenhadas; as que ficam encostam nos lábios, na sobrancelha
+  no Automático. `ui-manchas-circulo` mostra os círculos das correções, com o mouse sobre um deles. Manchas tira 20 das 26 manchas desenhadas; as que ficam encostam nos lábios, na sobrancelha
   ou no olho, onde a busca não olha.
 
 Os anéis destas imagens vêm do detector real: o retrato procedural basta para ele. A borda e o pescoço

@@ -109,7 +109,7 @@ export function placeOf(tool: string | null): string {
 export function autoHint(): string | null {
   const { tool, region, mode, state } = toolLimit;
   if (!region || mode !== 'auto' || !['searching', 'on', 'off'].includes(state)) return null;
-  if (toolById(tool ?? '')?.kind === 'heal') return 'No Automático as manchas somem sozinhas, uma a uma. Para uma que ficou, use Manual.';
+  if (toolById(tool ?? '')?.kind === 'heal') return 'No Automático as manchas somem sozinhas, uma a uma. Toque num círculo para desfazer só aquela. Para uma que ficou, use Manual.';
   return 'No Automático o efeito vai ' + placeOf(tool) + ' sozinho. Ajuste nos controles.';
 }
 
@@ -253,14 +253,16 @@ async function findSpots(
     const rgba = source.draw(area.x * kx, area.y * ky, sw, sh, ow, oh).getContext('2d')!.getImageData(0, 0, ow, oh).data;
     const guard = spotGuard(face, target, area);
     const weights = new Float32Array(ow * oh);
+    const leave = new Float32Array(ow * oh);
     for (let y = 0; y < oh; y++) {
       const ay = Math.min(area.h - 1, Math.floor(((y + 0.5) / oh) * area.h));
       for (let x = 0; x < ow; x++) {
         const ax = Math.min(area.w - 1, Math.floor(((x + 0.5) / ow) * area.w));
-        weights[y * ow + x] = (skin[(ay + area.y) * masks.w + ax + area.x] / 255) * (1 - guard[ay * area.w + ax]);
+        weights[y * ow + x] = skin[(ay + area.y) * masks.w + ax + area.x] / 255;
+        leave[y * ow + x] = guard[ay * area.w + ax];
       }
     }
-    for (const spot of findSkinSpots(rgba, weights, ow, oh, size * s)) {
+    for (const spot of findSkinSpots(rgba, weights, ow, oh, size * s, leave)) {
       found.push({
         u: (area.x * kx + spot.x / s) / source.w,
         v: (area.y * ky + spot.y / s) / source.h,

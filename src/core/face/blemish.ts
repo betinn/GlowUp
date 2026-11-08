@@ -23,6 +23,18 @@ const GRAIN = 0.0035;
 const THRESHOLD = 0.035;
 /** Larger than this, as a share of the face size, it is a shadow, a mole worth keeping or a feature. */
 const MAX_SPOT = 0.03;
+/**
+ * A spot that stands out this much is surely a pimple. It may be larger, up to `MAX_STRONG`, and on skin
+ * with many pimples, where the redness joins them, it is grown again at a higher level to part them.
+ * A faint spot that large is a shadow.
+ */
+const STRONG = 0.08;
+const MAX_STRONG = 0.045;
+const LEVELS = [0.4, 0.62];
+/** The radius covers the halo of the spot, which the higher level leaves out more of. */
+const HALO = [1.6, 2];
+/** Darker than this share of the skin around, it is a hole or a deep shadow, as a nostril, and stays. */
+const HOLE_DARK = 0.6;
 /** Spots closer than this, as a share of the face size, are one spot. */
 const SPACING = 0.012;
 /** A pixel must be this surely skin, and so must the ring around the spot. */
@@ -36,14 +48,23 @@ export const MAX_SPOTS = 80;
 
 /**
  * Looks for spots on one face. `rgba` holds the photo over a grid of `w` by `h`, `skin` how much each
- * pixel is skin, and `size` the face size in pixels of that grid. Returns the spots, strongest first.
+ * pixel is skin, and `size` the face size in pixels of that grid. `leave`, from 0 to 1, says where not
+ * to look even on skin, as the nostrils. Returns the spots, strongest first.
  */
-export function findSkinSpots(rgba: Uint8ClampedArray, given: Float32Array, w: number, h: number, size: number): SkinSpot[] {
+export function findSkinSpots(
+  rgba: Uint8ClampedArray,
+  given: Float32Array,
+  w: number,
+  h: number,
+  size: number,
+  leave?: Float32Array,
+): SkinSpot[] {
   const n = w * h;
-  // A strong spot may have left a small hole in the skin. Skin all around it closes the hole.
+  // A strong spot may have left a small hole in the skin. Skin all around it closes the hole. What
+  // must be left alone is taken out after, or the closing would bring it back.
   const around = softBlur(given, w, h, Math.max(1, size * HOLE));
   const skin = new Float32Array(n);
-  for (let i = 0; i < n; i++) skin[i] = Math.max(given[i], Math.min(1, around[i] * 1.15));
+  for (let i = 0; i < n; i++) skin[i] = Math.max(given[i], Math.min(1, around[i] * 1.15)) * (1 - (leave?.[i] ?? 0));
   const luma = new Float32Array(n);
   const red = new Float32Array(n);
   for (let i = 0; i < n; i++) {
@@ -89,16 +110,11 @@ export function findSkinSpots(rgba: Uint8ClampedArray, given: Float32Array, w: n
   }
   peaks.sort((a, b) => calm[b] - calm[a]);
 
-  const maxSpot = size * MAX_SPOT;
   const seen = new Uint8Array(n);
-  const spots: SkinSpot[] = [];
-  for (const peak of peaks) {
-    if (spots.length >= MAX_SPOTS) break;
+  /** The pixels around `peak` that stand out down to `level`, or null past `maxSpot` or off the skin. */
+  const grow = (peak: number, level: number, maxSpot: number) => {
     const px = peak % w;
     const py = (peak / w) | 0;
-    if (spots.some((s) => Math.hypot(s.x - px, s.y - py) < Math.max(spacing, s.r))) continue;
-    // Grow over the pixels that stand out with the peak, and give up past the size of a spot.
-    const level = Math.max(THRESHOLD * 0.6, calm[peak] * 0.4);
     const stack = [peak];
     const grown: number[] = [];
     seen[peak] = 1;
@@ -128,11 +144,34 @@ export function findSkinSpots(rgba: Uint8ClampedArray, given: Float32Array, w: n
     }
     for (const i of grown) seen[i] = 0;
     for (const i of stack) seen[i] = 0;
-    if (far > maxSpot || edge) continue;
-    const area = grown.length;
-    // A spot fades out: cover its halo too, or it stays behind as a ring.
-    const r = Math.sqrt(area / Math.PI) * 1.6 + 1.5;
-    spots.push({ x: sx / area + 0.5, y: sy / area + 0.5, r, strength: calm[peak] });
+    if (far > maxSpot || edge) return null;
+    return { area: grown.length, x: sx / grown.length, y: sy / grown.length };
+  };
+  /** Luma at a pixel, over the 3 by 3 around it, so one grain does not decide. */
+  const lumaAt = (i: number) => {
+    const x = Math.min(w - 2, Math.max(1, i % w));
+    const y = Math.min(h - 2, Math.max(1, (i / w) | 0));
+    let sum = 0;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) sum += luma[(y + dy) * w + x + dx];
+    return sum / 9;
+  };
+
+  const spots: SkinSpot[] = [];
+  for (const peak of peaks) {
+    if (spots.length >= MAX_SPOTS) break;
+    const px = peak % w;
+    const py = (peak / w) | 0;
+    if (spots.some((s) => Math.hypot(s.x - px, s.y - py) < Math.max(spacing, s.r))) continue;
+    if (lumaAt(peak) < HOLE_DARK * (bl[peak] / bw[peak])) continue;
+    const strong = calm[peak] >= STRONG;
+    for (const [k, share] of (strong ? LEVELS : LEVELS.slice(0, 1)).entries()) {
+      const found = grow(peak, Math.max(THRESHOLD * 0.6, calm[peak] * share), size * (strong ? MAX_STRONG : MAX_SPOT));
+      if (!found) continue;
+      // A spot fades out: cover its halo too, or it stays behind as a ring.
+      const r = Math.sqrt(found.area / Math.PI) * HALO[k] + 1.5;
+      spots.push({ x: found.x + 0.5, y: found.y + 0.5, r, strength: calm[peak] });
+      break;
+    }
   }
   return spots;
 }

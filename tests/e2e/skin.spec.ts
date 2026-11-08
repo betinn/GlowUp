@@ -109,6 +109,99 @@ test.describe('pele', () => {
     expectNoErrors(errors);
   });
 
+  test('Manchas: um toque no círculo tira só aquela correção, e "Tirar" limpa a foto na hora', async ({ page }) => {
+    const errors = watch(page);
+    await openEditor(page);
+    const plain = await page.screenshot();
+    await page.locator('[data-group=skin]').click();
+    await page.locator('[data-tool=heal]').click();
+    await expect(page.getByText(/Aplicado nas manchas que achei/)).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText(/Toque num círculo para desfazer só aquela/)).toBeVisible();
+    await expect(page.locator('[data-region-show=idle]')).toHaveCount(1, { timeout: 30_000 });
+    const count = Number((await page.getByTestId('heal-clear').innerText()).match(/\d+/)?.[0]);
+    const healed = await fitted(page);
+    await expect(page.getByTestId('heal-spot')).toHaveCount(count);
+
+    // The ring of one spot: a tap brings that spot back and leaves the others healed.
+    const ring = page.getByTestId('heal-spot').nth(3);
+    const box = (await ring.boundingBox())!;
+    const spot: Clip = { x: box.x + box.width / 2 - 3, y: box.y + box.height / 2 - 3, width: 6, height: 6 };
+    await ring.hover();
+    await settle(page, 300);
+    await page.screenshot({ path: shot('ui-manchas-circulo') });
+    await ring.click();
+    await expect(page.getByTestId('heal-clear')).toContainText(String(count - 1));
+    await expect(page.getByTestId('heal-spot')).toHaveCount(count - 1);
+    await expect(undoButton(page)).toHaveAttribute('title', 'Desfazer: Tirar correção');
+    await page.mouse.move(5, 5);
+    await settle(page, 400);
+    const one = await page.screenshot();
+    expect(await meanDiff(page, healed, one, spot)).toBeGreaterThan(4);
+    expect(await meanDiff(page, plain, one, spot)).toBeLessThan(1);
+    const other = page.getByTestId('heal-spot').nth(0);
+    const otherBox = (await other.boundingBox())!;
+    const kept: Clip = { x: otherBox.x + otherBox.width / 2 - 3, y: otherBox.y + otherBox.height / 2 - 3, width: 6, height: 6 };
+    expect(await meanDiff(page, healed, one, kept)).toBeLessThan(0.5);
+
+    // Undo puts that one correction back.
+    await undoButton(page).click();
+    await expect(page.getByTestId('heal-clear')).toContainText(String(count));
+    await expect(page.getByTestId('heal-spot')).toHaveCount(count);
+
+    // "Tirar" shows the photo as it was at once, with nothing else touched.
+    await page.getByTestId('heal-clear').click();
+    await expect(page.getByTestId('heal-clear')).toHaveCount(0);
+    await expect(page.getByTestId('heal-spot')).toHaveCount(0);
+    await settle(page, 400);
+    const r = imageRect(page);
+    expect(await meanDiff(page, plain, await page.screenshot(), { x: r.x, y: r.y, width: r.w, height: r.h })).toBeLessThan(0.3);
+    expectNoErrors(errors);
+  });
+
+  test('Manchas: "Tirar" também limpa a vista com zoom de uma foto grande', async ({ page }) => {
+    const errors = watch(page);
+    await page.addInitScript(() => localStorage.setItem('glowup.onboarded', 'true'));
+    await page.goto('/');
+    // Twice the size of the portrait: past the preview, the zoomed view draws its own detail.
+    const portrait = readFileSync('tests/fixtures/portrait.png').toString('base64');
+    const big = await page.evaluate(async (data) => {
+      const image = await createImageBitmap(new Blob([Uint8Array.from(atob(data), (c) => c.charCodeAt(0))], { type: 'image/png' }));
+      const canvas = new OffscreenCanvas(image.width * 2, image.height * 2);
+      canvas.getContext('2d')!.drawImage(image, 0, 0, canvas.width, canvas.height);
+      const bytes = new Uint8Array(await (await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.95 })).arrayBuffer());
+      let text = '';
+      for (const b of bytes) text += String.fromCharCode(b);
+      return btoa(text);
+    }, portrait);
+    await page.setInputFiles('[data-testid=file-input]', { name: 'grande.jpg', mimeType: 'image/jpeg', buffer: Buffer.from(big, 'base64') });
+    await page.locator('[data-group=skin]').waitFor({ timeout: 90_000 });
+    await expect(page.getByTestId('opening')).toHaveCount(0);
+    await settle(page);
+    await page.locator('[data-tool=heal]').click();
+    await expect(page.getByText(/Aplicado nas manchas que achei/)).toBeVisible({ timeout: 60_000 });
+    await expect(page.locator('[data-region-show=idle]')).toHaveCount(1, { timeout: 30_000 });
+    await page.keyboard.press('0');
+    for (let i = 0; i < 7; i++) await page.keyboard.press('+');
+    await settle(page, 900);
+    const vp = page.viewportSize()!;
+    const middle: Clip = { x: vp.width / 2 - 260, y: vp.height / 2 - 220, width: 340, height: 440 };
+    const healed = await page.screenshot();
+
+    await page.getByTestId('heal-clear').click();
+    await expect(page.getByTestId('heal-clear')).toHaveCount(0);
+    await settle(page, 900);
+    const cleared = await page.screenshot();
+    // Undo and redo draw the cleared photo from scratch: the view must already show it.
+    await undoButton(page).click();
+    await settle(page, 400);
+    await page.getByRole('button', { name: 'Refazer' }).click();
+    await settle(page, 900);
+    const fresh = await page.screenshot();
+    expect(await meanDiff(page, healed, fresh, middle)).toBeGreaterThan(0.3);
+    expect(await meanDiff(page, cleared, fresh, middle)).toBeLessThan(0.1);
+    expectNoErrors(errors);
+  });
+
   test('Olheiras, Tom de pele e Iluminador aplicam cada um no seu lugar', async ({ page }) => {
     const errors = watch(page);
     await openEditor(page);

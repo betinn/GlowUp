@@ -156,8 +156,9 @@ feito com olhos e dentes.
 
 ## Pele
 
-Medido só no retrato procedural, com a GPU, como foi feito com o cabelo. Falta conferir em fotos reais de
-domínio público, como foi feito com olhos e dentes.
+Medido no retrato procedural, com a GPU, como foi feito com o cabelo. Manchas também foi conferido numa
+selfie real com acne enviada por quem usa, que ficou fora do repositório. Falta conferir em mais fotos
+reais de domínio público, como foi feito com olhos e dentes.
 
 | # | Decisão | Motivo |
 | --- | --- | --- |
@@ -169,3 +170,10 @@ domínio público, como foi feito com olhos e dentes.
 | 92 | Manchas no Automático procura pontos mais escuros ou mais vermelhos que a pele em volta, com o rosto lido a 640 px | O fundo é a média só da pele em volta, para olho e cabelo não contarem. Pico com menos de 3,5% de destaque é poro, crescer além de 3% do rosto é sombra ou traço, e as narinas ficam de fora. No retrato, 20 das 26 manchas desenhadas e nenhum falso positivo; as que ficaram encostam em lábio, olho ou sobrancelha. |
 | 93 | Cada mancha achada passa pelo mesmo toque do pincel de Manchas, e todas viram uma etapa "Automático" | O toque reajusta o centro e escolhe a pele emprestada como sempre. Quando o toque vê um contorno, a mancha é curada no círculo achado, porque a busca já garantiu que ela fica dentro da pele. Mancha de rosto com menos de 140 px não é procurada. |
 | 94 | O efeito do Automático chega em 520 ms, e as manchas somem uma a uma, de cima para baixo | Mostra onde a foto mudou sem precisar comparar. Só a máscara final entra no desfazer. Com movimento reduzido, o efeito aparece de uma vez. |
+| 95 | Cada correção do Automático de Manchas ganha um círculo, e um toque nele tira só aquela, numa etapa "Tirar correção" | Pedido de quem usa: numa selfie com acne, 1 erro entre 17 acertos estragava a foto, e a escolha era tudo ou nada. O círculo marca também onde a foto mudou. Só no Automático, onde o pincel está parado, para o toque não virar pincelada. |
+| 96 | Narinas e asas do nariz saem pelos pontos do modelo (237, 239, 79, 166, 59, 75, 60, 20, 242, 241, 238 e as asas 49, 48, 64, 98, 102, com o espelho de cada um do outro lado), e essa área fica de fora depois do fechamento de buracos | Na selfie, de cabeça virada e inclinada, a elipse calculada entre a ponta do nariz e a boca errava o lugar da narina, e o fechamento de buracos pequenos devolvia o que a elipse tirava. Os pontos foram conferidos sobre a própria foto. A asa entra porque a dobra entre asa e bochecha também parecia mancha. |
+| 97 | Junto do contorno, nos pontos da orelha (454, 323, 361, 234, 93, 132), uma faixa fica de fora | De cabeça virada o contorno do modelo passa por cima da orelha, e a concha virou mancha. Só a faixa do contorno: no rosto de frente a bochecha logo ali dentro é pele, e o retrato perdia três manchas com um círculo inteiro. |
+| 98 | Ponto com menos de 60% do brilho da pele em volta é buraco ou sombra funda e fica | Espinha e mancha vermelha mudam pouco o brilho. Narina, canto da boca e orelha ficam bem mais escuros. Pinta escura também fica, como antes. |
+| 99 | Espinha forte, com 8% ou mais de destaque, pode ter até 4,5% do rosto, e quando a vermelhidão junta várias ela cresce de novo a 62% do pico | Na selfie a espinha inflamada da bochecha e as do queixo não saíam: grandes demais, ou juntas numa área só. Mancha fraca desse tamanho continua sendo sombra. Liberar o tamanho para todas trouxe sombras do canto do olho e da lateral do nariz. Na selfie foram de 17 manchas com 2 erros para 25 sem erro; no retrato continuam 20 das 26. |
+| 100 | O topo do contorno sobe 10% do rosto, até a linha do cabelo, e a cor da pele corta no cabelo | O contorno do modelo para antes da linha do cabelo, e as espinhas do alto da testa ficavam de fora de Manchas, Suavizar e Tom de pele. Só a metade de cima sobe, mais no topo. |
+| 101 | Tirar as correções redesenha a foto na hora, também com zoom numa foto grande | Atualizar o pipeline direto, como a busca faz, deixava nada marcado para redesenhar. Sem mancha nova para curar, a vista seguia com as manchas curadas, e com zoom numa foto acima de 2048 px o recorte de detalhe também. Agora o recorte é descartado e a vista pede um quadro novo. |

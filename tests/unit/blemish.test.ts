@@ -25,15 +25,15 @@ function skin(): Float32Array[] {
   return [r, g, b];
 }
 
-/** A soft red and dark spot, as the portrait fixture draws them. */
-function spot([r, g, b]: Float32Array[], cx: number, cy: number, radius: number): void {
+/** A soft red and dark spot, as the portrait fixture draws them. `amount` below 1 makes it fainter. */
+function spot([r, g, b]: Float32Array[], cx: number, cy: number, radius: number, amount = 1): void {
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) {
       const k = Math.exp(-((x - cx) ** 2 + (y - cy) ** 2) / (2 * (radius / 1.6) ** 2));
       const i = y * W + x;
-      r[i] *= 1 - 0.14 * k;
-      g[i] *= 1 - 0.38 * k;
-      b[i] *= 1 - 0.38 * k;
+      r[i] *= 1 - 0.14 * k * amount;
+      g[i] *= 1 - 0.38 * k * amount;
+      b[i] *= 1 - 0.38 * k * amount;
     }
   }
 }
@@ -75,6 +75,40 @@ describe('spots on the skin', () => {
     }
     spot(photo, 80, 160, 40);
     expect(findSkinSpots(pack(photo), allSkin(), W, H, FACE)).toEqual([]);
+  });
+
+  it('leaves alone a dark hole, as a nostril, and what it is told to leave', () => {
+    const photo = skin();
+    // As dark as a nostril and not red: a hole, not a spot.
+    const [r, g, b] = photo;
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const k = Math.exp(-((x - 80) ** 2 + (y - 80) ** 2) / (2 * 3 ** 2));
+        const i = y * W + x;
+        r[i] *= 1 - 0.7 * k;
+        g[i] *= 1 - 0.7 * k;
+        b[i] *= 1 - 0.7 * k;
+      }
+    }
+    spot(photo, 220, 220, 5);
+    spot(photo, 240, 80, 5);
+    const leave = new Float32Array(W * H);
+    for (let y = 60; y < 100; y++) for (let x = 220; x < 260; x++) leave[y * W + x] = 1;
+    const found = findSkinSpots(pack(photo), allSkin(), W, H, FACE, leave);
+    expect(found.length).toBe(1);
+    expect(Math.hypot(found[0].x - 220, found[0].y - 220)).toBeLessThan(3);
+  });
+
+  it('takes a large pimple when it stands out, and leaves as large a faint patch', () => {
+    const strong = skin();
+    spot(strong, 160, 160, 14);
+    const found = findSkinSpots(pack(strong), allSkin(), W, H, FACE);
+    expect(found.length).toBe(1);
+    // The whole pimple, halo included.
+    expect(found[0].r).toBeGreaterThan(14);
+    const faint = skin();
+    spot(faint, 160, 160, 14, 0.25);
+    expect(findSkinSpots(pack(faint), allSkin(), W, H, FACE)).toEqual([]);
   });
 
   it('looks only where the pixels are surely skin', () => {

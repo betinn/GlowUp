@@ -26,6 +26,8 @@
 - [x] Olheiras, tom de pele, iluminador
 - [x] Pele, olheiras e pontos de luz pelo detector, com Automático e Manual em todas as ferramentas do menu
 - [x] Manchas no Automático: busca na pele, cura uma a uma, numa etapa do desfazer
+- [x] Tirar uma correção só, com um toque no círculo dela
+- [x] Manchas deixa de fora narinas, asas do nariz e a concha da orelha; a pele sobe até a linha do cabelo
 
 ## M4. Olhos e dentes
 
