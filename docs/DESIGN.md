@@ -128,6 +128,9 @@ rostos achados.
 
 - **Primeira vez.** Ao abrir a ferramenta, o cartão de progresso aparece no topo do painel com o aviso dos
   6 MB. O traço espera e um aviso explica. "Pintar livre" pula a espera.
+- **Íris.** A íris sai da própria foto, não só do desenho do modelo: o que é escuro como o meio da íris, perto
+  do círculo que o modelo dá, sem a pele, o branco, os cílios e o brilho da luz. A cor fica dentro da íris
+  mesmo com a cabeça inclinada ou o olho virado de lado.
 - **Interruptor.** "Só na íris", "Só no branco do olho" ou "Só nos dentes". Desligado vale para aquela
   ferramenta enquanto a foto estiver aberta.
 - **Traço fora.** A parte de fora some sem erro. Se o traço inteiro cair fora, um aviso aponta o
@@ -188,8 +191,8 @@ Cada uma segue o mesmo caminho dos olhos e dentes, com as palavras do cabelo.
 - **Por menu.** "Zerar" aparece no fim da fila de ferramentas quando o menu tem algo a tirar. Tira as máscaras e
   os controles das ferramentas do menu, e também o que é só dele: manchas em Pele, liquify em Forma, filtro e
   área em Looks, ajustes e desfoque em Luz, recorte em Quadro. Um aviso diz que o desfazer traz de volta.
-- **A foto toda.** Ícone no topo, ao lado do desfazer, apagado quando não há nada a tirar. Pede um segundo sim
-  num aviso sobre a foto, porque sair do editor perde o desfazer. `Esc` cancela.
+- **A foto toda.** Ícone no topo, ao lado do desfazer, apagado quando não há nada a tirar. Tira tudo num toque,
+  sem pergunta: o desfazer, logo ao lado, traz tudo de volta se foi sem querer.
 
 ## Filtro em um rosto
 

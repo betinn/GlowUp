@@ -82,11 +82,6 @@
   const groupLabel = $derived(GROUPS.find((g) => g.id === ui.group)?.label ?? '');
   const groupDirty = $derived((ui.rev, ready && groupChanged(ui.group)));
   const photoDirty = $derived((ui.rev, ready && photoChanged()));
-  /** The whole photo goes back only after a second yes, since leaving the editor drops the undo. */
-  let askReset = $state(false);
-  $effect(() => {
-    if (!photoDirty) askReset = false;
-  });
 
   /** The words under the light stay a little longer than the light, time enough to read them. */
   let reachNote = $state(false);
@@ -356,8 +351,7 @@
     } else if (key === '-') {
       e.zoomBy(e.canvas.clientWidth / 2, e.canvas.clientHeight / 2, 0.8);
     } else if (key === 'escape') {
-      if (askReset) askReset = false;
-      else if (ui.exportOpen) ui.exportOpen = false;
+      if (ui.exportOpen) ui.exportOpen = false;
       else if (ui.faceChoosing) ui.faceChoosing = false;
       else if (ui.splitOn) ui.splitOn = false;
       else void selectTool(null);
@@ -406,7 +400,7 @@
     <span class="brand serif">Glowup</span>
     <div class="grow"></div>
     <button type="button" class="icon-btn" aria-label="Voltar ao original" title="Voltar ao original" data-testid="reset-photo"
-      disabled={!photoDirty} onclick={() => (askReset = !askReset)}><Icon name="reset" /></button>
+      disabled={!photoDirty} onclick={() => void resetPhoto()}><Icon name="reset" /></button>
     <button type="button" class="icon-btn" aria-label="Desfazer" title={undoTitle} disabled={!canUndo} onclick={() => engine().undo()}><Icon name="undo" /></button>
     <button type="button" class="icon-btn" aria-label="Refazer" title={redoTitle} disabled={!canRedo} onclick={() => engine().redo()}><Icon name="redo" /></button>
     <button
@@ -490,22 +484,14 @@
     </div>
   {/if}
 
-  {#if marking && !askReset}
+  {#if marking}
     <div class="marking" data-testid="mark-chip" in:reveal={{ duration: 200, y: -6 }}>
       <span>Marca do pincel ligada</span>
       <button type="button" onclick={toggleMark}>Ver o resultado</button>
     </div>
   {/if}
 
-  {#if askReset}
-    <div class="marking ask" role="alertdialog" aria-label="Voltar ao original" data-testid="reset-ask" in:reveal={{ duration: 200, y: -6 }}>
-      <span>Tirar tudo e voltar à foto original?</span>
-      <button type="button" data-testid="reset-yes" onclick={() => { askReset = false; void resetPhoto(); }}>Voltar</button>
-      <button type="button" class="quiet" onclick={() => (askReset = false)}>Cancelar</button>
-    </div>
-  {/if}
-
-  {#if reachNote && !marking && !askReset}
+  {#if reachNote && !marking}
     <div class="reach" role="status" data-testid="reach-chip" in:reveal={{ duration: 200, y: -6 }}>O brilho mostra onde o pincel alcança</div>
   {/if}
 
@@ -850,14 +836,6 @@
     border-radius: 999px;
     color: var(--safe);
     font-size: 13px;
-  }
-
-  .marking.ask {
-    border-color: var(--line);
-  }
-
-  .marking .quiet {
-    color: var(--paper-2);
   }
 
   .zero {

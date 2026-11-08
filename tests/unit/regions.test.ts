@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Point } from '../../src/core/face/mask';
 import { buildRegionMask, lipReach } from '../../src/core/face/regions';
+import type { MaskTarget } from '../../src/core/face/mask';
 import { EYES, FACE_OVAL, INNER_LIPS, IRISES, makeFace, OUTER_LIPS, readFace, type FaceParts } from '../../src/core/face/scan';
 
 const SIZE = 200;
@@ -117,6 +118,66 @@ describe('iris and white of the eye', () => {
       outerLips: [],
     });
     expect(at(buildRegionMask([small], 'iris', target)!, 0.5, 0.5)).toBeGreaterThan(150);
+  });
+});
+
+describe('iris from the photo', () => {
+  const SKIN: [number, number, number] = [205, 150, 125];
+  const WHITE: [number, number, number] = [215, 205, 200];
+  const IRIS: [number, number, number] = [70, 95, 105];
+  const LASH: [number, number, number] = [75, 45, 32];
+
+  /**
+   * One eye at (0.3, 0.3): skin around, the white inside the lids, and the iris a little left and below
+   * where the model puts it, as when the eye looks aside. Lashes along the upper lid.
+   */
+  function photo(iris: Point, irisColor = IRIS, white = WHITE, skin = SKIN): MaskTarget {
+    const paint = (u: number, v: number): [number, number, number] => {
+      if (Math.abs(v - (0.3 - 0.036)) < 0.006 && Math.abs(u - 0.3) < 0.07) return LASH;
+      const inEye = ((u - 0.3) / 0.08) ** 2 + ((v - 0.3) / 0.04) ** 2 < 1;
+      if (!inEye) return skin;
+      return Math.hypot(u - iris[0], v - iris[1]) < 0.035 ? irisColor : white;
+    };
+    const read = (area: { x: number; y: number; w: number; h: number }) => {
+      const out = new Uint8ClampedArray(area.w * area.h * 4);
+      for (let y = 0; y < area.h; y++) {
+        for (let x = 0; x < area.w; x++) out.set([...paint((x + area.x + 0.5) / SIZE, (y + area.y + 0.5) / SIZE), 255], (y * area.w + x) * 4);
+      }
+      return out;
+    };
+    return {
+      ...target,
+      color: read,
+      luma: (area) => {
+        const rgba = read(area);
+        const out = new Float32Array(area.w * area.h);
+        for (let i = 0; i < out.length; i++) out[i] = (0.2126 * rgba[i * 4] + 0.7152 * rgba[i * 4 + 1] + 0.0722 * rgba[i * 4 + 2]) / 255;
+        return out;
+      },
+    };
+  }
+
+  it('follows the iris the photo shows, also where the circle of the model misses it', () => {
+    const mask = buildRegionMask([face(0)], 'iris', photo([0.288, 0.31]))!;
+    // The part of the iris left of and below the circle of the model.
+    expect(at(mask, 0.26, 0.315)).toBeGreaterThan(200);
+    expect(at(mask, 0.288, 0.31)).toBeGreaterThan(240);
+    // The white the circle of the model covers, on the other side.
+    expect(at(mask, 0.33, 0.29)).toBeLessThan(40);
+  });
+
+  it('leaves out the skin around and the lashes over the iris', () => {
+    const mask = buildRegionMask([face(0)], 'iris', photo([0.3, 0.3]))!;
+    expect(at(mask, 0.3, 0.3)).toBeGreaterThan(240);
+    expect(at(mask, 0.3, 0.264)).toBeLessThan(60);
+    expect(at(mask, 0.3, 0.338)).toBeLessThan(40);
+  });
+
+  it('falls back to the shape of the model when the photo cannot tell the iris apart', () => {
+    const dark: [number, number, number] = [80, 60, 50];
+    const mask = buildRegionMask([face(0)], 'iris', photo([0.288, 0.31], dark, dark, dark))!;
+    expect(at(mask, 0.3, 0.3)).toBeGreaterThan(200);
+    expect(at(mask, 0.26, 0.315)).toBeLessThan(60);
   });
 });
 

@@ -50,7 +50,7 @@ test.describe('voltar ao original', () => {
     expectNoErrors(errors);
   });
 
-  test('Voltar ao original pede confirmação, tira tudo e o desfazer devolve', async ({ page }) => {
+  test('Voltar ao original tira tudo num toque, e o desfazer devolve', async ({ page }) => {
     const errors = watch(page);
     await openEditor(page);
     const plain = await photo(page);
@@ -63,14 +63,9 @@ test.describe('voltar ao original', () => {
     await settle(page, 300);
     const edited = await photo(page);
 
+    // No question first: the undo is right next to it.
     await page.getByTestId('reset-photo').click();
-    await expect(page.getByTestId('reset-ask')).toBeVisible();
-    await page.keyboard.press('Escape');
-    await expect(page.getByTestId('reset-ask')).toHaveCount(0);
-    expect(await meanDiff(page, edited, await photo(page))).toBeLessThan(0.3);
-
-    await page.getByTestId('reset-photo').click();
-    await page.getByTestId('reset-yes').click();
+    await expect(page.getByRole('alertdialog')).toHaveCount(0);
     await settle(page, 500);
     await expect(undo(page)).toHaveAttribute('title', 'Desfazer: Voltar ao original');
     await expect(page.getByTestId('reset-photo')).toBeDisabled();
