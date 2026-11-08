@@ -36,8 +36,8 @@ const MOUTH_DARK_LOW = 0.35;
 const MOUTH_DARK_HIGH = 0.55;
 const MIN_LIP_SAMPLES = 30;
 /** How far each point of the outer contour may move, out and in, as shares of the mouth width. */
-const FIT_OUT = 0.06;
-const FIT_IN = 0.07;
+const FIT_OUT = 0.08;
+const FIT_IN = 0.05;
 /** Length of each search step, the stretch read on each side of it and the blur of the map, the same way. */
 const FIT_STEP = 0.005;
 const FIT_SIDE = 0.025;
@@ -47,6 +47,14 @@ const FIT_WEAK = 0.08;
 const FIT_CLEAR = 0.3;
 /** What the farthest step loses against one on the contour. */
 const FIT_FAR = 0.2;
+/**
+ * A step farther out than the strongest one takes its place when it is this share of it and this tall, with
+ * this much of the color of the lips on its inner side and at most this much on its outer side.
+ */
+const FIT_OUTER_SHARE = 0.35;
+const FIT_OUTER_STEP = 0.14;
+const FIT_OUTER_IN = 0.2;
+const FIT_OUTER_OUT = 0.4;
 /** Luma as a share of the luma of the skin, where a glint starts and where it is sure. And its halo, on the mouth width. */
 const GLINT_FROM = 0.98;
 const GLINT_TO = 1.1;
@@ -54,7 +62,7 @@ const GLINT_HALO = 0.02;
 /** New points per stretch of the contour of the model. */
 const FIT_POINTS = 6;
 /** Along the contour, in points: the window that drops a wrong step, and the softness of the offsets. */
-const FIT_MEDIAN = 4;
+const FIT_MEDIAN = 3;
 const FIT_SMOOTH = 3;
 /** Inside the mouth, this blur tells a wide opening from the narrow line between the lips. */
 const MOUTH_DEEP = 0.02;
@@ -177,9 +185,10 @@ function sampleAt(map: Float32Array, area: Area, x: number, y: number): number {
 
 /**
  * Moves a closed contour onto the edge of a map from 0 outside to 1 inside. Each point looks along its
- * normal for the strongest step, and a step far from the contour must be stronger to win. A point with no
- * clear step takes after its neighbors, and the offsets are smoothed along the contour, so the result is
- * a clean line.
+ * normal for the strongest step, and a step far from the contour must be stronger to win. A clear step
+ * farther out goes first, from a paler part of the lip to the skin. A point with no clear step takes after
+ * its neighbors, and the offsets are smoothed along the contour, so the result is a clean line that still
+ * follows the bow of the lip and the corners of the mouth.
  */
 export function fitContour(contour: readonly Point[], like: Float32Array, area: Area, width: number): Point[] {
   const n = contour.length;
@@ -202,8 +211,9 @@ export function fitContour(contour: readonly Point[], like: Float32Array, area: 
   contour.forEach(([x, y], i) => {
     const [nx, ny] = normals[i];
     const read = (k: number) => sampleAt(like, area, x + nx * k * step, y + ny * k * step);
+    const steps: { k: number; score: number; inside: number; outside: number }[] = [];
     let top = -Infinity;
-    let plain = 0;
+    let strongest = 0;
     for (let k = reachOut; k >= -reachIn; k--) {
       let inside = 0;
       let outside = 0;
@@ -213,13 +223,24 @@ export function fitContour(contour: readonly Point[], like: Float32Array, area: 
       }
       const score = (inside - outside) / side;
       const fair = score - (FIT_FAR * Math.abs(k)) / Math.max(reachOut, reachIn);
+      steps.push({ k, score, inside: inside / side, outside: outside / side });
       if (fair > top) {
         top = fair;
-        plain = score;
-        offsets[i] = k * step;
+        strongest = steps.length - 1;
       }
     }
-    trust[i] = smooth(FIT_WEAK, FIT_CLEAR, plain);
+    // A lip can have a paler stretch by its edge, as at the top of the bow. A real step farther out wins.
+    const best = steps[strongest];
+    let chosen = best;
+    for (let at = 1; at < strongest; at++) {
+      const c = steps[at];
+      if (c.score < steps[at - 1].score || c.score < steps[at + 1].score) continue;
+      if (c.score < best.score * FIT_OUTER_SHARE || c.score < FIT_OUTER_STEP || c.inside < FIT_OUTER_IN || c.outside > FIT_OUTER_OUT) continue;
+      chosen = c;
+      break;
+    }
+    offsets[i] = chosen.k * step;
+    trust[i] = smooth(FIT_WEAK, FIT_CLEAR, chosen.score);
   });
   // A wrong step on one point drops out against the points around it.
   const steady = new Float32Array(n);

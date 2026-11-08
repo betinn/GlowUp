@@ -27,7 +27,7 @@ de propósito manchas, olheiras, olho vermelho e dentes amarelados. Nenhuma pess
 - `ui-make-brilho`, `ui-make-batom`, `ui-make-sardas`, `ui-make-sardas-marcantes`, `ui-make-auto` e `ui-celular-make`: o menu Make no
   Automático. `11-maquiagem` e `13-sardas` agora mostram o Automático, não traços de script. Só o retrato
   procedural entra no repositório; lábios, fios, pálpebras e os lugares das maçãs e do contorno também foram
-  conferidos numa selfie real de cabeça inclinada e virada, que ficou fora.
+  conferidos numa selfie real de cabeça inclinada e virada, e o batom também numa foto de óculos escuros. As duas ficaram fora.
 
 Os anéis destas imagens vêm do detector real: o retrato procedural basta para ele. A borda e o pescoço
 foram ajustados em fotos reais de domínio público, que ficaram fora do repositório.

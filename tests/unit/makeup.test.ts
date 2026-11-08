@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { focusPoints } from '../../src/core/face/focus';
-import { addBand, faceShare, fitContour, lidShape, reached, smoothLoop } from '../../src/core/face/makeup';
+import { addBand, faceShare, fitContour, lidShape, lipsFromPhoto, reached, smoothLoop } from '../../src/core/face/makeup';
 import type { Area, MaskTarget, Point } from '../../src/core/face/mask';
 import { buildRegionMask, type LandmarkRegion } from '../../src/core/face/regions';
 import { CHEEK_TOPS, CHEEKS, FACE_OVAL, HOLLOWS, makeFace, NOSE_SIDES, readFace, type Face, type FaceParts } from '../../src/core/face/scan';
@@ -189,6 +189,29 @@ describe('lips', () => {
     expect(at(mask, 0.5, 0.68)).toBeLessThan(30);
     // Inside the contour of the model, but the color of the lips.
     expect(at(mask, 0.565, 0.68)).toBeGreaterThan(200);
+  });
+
+  it('reach a paler bow of the upper lip that rises past the contour of the model', () => {
+    // A larger grid than the others, so the pale stretch has room between the two steps.
+    const S = 720;
+    const area = { x: 0, y: 0, w: S, h: S };
+    const rgba = new Uint8ClampedArray(S * S * 4);
+    for (let i = 0; i < S * S; i++) {
+      const u = ((i % S) + 0.5) / S;
+      const v = (Math.floor(i / S) + 0.5) / S;
+      let c: readonly number[] = SKIN;
+      if (inLens(u, v, 0.5, 0.68, 0.1, 0.012)) c = TEETH;
+      else if (inLens(u, v, 0.5, 0.68, 0.14, 0.06)) c = LIP;
+      // Halfway between the color of the lip and the skin, as the top of a bow often is.
+      else if (inLens(u, v, 0.5, 0.62, 0.05, 0.016)) c = [205, 124, 112];
+      rgba.set([...c, 255], i * 4);
+    }
+    const grid = (points: Point[]) => points.map(([u, v]): Point => [u * S, v * S]);
+    const inner = grid(lens(0.5, 0.68, 0.1, 0.012, 20));
+    const mask = lipsFromPhoto(rgba, area, grid(lens(0.5, 0.68, 0.14, 0.06, 20)), inner, inner, 0.28 * S)!;
+    const row = (v: number) => mask[Math.round(v * S) * S + S / 2];
+    expect(row(0.609)).toBeGreaterThan(0.5);
+    expect(row(0.595)).toBeLessThan(0.1);
   });
 
   it('come out as a smooth line, whatever the grain of the photo', () => {
