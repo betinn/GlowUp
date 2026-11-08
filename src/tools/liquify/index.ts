@@ -1,11 +1,14 @@
 import type { FieldController } from '../../core/engine';
 import type { GLContext, Tex } from '../../core/gl/context';
 import type { HistoryEntry } from '../../core/history/history';
-import { DisplacementGrid, type GridTile, type LiquifyMode } from './grid';
+import { DisplacementGrid, strokeTo, type GridTile, type LiquifyMode } from './grid';
 
 const GRID_SIDE = 1024;
 
-/** Connects the CPU grid to its RG16F texture, which the develop shader samples to warp the image. */
+/**
+ * Connects the CPU grid to its RG16F texture, which the develop shader samples to warp the image. Nothing
+ * here belongs to Liquify alone, so a second field of the same kind is one more call.
+ */
 export function createField(glc: GLContext, imageW: number, imageH: number): FieldController {
   const long = Math.max(imageW, imageH);
   const w = Math.max(2, Math.round((imageW / long) * GRID_SIDE));
@@ -25,6 +28,22 @@ export function createField(glc: GLContext, imageW: number, imageH: number): Fie
     glc.upload(tex, d, grid.data.subarray((d.y * w + d.x) * 2), w);
   };
 
+  /** Closes what changed since the last call into one undo step. */
+  const step = (label: string): HistoryEntry | null => {
+    let tiles: GridTile[] = grid.takeSnapshot();
+    if (!tiles.length) return null;
+    const swap = () => {
+      tiles = grid.swap(tiles);
+      flush();
+    };
+    return {
+      label,
+      bytes: tiles.reduce((n, t) => n + t.data.byteLength + 48, 0),
+      undo: swap,
+      redo: swap,
+    };
+  };
+
   return {
     tex,
     lookup: (u, v) => grid.sample(u, v),
@@ -37,39 +56,25 @@ export function createField(glc: GLContext, imageW: number, imageH: number): Fie
     },
 
     stroke(u, v) {
-      const x = u * w;
-      const y = v * h;
-      if (!last) {
-        last = [x, y];
-        if (mode !== 'push') grid.dab(mode, x, y, radius, strength);
-        flush();
-        return;
-      }
-      const dx = x - last[0];
-      const dy = y - last[1];
-      const dist = Math.hypot(dx, dy);
-      const steps = Math.max(1, Math.ceil(dist / Math.max(radius * 0.18, 1)));
-      for (let i = 1; i <= steps; i++) {
-        const t = i / steps;
-        grid.dab(mode, last[0] + dx * t, last[1] + dy * t, radius, strength, dx / steps, dy / steps);
-      }
-      last = [x, y];
+      last = strokeTo(grid, mode, radius, strength, last, u * w, v * h);
       flush();
     },
 
-    end(): HistoryEntry | null {
-      let tiles: GridTile[] = grid.takeSnapshot();
-      if (!tiles.length) return null;
-      const swap = () => {
-        tiles = grid.swap(tiles);
-        flush();
-      };
-      return {
-        label: 'Liquify',
-        bytes: tiles.reduce((n, t) => n + t.data.byteLength + 48, 0),
-        undo: swap,
-        redo: swap,
-      };
+    end: () => step('Liquify'),
+
+    apply(script, label) {
+      if ('strokes' in script) {
+        for (const s of script.strokes) {
+          let from: [number, number] | null = null;
+          for (const [u, v] of s.path) {
+            from = strokeTo(grid, s.mode as LiquifyMode, s.radius * Math.max(w, h), s.strength, from, u * w, v * h);
+          }
+        }
+      } else {
+        grid.displace(script.offset, script.area);
+      }
+      flush();
+      return step(label);
     },
 
     isEmpty: () => grid.isEmpty(),

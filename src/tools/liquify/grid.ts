@@ -16,6 +16,14 @@ export interface GridTile {
   data: Float32Array;
 }
 
+/** Part of the field, in UV. */
+export interface FieldArea {
+  u0: number;
+  v0: number;
+  u1: number;
+  v1: number;
+}
+
 export class DisplacementGrid {
   readonly data: Float32Array;
   private readonly touched = new Map<number, Float32Array>();
@@ -133,6 +141,50 @@ export class DisplacementGrid {
     this.markDirty(x0, y0, x1, y1);
   }
 
+  /**
+   * Applies a displacement given as a function, on top of what the field already holds, as a dab does.
+   * `offset` gives, for a point of the output in UV, how far away in UV to read the photo. A point it
+   * leaves at zero stays untouched. Returns false when it changed nothing.
+   */
+  displace(offset: (u: number, v: number) => readonly [number, number], area?: FieldArea): boolean {
+    const x0 = Math.max(0, Math.floor((area?.u0 ?? 0) * this.w));
+    const y0 = Math.max(0, Math.floor((area?.v0 ?? 0) * this.h));
+    const x1 = Math.min(this.w, Math.ceil((area?.u1 ?? 1) * this.w));
+    const y1 = Math.min(this.h, Math.ceil((area?.v1 ?? 1) * this.h));
+    if (x1 <= x0 || y1 <= y0) return false;
+    const sw = x1 - x0;
+    const moves = new Float32Array(sw * (y1 - y0) * 2);
+    let moved = false;
+    for (let y = y0; y < y1; y++) {
+      for (let x = x0; x < x1; x++) {
+        const [du, dv] = offset((x + 0.5) / this.w, (y + 0.5) / this.h);
+        // One bad number would stay in the field and in the saved project.
+        if (!Number.isFinite(du) || !Number.isFinite(dv) || (du === 0 && dv === 0)) continue;
+        const i = ((y - y0) * sw + x - x0) * 2;
+        moves[i] = du;
+        moves[i + 1] = dv;
+        moved = true;
+      }
+    }
+    if (!moved) return false;
+    this.snapshot(x0, y0, x1, y1);
+    const old = this.data.slice();
+    for (let y = y0; y < y1; y++) {
+      for (let x = x0; x < x1; x++) {
+        const m = ((y - y0) * sw + x - x0) * 2;
+        const du = moves[m];
+        const dv = moves[m + 1];
+        if (du === 0 && dv === 0) continue;
+        const [ou, ov] = this.sampleCell(x + du * this.w, y + dv * this.h, old, 0, 0, this.w, this.h);
+        const i = (y * this.w + x) * 2;
+        this.data[i] = ou + du;
+        this.data[i + 1] = ov + dv;
+      }
+    }
+    this.markDirty(x0, y0, x1, y1);
+    return true;
+  }
+
   private markDirty(x0: number, y0: number, x1: number, y1: number): void {
     const d = this.dirty;
     if (!d) {
@@ -188,4 +240,33 @@ export class DisplacementGrid {
     for (let i = 0; i < this.data.length; i++) m = Math.max(m, Math.abs(this.data[i]));
     return m;
   }
+}
+
+/**
+ * One stretch of a stroke, in cells: from `last` to the new point, with dabs close enough to look
+ * continuous. The first point has no `last`, and only a dab that does not need a direction lands on it.
+ * Returns the point, to pass as the next `last`.
+ */
+export function strokeTo(
+  grid: DisplacementGrid,
+  mode: LiquifyMode,
+  radius: number,
+  strength: number,
+  last: [number, number] | null,
+  x: number,
+  y: number,
+): [number, number] {
+  if (!last) {
+    if (mode !== 'push') grid.dab(mode, x, y, radius, strength);
+    return [x, y];
+  }
+  const dx = x - last[0];
+  const dy = y - last[1];
+  const dist = Math.hypot(dx, dy);
+  const steps = Math.max(1, Math.ceil(dist / Math.max(radius * 0.18, 1)));
+  for (let i = 1; i <= steps; i++) {
+    const t = i / steps;
+    grid.dab(mode, last[0] + dx * t, last[1] + dy * t, radius, strength, dx / steps, dy / steps);
+  }
+  return [x, y];
 }

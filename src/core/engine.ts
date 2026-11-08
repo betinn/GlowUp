@@ -53,6 +53,26 @@ export interface ResetScope {
 /** What the before side of the comparison shows. */
 export type CompareBase = 'original' | 'unfiltered';
 
+/** A stroke from code, in the terms of a stroke of the person. */
+export interface FieldStroke {
+  /** push, bloat, pinch or restore. */
+  mode: string;
+  /** As the size of the brush: a share of the long side. */
+  radius: number;
+  /** 0..1. */
+  strength: number;
+  /** Points in image UV. A point repeated is one more dab where it stands, as holding the pointer still. */
+  path: readonly (readonly [number, number])[];
+}
+
+/**
+ * A displacement from code: strokes, or a function for what no stroke draws. `offset` gives, for a point
+ * of the output in UV, how far away in UV to read the photo. It goes on top of what the field holds.
+ */
+export type FieldScript =
+  | { strokes: readonly FieldStroke[] }
+  | { offset(u: number, v: number): readonly [number, number]; area?: { u0: number; v0: number; u1: number; v1: number } };
+
 /** What the liquify module provides once loaded. */
 export interface FieldController {
   tex: Tex;
@@ -60,6 +80,8 @@ export interface FieldController {
   begin(mode: string, radius: number, strength: number): void;
   stroke(u: number, v: number): void;
   end(): HistoryEntry | null;
+  /** Runs a script at once and returns its undo step, or null when it changed nothing. Not during a stroke. */
+  apply(script: FieldScript, label: string): HistoryEntry | null;
   isEmpty(): boolean;
   serialize(): Float32Array;
   restore(data: Float32Array): void;
@@ -853,6 +875,23 @@ export class Engine {
 
   get stroking() {
     return !!this.stroke;
+  }
+
+  /**
+   * Applies a displacement from code as one undo step, as a stroke of the person would. Needs the field
+   * loaded (`ensureField`) and no stroke going on. False when there was nothing to do.
+   */
+  applyFieldScript(script: FieldScript, label = 'Liquify'): boolean {
+    const field = this.field;
+    if (!field || this.stroke) return false;
+    this.commit();
+    const entry = field.apply(script, label);
+    if (!entry) return false;
+    this.doc.hasField = !field.isEmpty();
+    this.ctx?.invalidate('global');
+    this.requestRender();
+    this.history.push(this.withFieldFlags(entry));
+    return true;
   }
 
   private withFieldFlags(entry: HistoryEntry): HistoryEntry {
