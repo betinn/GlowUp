@@ -53,9 +53,15 @@
   const desktop = $derived(w >= 900);
   const meta = $derived(ui.tool ? toolById(ui.tool) : undefined);
   const groupTools = $derived(TOOLS.filter((t) => t.group === ui.group));
-  /** In the automatic mode of Manchas each healed spot has a ring, to take it back alone. */
+  /** In the automatic mode of Manchas each healed spot has a ring, to take it back alone, unless the person hid them. */
   const healRings = $derived(
-    meta?.kind === 'heal' && toolLimit.region !== null && toolLimit.mode === 'auto' && toolLimit.state === 'on' && !ui.splitOn && !ui.compareHold,
+    meta?.kind === 'heal' &&
+      ui.healRings &&
+      toolLimit.region !== null &&
+      toolLimit.mode === 'auto' &&
+      toolLimit.state === 'on' &&
+      !ui.splitOn &&
+      !ui.compareHold,
   );
   const canUndo = $derived((ui.rev, ready && engine().history.canUndo));
   const canRedo = $derived((ui.rev, ready && engine().history.canRedo));

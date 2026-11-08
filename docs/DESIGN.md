@@ -148,7 +148,8 @@ palavras da pele.
   foto mudou. Em Manchas cada mancha some por vez, de cima para baixo, e o botão "Tirar as N correções" tira
   todas numa etapa. Cada correção ganha um círculo fino sobre a foto: passar o mouse acende o círculo e
   mostra um X, e um toque tira só aquela correção, numa etapa "Tirar correção". Assim um erro entre muitos
-  acertos não obriga a perder tudo. Os círculos somem no Manual e na comparação. Sem
+  acertos não obriga a perder tudo. Os círculos somem no Manual e na comparação, e o interruptor "Círculos
+  nas correções" esconde todos para ver a foto limpa; a escolha fica guardada no aparelho. Sem
   mancha achada, um aviso manda para o Manual.
 - **Manual.** Suavizar, Tom de pele e Iluminador trazem pincel, borracha e "Só na pele". Olheiras traz "Só
   nas olheiras". Manchas traz o pincel de healing, também preso à pele.

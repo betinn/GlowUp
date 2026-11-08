@@ -109,7 +109,10 @@ export function placeOf(tool: string | null): string {
 export function autoHint(): string | null {
   const { tool, region, mode, state } = toolLimit;
   if (!region || mode !== 'auto' || !['searching', 'on', 'off'].includes(state)) return null;
-  if (toolById(tool ?? '')?.kind === 'heal') return 'No Automático as manchas somem sozinhas, uma a uma. Toque num círculo para desfazer só aquela. Para uma que ficou, use Manual.';
+  if (toolById(tool ?? '')?.kind === 'heal') {
+    const rings = ui.healRings ? ' Toque num círculo para desfazer só aquela.' : '';
+    return `No Automático as manchas somem sozinhas, uma a uma.${rings} Para uma que ficou, use Manual.`;
+  }
   return 'No Automático o efeito vai ' + placeOf(tool) + ' sozinho. Ajuste nos controles.';
 }
 

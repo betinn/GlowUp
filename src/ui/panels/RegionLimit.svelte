@@ -8,6 +8,7 @@
   import ProgressCard from '../ProgressCard.svelte';
   import { regionShow } from '../regionshow.svelte';
   import Segment from '../Segment.svelte';
+  import Switch from '../Switch.svelte';
   import { engine, ui } from '../state.svelte';
 
   /** Manchas has no layer: its work is the list of healed spots. */
@@ -57,11 +58,7 @@
         <button type="button" class="btn" data-testid="auto-apply" onclick={() => refillRegion(e)}>Aplicar de novo</button>
       {/if}
     {:else}
-      <button type="button" class="switch" class:on role="switch" aria-checked={on} data-testid="limit-toggle" onclick={() => setToolLimit(e, !on)}>
-        <span>{words?.name}</span>
-        <span class="state">{on ? 'Ligado' : 'Desligado'}</span>
-        <span class="track" aria-hidden="true"></span>
-      </button>
+      <Switch label={words?.name ?? ''} checked={on} testid="limit-toggle" onchange={(v) => setToolLimit(e, v)} />
       {#if on && toolLimit.missed && facePick.more}
         <button type="button" class="btn" data-testid="limit-more" onclick={() => retry(true)}>Procurar mais rostos</button>
       {/if}
@@ -94,63 +91,4 @@
     color: var(--paper-2);
   }
 
-  .switch {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    min-height: 44px;
-    padding: 0 4px 0 12px;
-    border-radius: 14px;
-    color: var(--paper-2);
-    font-size: 13px;
-    transition:
-      color var(--t-fast),
-      background var(--t-fast);
-  }
-
-  .switch:hover {
-    background: rgb(255 255 255 / 0.06);
-  }
-
-  .switch.on {
-    color: var(--safe);
-    background: rgb(255 184 119 / 0.1);
-  }
-
-  .state {
-    margin-left: auto;
-  }
-
-  .track {
-    position: relative;
-    flex: none;
-    width: 34px;
-    height: 20px;
-    margin-right: 8px;
-    border-radius: 999px;
-    background: rgb(255 255 255 / 0.16);
-    transition: background var(--t-fast);
-  }
-
-  .track::after {
-    content: '';
-    position: absolute;
-    top: 2px;
-    left: 2px;
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    background: var(--paper);
-    transition: translate var(--t-fast) var(--ease-reveal);
-  }
-
-  .switch.on .track {
-    background: var(--safe);
-  }
-
-  .switch.on .track::after {
-    translate: 14px 0;
-    background: var(--ink);
-  }
 </style>

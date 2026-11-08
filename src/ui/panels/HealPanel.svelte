@@ -7,11 +7,18 @@
   import { toolLimit } from '../facepick.svelte';
   import Icon from '../Icon.svelte';
   import RegionLimit from './RegionLimit.svelte';
-  import { bump, engine, ui } from '../state.svelte';
+  import Switch from '../Switch.svelte';
+  import { bump, engine, HEAL_RINGS_KEY, prefs, ui } from '../state.svelte';
 
   const e = engine();
   const healed = $derived((ui.rev, e.doc.heals.length));
   const brushShown = $derived(!toolLimit.region || toolLimit.mode === 'manual');
+  const ringsOffered = $derived(healed > 0 && !!toolLimit.region && toolLimit.mode === 'auto' && toolLimit.state === 'on');
+
+  function showRings(on: boolean) {
+    ui.healRings = on;
+    prefs.write(HEAL_RINGS_KEY, on);
+  }
 
   async function clear() {
     await e.healSpots([], 'Limpar');
@@ -25,6 +32,10 @@
 
 {#if brushShown}
   <BrushControls erasable={false} full={false} />
+{/if}
+
+{#if ringsOffered}
+  <Switch label="Círculos nas correções" checked={ui.healRings} testid="heal-rings" onchange={showRings} />
 {/if}
 
 {#if healed > 0}

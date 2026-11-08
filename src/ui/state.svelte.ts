@@ -50,6 +50,8 @@ export const ui = $state({
   faceChoosing: false,
   exportOpen: false,
   showHint: true,
+  /** Manchas marks each spot it healed with a ring. Off, the photo shows clean. Remembered on this device. */
+  healRings: true,
 });
 
 let engineRef: Engine | null = null;
@@ -116,3 +118,7 @@ const write = (key: string, value: unknown) => {
 };
 
 export const prefs = { read, write };
+
+/** Where the choice of showing the rings of Manchas is kept. */
+export const HEAL_RINGS_KEY = 'glowup.healRings';
+ui.healRings = read(HEAL_RINGS_KEY, true);

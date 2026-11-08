@@ -148,6 +148,16 @@ test.describe('pele', () => {
     await expect(page.getByTestId('heal-clear')).toContainText(String(count));
     await expect(page.getByTestId('heal-spot')).toHaveCount(count);
 
+    // The rings can be hidden, so the photo shows clean. The choice is kept on this device.
+    await expect(page.getByTestId('heal-rings')).toHaveAttribute('aria-checked', 'true');
+    await page.getByTestId('heal-rings').click();
+    await expect(page.getByTestId('heal-spot')).toHaveCount(0);
+    await expect(page.getByTestId('heal-rings')).toHaveAttribute('aria-checked', 'false');
+    await expect(page.getByText(/Toque num círculo/)).toHaveCount(0);
+    expect(await page.evaluate(() => localStorage.getItem('glowup.healRings'))).toBe('false');
+    await page.getByTestId('heal-rings').click();
+    await expect(page.getByTestId('heal-spot')).toHaveCount(count);
+
     // "Tirar" shows the photo as it was at once, with nothing else touched.
     await page.getByTestId('heal-clear').click();
     await expect(page.getByTestId('heal-clear')).toHaveCount(0);
