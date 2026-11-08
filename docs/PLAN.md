@@ -119,6 +119,14 @@
 - [x] Blush, contorno e sardas seguem pontos do modelo que giram com a cabeça, sempre sobre a pele
 - [x] Sem rosto, sem região ou sem detector, pincel livre com aviso em todas as ferramentas do menu
 
+## M17. Base do automático
+
+- [x] Receita por código que também preenche as máscaras das ferramentas dela, numa etapa do desfazer
+- [x] Ferramenta pode declarar uma ação automática própria, além de máscara e manchas
+- [x] Seletor Automático e Manual sem props, para qualquer painel
+- [x] Deslocamento do Liquify por código, em traços ou por função, com desfazer
+- [x] Projeto salvo inválido sai da lista com aviso, e falha passageira avisa e mantém o projeto
+
 ## Metas medidas
 
 Foto gerada de 12 MP (4000 x 3000), Chromium com aceleração, em uma placa dedicada (`node scripts/perf.mjs`):
