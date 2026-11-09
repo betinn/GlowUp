@@ -189,8 +189,8 @@ já tem ajuste, deslocamento ou desfoque abre no Manual, sem trocar nada.
 Cor dos olhos, Olho vermelho, Brilho no olhar, Branco do olho e Dentes ficam na sua região, em todos os
 rostos achados.
 
-- **Primeira vez.** Ao abrir a ferramenta, o cartão de progresso aparece no topo do painel com o aviso dos
-  6 MB. O traço espera e um aviso explica. "Pintar livre" pula a espera.
+- **Primeira vez.** Ao abrir a ferramenta, o cartão de progresso aparece no topo do painel com o aviso do
+  download, e no celular o tamanho, 6 MB. O traço espera e um aviso explica. "Pintar livre" pula a espera.
 - **Íris.** A íris sai da própria foto, não só do desenho do modelo: o que é escuro como o meio da íris, perto
   do círculo que o modelo dá, sem a pele, o branco, os cílios e o brilho da luz. A cor fica dentro da íris
   mesmo com a cabeça inclinada ou o olho virado de lado.
@@ -218,8 +218,8 @@ rostos achados.
 Manchas, Suavizar, Olheiras, Tom de pele e Iluminador seguem o mesmo caminho dos olhos e dentes, com as
 palavras da pele.
 
-- **Busca.** O cartão diz "Procurando a pele", ou "Procurando os olhos" em Olheiras, com o aviso dos 6 MB
-  na primeira vez. A pele de um rosto já achado sai na hora ao trocar de ferramenta.
+- **Busca.** O cartão diz "Procurando a pele", ou "Procurando os olhos" em Olheiras, com o aviso do download
+  na primeira vez, e no celular o tamanho. A pele de um rosto já achado sai na hora ao trocar de ferramenta.
 - **Foco e brilho.** A vista vai até o rosto, ou até os olhos em Olheiras, quando eles não estão na tela, e a
   luz fria acende sobre a pele.
 - **Automático.** O efeito chega em meio segundo, em vez de aparecer de uma vez, para a pessoa ver onde a

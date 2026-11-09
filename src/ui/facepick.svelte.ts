@@ -70,17 +70,19 @@ function stagesFor(hair: boolean, person = false): Stage[] {
   return list;
 }
 
-/** What the first search still has to download, in the words of the progress card. */
+/**
+ * What the first search still has to download, in the words of the progress card. Empty when nothing is left to
+ * download. The size is a warning for a phone, which may be on mobile data, and for nobody else.
+ */
 function downloadNote(hair: boolean, person = false): string {
   // Sizes on the wire, with brotli: detector 6 MB, hair 0.7 MB, person and background 15 MB.
-  if (person && !personStarted) {
-    // The large one. Its size is a warning for a phone, which may be on mobile data, and for nobody else.
-    if (!onPhone()) return 'Só na primeira vez. A foto não sai do seu aparelho.';
-    const size = !detectorStarted ? 'cerca de 22 MB' : hairStarted ? 'cerca de 15 MB' : 'cerca de 16 MB';
-    return `Só na primeira vez, ${size}: melhor no Wi-Fi. A foto não sai do seu aparelho.`;
-  }
-  const size = !detectorStarted ? (hair ? 'cerca de 7 MB' : 'cerca de 6 MB') : hair && !hairStarted ? 'cerca de 1 MB' : '';
-  return size ? `Só na primeira vez, ${size}. A foto não sai do seu aparelho.` : '';
+  let size = '';
+  if (person && !personStarted) size = !detectorStarted ? 'cerca de 22 MB' : hairStarted ? 'cerca de 15 MB' : 'cerca de 16 MB';
+  else if (!detectorStarted) size = hair ? 'cerca de 7 MB' : 'cerca de 6 MB';
+  else if (hair && !hairStarted) size = 'cerca de 1 MB';
+  if (!size) return '';
+  if (!onPhone()) return 'Só na primeira vez. A foto não sai do seu aparelho.';
+  return `Só na primeira vez, ${size}: melhor no Wi-Fi. A foto não sai do seu aparelho.`;
 }
 
 export const facePick = $state({

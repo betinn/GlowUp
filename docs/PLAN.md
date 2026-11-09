@@ -179,7 +179,7 @@
 - [x] Conferido nas sete fotos reais, cada controle nas duas pontas, com a contagem sem faixa de fora
 - [x] Quem usa decidiu: ficam os dois modelos, cerca de 44 MB no primeiro uso do menu
 - [x] Aviso do tamanho só no celular, e tempo que falta em todo download e em todo passo demorado
-- [ ] Decidir se o aviso de 6 MB do detector, nas outras ferramentas, também vira só de celular
+- [x] O aviso de 6 MB do detector, nas outras ferramentas, também só no celular
 - [ ] Placa na resolução da foto: hoje ela tem a da prévia, e numa foto de 12 MP o que aparece atrás sai mais suave
 - [ ] Retoques de pele chegarem à placa: o pescoço que aparece vem da foto sem Suavizar nem Tom de pele
 

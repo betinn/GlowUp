@@ -79,7 +79,7 @@ que alguém abre uma dessas ferramentas ou escolhe um rosto, cerca de 6 MB, do p
 soma menos de 1 MB, só na primeira ferramenta de cabelo. Na primeira ferramenta de Formato do rosto baixam o modelo
 que separa cabeça, corpo e fundo, 15 MB, e o que completa o fundo, 29 MB com o seu runtime. Nada disso entra no
 precache, e a foto continua no aparelho. Os cartões de download mostram quanto falta, e só num celular dizem o
-tamanho.
+tamanho, em todos os downloads do app.
 
 Ao abrir uma delas, a foto aproxima do rosto, dos olhos, da boca ou do cabelo e um brilho rápido mostra onde
 o pincel alcança. No modo Automático, que vem ligado, a ferramenta já aplica em todos os rostos achados,

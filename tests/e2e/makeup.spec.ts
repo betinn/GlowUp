@@ -288,7 +288,7 @@ test.describe('make', () => {
     await page.locator('[data-group=makeup]').click();
     await page.locator('[data-tool=lips]').click();
     await expect(page.locator('[data-limit=searching]')).toBeVisible();
-    await expect(page.getByText(/Só na primeira vez, cerca de 6 MB/)).toBeVisible();
+    await expect(page.getByText('Só na primeira vez. A foto não sai do seu aparelho.')).toBeVisible();
     await expect(page.locator('[data-limit=on]')).toBeVisible({ timeout: 60_000 });
     await expect(page.locator('[data-region-show=glow]')).toHaveCount(1, { timeout: 10_000 });
     await page.screenshot({ path: shot('ui-make-brilho') });

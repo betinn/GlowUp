@@ -166,7 +166,9 @@ test.describe('limite do pincel', () => {
     await page.locator('[data-group=eyes]').click();
     await page.locator('[data-tool=eyecolor]').click();
     await expect(page.getByRole('progressbar', { name: 'Procurando os olhos' })).toBeVisible();
-    await expect(page.getByText('Só na primeira vez, cerca de 6 MB. A foto não sai do seu aparelho.')).toBeVisible();
+    // On a computer the card says it downloads once, and no size: that warning is for a phone.
+    await expect(page.getByText('Só na primeira vez. A foto não sai do seu aparelho.')).toBeVisible();
+    await expect(page.locator('[data-limit=searching]')).not.toContainText('MB');
     await page.screenshot({ path: shot('ui-limite-procurando') });
 
     const [x, y] = facePoint(page, ...IRIS);
@@ -440,14 +442,21 @@ test.describe('limite do pincel', () => {
 });
 
 test.describe('limite do pincel, celular', () => {
-  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
+  test.use({
+    viewport: { width: 390, height: 844 },
+    hasTouch: true,
+    isMobile: true,
+    deviceScaleFactor: 2,
+    userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36',
+  });
 
   test('o interruptor cabe no painel e o aviso aparece no toque', async ({ page }) => {
     const seen = watch(page);
     await openEditor(page);
     await page.locator('[data-group=eyes]').tap();
     await page.locator('[data-tool=eyecolor]').tap();
-    await expect(page.getByText('Só na primeira vez, cerca de 6 MB. A foto não sai do seu aparelho.')).toBeInViewport();
+    // A phone may be on mobile data, so there the card says how much it downloads.
+    await expect(page.getByText('Só na primeira vez, cerca de 6 MB: melhor no Wi-Fi. A foto não sai do seu aparelho.')).toBeInViewport();
     await expect(page.getByTestId('limit-free')).toBeInViewport();
     await page.screenshot({ path: shot('ui-celular-limite-procurando') });
     await limitSettled(page);
