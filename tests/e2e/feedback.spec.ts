@@ -1,6 +1,6 @@
 import { expect, test, type JSHandle, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { expectNoErrors, imageRect, openEditor, pickTool, setSlider, settle, limitSettled } from './helpers';
+import { expectNoErrors, imageRect, openEditor, pickTool, setSlider, settle, limitSettled, skipIntro } from './helpers';
 
 const shot = (name: string) => `docs/visual-checks/ui-${name}.png`;
 
@@ -95,7 +95,7 @@ test.describe('resposta ao usuário', () => {
   test.afterEach(() => expectNoErrors(errors));
 
   test('a tela reage ao arquivo por cima, recusa o que não é foto e abre ao soltar', async ({ page }) => {
-    await page.addInitScript(() => localStorage.setItem('glowup.onboarded', 'true'));
+    await skipIntro(page);
     await page.goto('/');
     await settle(page, 1200);
     await page.screenshot({ path: shot('inicial') });
@@ -166,7 +166,7 @@ test.describe('resposta ao usuário', () => {
 
   test('abrir uma foto mostra a porcentagem subindo até 100', async ({ page }) => {
     await watchProgress(page);
-    await page.addInitScript(() => localStorage.setItem('glowup.onboarded', 'true'));
+    await skipIntro(page);
     await page.goto('/');
     await page.setInputFiles('[data-testid=file-input]', 'tests/fixtures/portrait.png');
     await page.waitForFunction(() => Number(document.querySelector('[role=progressbar]')?.getAttribute('aria-valuenow')) >= 60);
@@ -303,7 +303,7 @@ test.describe('resposta ao usuário', () => {
 });
 
 test('arquivo quebrado volta para o início com um aviso', async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem('glowup.onboarded', 'true'));
+  await skipIntro(page);
   await page.goto('/');
   await page.setInputFiles('[data-testid=file-input]', { name: 'quebrada.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('nada de foto') });
   await expect(page.getByText('Não consegui abrir esse arquivo. Tenta um JPG, PNG ou WebP?')).toBeVisible();
@@ -317,7 +317,6 @@ test.describe('resposta ao usuário, celular', () => {
   test('a divisão do filtro fica sobre a foto, fora do painel', async ({ page }) => {
     await openEditor(page);
     await page.locator('[data-group=looks]').tap();
-    await page.locator('[data-tool=filters]').tap();
     await page.locator('[data-filter=prata]').tap();
     await page.getByTestId('compare-filter').tap();
     await settle(page, 1300);

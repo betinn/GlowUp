@@ -26,6 +26,9 @@ export interface Opening {
 /** What the before side shows: the original photo, or the current edit without the filter. */
 export type CompareScope = 'all' | 'filter';
 
+/** Which cards to show: all of them, only the brush, or only what has no brush. */
+export type OnboardingCards = 'all' | 'paint' | 'view';
+
 export const ui = $state({
   screen: 'home' as 'home' | 'editor',
   /** Incremented to open a new editor over the current one. */
@@ -36,6 +39,12 @@ export const ui = $state({
   rev: 0,
   busy: null as string | null,
   toast: null as string | null,
+  /** The path the person is on, from the list in `paths.ts`. Null until one is chosen. */
+  path: null as string | null,
+  /** The screen of choice is up. */
+  choosingPath: false,
+  /** The cards that teach the gestures, when they are due. */
+  onboarding: null as OnboardingCards | null,
   group: 'skin' as GroupId,
   tool: null as string | null,
   toolModule: null as ToolModule | null,

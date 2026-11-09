@@ -474,6 +474,9 @@ export async function clearWork(e: Engine, tool: string): Promise<void> {
   else if (meta?.layer) await e.clearLayer(meta.layer);
 }
 
+/** The person took this tool to the brush on this photo, so what its mask holds is theirs. */
+export const handPainted = (tool: string) => freed.has(tool) || modes.get(tool) === 'manual';
+
 /** Automatic, unless the person chose otherwise or the tool already holds work, as in a reopened project. */
 function modeFor(e: Engine, tool: string): ToolMode {
   if (freed.has(tool)) return 'manual';

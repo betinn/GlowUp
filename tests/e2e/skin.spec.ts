@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { chooseMode, expectNoErrors, facePoint, imageRect, meanDiff, openEditor, pickTool, settle, type Clip } from './helpers';
+import { chooseMode, expectNoErrors, facePoint, imageRect, meanDiff, openEditor, pickTool, settle, skipIntro, type Clip } from './helpers';
 
 /** The real detector runs here, on the procedural portrait. */
 const shot = (name: string) => `docs/visual-checks/${name}.png`;
@@ -180,7 +180,7 @@ test.describe('pele', () => {
 
   test('Manchas: "Tirar" também limpa a vista com zoom de uma foto grande', async ({ page }) => {
     const errors = watch(page);
-    await page.addInitScript(() => localStorage.setItem('glowup.onboarded', 'true'));
+    await skipIntro(page);
     await page.goto('/');
     // Twice the size of the portrait: past the preview, the zoomed view draws its own detail.
     const portrait = readFileSync('tests/fixtures/portrait.png').toString('base64');

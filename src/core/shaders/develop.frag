@@ -25,6 +25,8 @@ uniform sampler2D uFilterMask;
 uniform bool uFilterMasked;
 uniform float uFilterLod;
 
+const float SHADOW_GAIN = 2.0;
+
 vec3 sCurve(vec3 x, float k) {
   vec3 s = x * x * (3.0 - 2.0 * x);
   return k >= 0.0 ? mix(x, s, k) : 0.5 + (x - 0.5) * (1.0 + 0.6 * k);
@@ -66,7 +68,9 @@ void main() {
     float wh = smoothstep(0.4, 0.95, low);
     float ws = 1.0 - smoothstep(0.08, 0.6, low);
     float target = l + uShadows * 0.32 * ws * (1.0 - l) + uHighlights * 0.34 * wh * l;
-    c *= max(target, 0.0) / l;
+    // Near black a large gain turns the color noise of the file into solid color, so past a limit the light comes in neutral.
+    float gain = min(max(target, 0.0) / l, SHADOW_GAIN);
+    c = c * gain + max(target - l * gain, 0.0);
   }
 
   if (uContrast != 0.0) c = sCurve(clamp(c, 0.0, 1.0), uContrast);

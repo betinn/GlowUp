@@ -398,7 +398,6 @@ test.describe('escolher rosto, celular', () => {
     const seen = watch(page);
     await openEditor(page, 'portrait.png');
     await page.locator('[data-group=looks]').tap();
-    await page.locator('[data-tool=filters]').tap();
     await page.locator('[data-filter=prata]').tap();
     await setSlider(page, 'Intensidade', 100);
     await settle(page, 400);

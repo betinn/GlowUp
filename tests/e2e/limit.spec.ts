@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { expectNoErrors, facePoint, imageRect, limitSettled, meanDiff, openEditor, paint, pickTool, PORTRAIT, scribble, setSlider, settle, onSite } from './helpers';
+import { expectNoErrors, facePoint, imageRect, limitSettled, meanDiff, openEditor, paint, pickTool, PORTRAIT, scribble, setSlider, settle, skipIntro, onSite } from './helpers';
 
 /** The real detector runs here too: the procedural portraits are enough to trigger it. */
 const GROUP = { w: 1200, h: 750 };
@@ -283,7 +283,7 @@ test.describe('limite do pincel', () => {
   });
 
   test('boca fechada não tem dentes, e o pincel fica livre', async ({ page }) => {
-    await page.addInitScript(() => localStorage.setItem('glowup.onboarded', 'true'));
+    await skipIntro(page);
     await page.goto('/');
     const buffer = await closedMouth(page);
     await page.setInputFiles('[data-testid=file-input]', { name: 'boca-fechada.png', mimeType: 'image/png', buffer });

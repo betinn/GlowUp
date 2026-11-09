@@ -118,6 +118,7 @@ test.describe('fluxos', () => {
   test('onboarding aparece uma vez', async ({ page }) => {
     await page.goto('/');
     await page.setInputFiles('[data-testid=file-input]', 'tests/fixtures/gradient.png');
+    await page.locator('[data-path=manual]').click();
     await expect(page.getByRole('dialog', { name: 'Como usar' })).toBeVisible();
     for (let i = 0; i < 3; i++) await page.getByTestId('onboarding-next').click();
     await expect(page.getByRole('dialog', { name: 'Como usar' })).toBeHidden();
@@ -233,19 +234,6 @@ test.describe('fluxos', () => {
     await page.getByTestId('compare').click();
     await expect(page.getByRole('button', { name: 'Mover divisão antes e depois' })).toBeVisible();
     await settle(page, 1100);
-  });
-
-  test('receita aplica ajustes e filtro, e pode ser criada', async ({ page }) => {
-    await openEditor(page);
-    await pickTool(page, 'looks', 'presets');
-    await page.locator('[data-preset=glow]').click();
-    await settle(page, 600);
-    await page.getByPlaceholder('Dar nome à edição atual').fill('Minha');
-    await page.getByRole('button', { name: 'Salvar receita' }).click();
-    await expect(page.getByRole('button', { name: 'Apagar receita Minha' })).toBeVisible();
-    await pickTool(page, 'light', 'adjust');
-    await limitSettled(page);
-    await expect(page.getByRole('slider', { name: 'Exposição' })).toHaveValue('6');
   });
 
   test('a grade de tiles não muda o resultado da exportação', async ({ page }) => {

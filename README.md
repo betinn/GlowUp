@@ -55,8 +55,7 @@ etapa do desfazer.
 
 **Forma:** liquify (empurrar, inflar, contrair, restaurar).
 
-**Geral:** 40 filtros em 10 categorias com intensidade e favoritos, receitas prontas e suas,
-11 ajustes, desfoque radial e tilt-shift, recorte com rotação, espelho, endireitar e proporções,
+**Geral:** 40 filtros em 10 categorias com intensidade e favoritos, 11 ajustes, desfoque radial e tilt-shift, recorte com rotação, espelho, endireitar e proporções,
 antes/depois (segurar ou dividir, com a foto original ou só sem o filtro), exportação em JPG, PNG e WebP.
 
 Um filtro vale para a foto toda ou para um rosto escolhido: um anel aparece em cada rosto, um toque
@@ -126,7 +125,7 @@ passo atual, com a própria foto revelando na tela.
 | `src/core` | documento, geometria, pincel, máscaras, exportação, projetos |
 | `src/core/face` | busca de rostos em tiles, máscara do rosto, limites de pele, olhos, dentes e cabelo, busca de manchas e detector carregado sob demanda |
 | `src/tools/<ferramenta>` | shader, lógica e painel de cada ferramenta, carregados sob demanda |
-| `src/presets` | LUTs procedurais, receitas e miniaturas |
+| `src/presets` | LUTs procedurais, looks e miniaturas |
 | `src/ui` | interface em Svelte |
 | `tests` | testes de unidade, fluxos e imagens de teste procedurais |
 | `deploy` | exemplos de servidor estático |

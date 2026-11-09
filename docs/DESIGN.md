@@ -260,11 +260,29 @@ Depois de escolher um filtro, o painel pergunta onde ele vale: "Foto toda" ou "E
 O detector erra de dois jeitos que a interface assume: pode pôr anel em uma mão, que a pessoa
 simplesmente não toca, e pode deixar passar rosto de perfil, que ela pinta.
 
+## Os caminhos
+
+Depois de abrir, a foto pergunta "Como vai ser?". Cada caminho é uma entrada em `src/ui/paths.ts`, e todos
+editam o mesmo documento, então trocar de caminho não perde nada. A pergunta aparece por cima da foto, que
+continua acesa, e o botão com o nome do caminho, na barra, traz a pergunta de volta. Um projeto com edição
+reabre sem perguntar: no Glow na Hora se está num look, nas ferramentas se não. Os cartões de gesto vêm
+depois da escolha, e o caminho sem pincel não ensina a pintar.
+
+- **Glow na Hora.** O menu mostra looks, não ferramentas. Um toque aplica no rosto todo, numa etapa do
+  desfazer, e tira as máscaras que o automático pôs para o look anterior. O que foi pintado à mão fica. Um
+  segundo toque tira o look. O look aceso é lido do documento, então acompanha o desfazer. Se os ajustes do
+  look mudarem à mão, ele deixa de aparecer aceso.
+- **Do Meu Jeito.** O menu de sempre, ferramenta por ferramenta.
+- **Looks.** Natural, Glow, Editorial, Domingo e Retrato P&B. Precisam cair bem em qualquer rosto, então
+  nenhum põe cor na boca. A miniatura mostra a cor do look nesta foto, na intensidade certa.
+- **Avisos.** Boca fechada deixa Dentes de fora, e o aviso diz isso. Sem rosto ou sem detector, entra só a
+  cor do look e o aviso diz por quê. Sem detector, um segundo toque tenta de novo em vez de tirar o look.
+
 ## Layout
 
 Mobile primeiro. A tela é a foto.
 
-- **Celular**: barra superior mínima (voltar, desfazer, refazer, comparar, exportar). Embaixo, uma
+- **Celular**: barra superior mínima (voltar, caminho, desfazer, refazer, comparar, exportar). Embaixo, uma
   doca com categorias roláveis; ao escolher uma ferramenta, sobe uma folha curta com os controles
   e a foto continua visível. Um dedo pinta, dois dedos movem e dão zoom.
 - **Desktop (≥ 900px)**: categorias em um trilho à esquerda, painel de controles à direita. A foto
