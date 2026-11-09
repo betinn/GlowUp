@@ -235,3 +235,24 @@ estava, e nenhuma dessas APIs tem botão ainda. Só o item de projeto inválido 
 | 140 | Foto original que não decodifica fica na lista, a não ser que esteja vazia | O navegador dá o mesmo erro para arquivo corrompido e para falta de memória num celular, e apagar por engano é pior do que manter. A pessoa ainda tem o botão de esquecer. |
 | 141 | Projeto sem miniatura aparece na lista, sem imagem | Antes uma miniatura ruim sumia com a lista inteira. Assim o projeto chega ao toque que o tira da lista. |
 | 142 | `foundation.spec` testa as APIs sem botão pelo servidor de desenvolvimento, que sobe junto no e2e | O pacote da pré-visualização esconde os módulos, e um gancho para os testes iria para o site publicado. No servidor de desenvolvimento a página importa os mesmos módulos que o editor está usando, com a GPU de verdade. |
+
+## Glow na Hora
+
+Os caminhos antes do menu. A ideia, os nomes e o fim das Receitas foram pedidos de quem usa. Os looks foram
+conferidos nas fotos reais de teste, o que achou os defeitos abaixo.
+
+| # | Decisão | Motivo |
+| --- | --- | --- |
+| 143 | Os caminhos saem de uma lista em `src/ui/paths.ts`, e cada um pode trazer o próprio menu | Filtros e Brincar entram com uma entrada na lista, sem mexer na tela de escolha. Sem `menu`, o caminho mostra os grupos e as ferramentas de sempre. |
+| 144 | A escolha aparece por cima da foto já aberta, não numa tela antes dela | A foto continua sendo a única coisa acesa, e a escolha é sobre esta foto. Como o editor já está de pé, trocar de caminho depois é o mesmo gesto e não perde nada. |
+| 145 | Um projeto com edição reabre sem perguntar: no Glow na Hora se está num look, nas ferramentas se não. Sem edição, a pergunta aparece | Quem toca em Continuar quer continuar. O caminho vem do documento, então nada novo é salvo no projeto. |
+| 146 | O look aceso é lido do documento, comparando ajustes, filtro e controles, sem olhar as máscaras | Desfazer, refazer e projeto reaberto dizem a verdade sem guardar estado. Máscara não conta porque uma boca fechada não tem dentes. Um look mexido à mão deixa de contar, e um toque nele aplica de novo. |
+| 147 | Trocar de look tira as máscaras que o automático pôs, e deixa o que a pessoa levou para o Manual | Sem isso os looks se somam, porque `applyRecipe` só mexe nas ferramentas da receita. Sardas pintadas à mão não são parte de um look. Vai tudo numa etapa só, e os ajustes do look vêm antes de tirar as máscaras, para um código que não baixa deixar a foto como estava. A memória do Manual vale enquanto a foto está aberta: num projeto reaberto todas as máscaras contam como do automático, e o desfazer traz de volta. |
+| 148 | Segundo toque no look aceso tira o look. Se o detector falhou, o segundo toque tenta de novo | É o mesmo gesto das ferramentas e dos filtros. Depois de uma falha o look aparece aceso só com a cor, e tirar seria o contrário do que a pessoa quer. |
+| 149 | Festa saiu da lista, e Glow e Editorial ficaram mais leves | Nas fotos reais, Festa pôs rosa forte em qualquer boca, inclusive de barba. Glow fazia uma mancha nas maçãs e uma faixa no nariz, e passou para iluminador 35 e 40, blush 12 e suavizar 65. Editorial deixava a pele de plástico, e passou para suavizar leve e contorno 22. Natural, Domingo e Retrato P&B seguiram como estavam. |
+| 150 | Os looks não curam manchas | Testado nas fotos reais, o automático de Manchas borrou a armação de um óculos de sol e deixou remendos com borda num queixo com muitas espinhas. Num toque só, sem os círculos à vista, esses erros ficam escondidos. As espinhas continuam na foto até Manchas lidar com esses casos. |
+| 151 | Em Sombras, o ganho para em 2 vezes, e o resto da luz entra neutro | Perto do preto o ganho chegava a mais de cem vezes, e o ruído de cor de uma foto comprimida virava manchas azuis e vermelhas na roupa preta e no cabelo escuro. Isso aparecia em Glow e Domingo na primeira foto real, e já acontecia no controle Sombras de Ajustes. Com limite de 3 ainda sobrava cor. |
+| 152 | Os cartões de gesto vêm depois da escolha, e o caminho sem pincel não ensina a pintar | Quem escolhe Glow na Hora vê só zoom e o antes. Se depois abrir Do Meu Jeito, vê só o cartão que faltou, e `glowup.onboarded` fica marcado. |
+| 153 | `glowup.startPath` abre a foto direto num caminho, sem botão que a pessoa veja | É como os testes pulam a escolha, do mesmo jeito que `glowup.onboarded` pula os cartões. O `openEditor` dos 13 testes segue chegando nas ferramentas. |
+| 154 | A miniatura do look mostra só a cor dele nesta foto, na intensidade do look | Mostrar o look inteiro pediria o detector para cada miniatura. Na intensidade certa, a miniatura não promete mais do que o filtro faz. |
+| 155 | `.jfif` entra na lista de extensões aceitas | O navegador costuma dizer que o arquivo é JPEG, e a foto real abriu. A extensão cobre o arquivo que chega sem tipo. |

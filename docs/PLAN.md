@@ -127,6 +127,16 @@
 - [x] Deslocamento do Liquify por código, em traços ou por função, com desfazer
 - [x] Projeto salvo inválido sai da lista com aviso, e falha passageira avisa e mantém o projeto
 
+## M18. Glow na Hora
+
+- [x] Tela de escolha depois de abrir a foto, montada de uma lista: Glow na Hora e Do Meu Jeito
+- [x] Botão na barra para trocar de caminho, sem perder o que já foi feito
+- [x] Menu de looks: um toque aplica no rosto todo, tira as máscaras do look anterior e fica numa etapa do desfazer
+- [x] Avisos para rosto não achado, detector que não baixa, código que não baixa e o que ficou de fora
+- [x] Painel Receitas removido, e a lista revista nas fotos reais: Festa saiu e os outros ficaram mais leves
+- [x] Sombras não transforma o ruído de cor do preto em mancha colorida
+- [x] Arquivo `.jfif` abre, mesmo sem tipo declarado
+
 ## Metas medidas
 
 Foto gerada de 12 MP (4000 x 3000), Chromium com aceleração, em uma placa dedicada (`node scripts/perf.mjs`):
