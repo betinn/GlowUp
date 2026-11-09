@@ -45,8 +45,10 @@ export function openFile(file: File | null | undefined, from: Point | null = nul
 
 export function openProject(projectId: string, thumb: Blob): void {
   if (ui.opening) return;
+  // A damaged project may have no picture. It still has to reach the place that takes it off the list.
+  const photo = thumb instanceof Blob ? URL.createObjectURL(thumb) : null;
   const task = new Task(stages(500, 'Buscando seu projeto', [{ id: 'retouch', label: 'Recolocando seus retoques', weight: 14 }]));
-  begin(task, URL.createObjectURL(thumb), null, () => {
+  begin(task, photo, null, () => {
     ui.pending = { projectId };
   });
 }
@@ -66,3 +68,27 @@ export async function finishOpening(): Promise<void> {
 }
 
 export const cancelOpening = clear;
+
+/**
+ * Says what went wrong with an opening. A project is deleted only when it can never open. Any other
+ * failure may pass, and the work stays on the list for another try.
+ */
+export async function reportOpenFailure(err: unknown, projectId: string | undefined): Promise<void> {
+  if (!projectId) {
+    const big = err instanceof Error && err.message === 'image-too-large';
+    toast(big ? 'Essa foto é grande demais para este aparelho.' : 'Não consegui abrir esse arquivo. Tenta um JPG, PNG ou WebP?');
+    return;
+  }
+  const { deleteProject, InvalidProjectError } = await import('../core/project');
+  if (!(err instanceof InvalidProjectError)) {
+    toast('Não consegui abrir esse projeto agora. Ele continua salvo. Tenta de novo daqui a pouco.');
+    return;
+  }
+  try {
+    await deleteProject(projectId);
+    toast('Esse projeto está danificado e não abre mais. Tirei ele da lista.');
+  } catch (deleting) {
+    console.error(deleting);
+    toast('Esse projeto está danificado e não abre mais.');
+  }
+}

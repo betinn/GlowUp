@@ -15,6 +15,7 @@ import { CHIN, type Face } from '../core/face/scan';
 import { faceSpan, skinArea, spotGuard } from '../core/face/skin';
 import type { HealOp } from '../core/doc';
 import { nextPaint, type Stage } from '../core/progress';
+import { autoAction, type AutoAction, type AutoFound, type AutoWords } from '../tools/auto';
 import { toolById } from '../tools/catalog';
 import { reducedMotion } from './motion';
 import type { SourceImage } from '../core/source';
@@ -118,8 +119,16 @@ export const PLACES: Record<FaceRegion, string> = {
   sprinkle: 'no nariz e nas bochechas',
 };
 
+/** The words of the search of a tool: those of its region, or those its own action brings. */
+export function limitWords(tool: string | null, region: FaceRegion | null): (typeof LIMIT_WORDS)[FaceRegion] | AutoWords | null {
+  if (region) return LIMIT_WORDS[region];
+  return (tool && autoAction(tool)?.words) || null;
+}
+
 /** Where the automatic mode of a tool goes, in the words of the panel. */
 export function placeOf(tool: string | null): string {
+  const action = tool ? autoAction(tool) : undefined;
+  if (action) return action.words.place;
   const meta = tool ? toolById(tool) : undefined;
   if (meta?.kind === 'heal') return 'nas manchas';
   const region = meta?.fill ?? meta?.region;
@@ -128,9 +137,11 @@ export function placeOf(tool: string | null): string {
 
 /** The hint of the panel in the automatic mode, which has no brush to talk about. */
 export function autoHint(): string | null {
-  const { tool, region, mode, state } = toolLimit;
-  if (!region || mode !== 'auto' || !['searching', 'on', 'off'].includes(state)) return null;
-  if (toolById(tool ?? '')?.kind === 'heal') {
+  const { tool, mode, state } = toolLimit;
+  if (!tool || mode !== 'auto' || !['searching', 'on', 'off'].includes(state)) return null;
+  const action = autoAction(tool);
+  if (action) return action.words.hint;
+  if (toolById(tool)?.kind === 'heal') {
     const rings = ui.healRings ? ' Toque num círculo para desfazer só aquela.' : '';
     return `No Automático as manchas somem sozinhas, uma a uma.${rings} Para uma que ficou, use Manual.`;
   }
@@ -147,7 +158,9 @@ export type LimitState = 'searching' | 'on' | 'off' | 'no-face' | 'no-region' | 
 export type ToolMode = 'auto' | 'manual';
 
 export const toolLimit = $state({
+  /** The tool under this control. Any panel can show the selector while there is one. */
   tool: null as string | null,
+  /** Null for a tool with an action of its own and no limit. */
   region: null as FaceRegion | null,
   state: 'off' as LimitState,
   /** A whole stroke fell outside, so a face may have been left out. */
@@ -162,8 +175,11 @@ const freed = new Set<string>();
 const shown = new Set<string>();
 /** The mode each tool had on this photo, so going back to a tool keeps it. */
 const modes = new Map<string, ToolMode>();
-/** What the automatic mode of the open tool fills with: a mask, or the spots Manchas heals. */
-type Fill = { mask: Uint8Array } | { spots: HealOp['dabs'] };
+/** What the automatic mode of a tool does: fill its mask, heal spots, or run the action the tool declares. */
+export type Fill =
+  | { kind: 'mask'; mask: Uint8Array }
+  | { kind: 'spots'; spots: HealOp['dabs'] }
+  | { kind: 'custom'; action: AutoAction; found: AutoFound };
 let regionFill: Fill | null = null;
 let detectorStarted = false;
 let hairStarted = false;
@@ -188,7 +204,7 @@ function cancelSearch(): void {
 
 /** For the filter panel. A search that a brush tool started is not the panel's to stop. */
 export function stopFaceSearch(): void {
-  if (!toolLimit.region) cancelSearch();
+  if (!toolLimit.tool) cancelSearch();
 }
 
 /** No face to choose: the person paints the area, starting from an empty mask. */
@@ -340,6 +356,62 @@ async function findHair(
   return found;
 }
 
+/** What a tool can hold on to on this photo. */
+interface Found {
+  /** The region the brush stays on, when the tool has one and the photo shows it. */
+  data: Uint8Array | null;
+  /** The points of each face to frame. */
+  spots: Point[][];
+  /** What the automatic mode does. */
+  fill: Fill | null;
+  /** The tool has something to work on. Without it the brush is the way. */
+  reached: boolean;
+}
+
+/**
+ * Works out what the automatic mode of a tool does on this photo, from a finished search. `scan` is null
+ * only for an action that asked for no search. Null when the search was stopped.
+ */
+async function findFill(
+  tool: string,
+  region: FaceRegion | null,
+  source: SourceImage,
+  masks: NonNullable<Engine['masks']>,
+  scan: FaceScan | null,
+  target: MaskTarget,
+  task: Task | null,
+  stopped: () => boolean,
+): Promise<Found | null> {
+  const faces = scan?.list ?? [];
+  let data: Uint8Array | null = null;
+  let spots: Point[][] = [];
+  if (region === 'hair') {
+    const found = await findHair(source, masks, faces, task!, stopped);
+    if (!found) return null;
+    ({ data, spots } = found);
+  } else if (region) {
+    data = buildRegionMask(faces, region, target);
+    spots = focusPoints(faces, region);
+  }
+  const action = autoAction(tool);
+  if (action) {
+    const reached = region ? !!data : action.faces !== 'required' || faces.length > 0;
+    return { data, spots, reached, fill: reached ? { kind: 'custom', action, found: { faces, source } } : null };
+  }
+  // The automatic mode fills with the region, with its own shape, or for Manchas heals spots in it.
+  let fill: Fill | null = data ? { kind: 'mask', mask: data } : null;
+  const meta = toolById(tool);
+  if (data && meta?.kind === 'heal') {
+    const list = await findSpots(source, masks, faces, data, stopped);
+    if (!list) return null;
+    fill = { kind: 'spots', spots: list };
+  } else if (data && meta?.fill && meta.fill !== region && meta.fill !== 'hair') {
+    const shape = buildRegionMask(faces, meta.fill, target);
+    fill = shape ? { kind: 'mask', mask: shape } : null;
+  }
+  return { data, spots, fill, reached: !!data };
+}
+
 /** Finds faces and shows the rings. With `deeper`, tries the next level of a finished search. */
 export async function searchFaces(e: Engine, deeper = false): Promise<void> {
   const source = e.source;
@@ -384,11 +456,22 @@ export async function chooseFace(e: Engine, face: Face): Promise<void> {
 /** The mask a tool paints on. */
 const layerOf = (tool: string) => toolById(tool)?.layer ?? null;
 
-/** The tool already changed this photo: a mask with paint, or healed spots for Manchas. */
+/** The tool already changed this photo: a mask with paint, healed spots for Manchas, or what its action says. */
 export function hasWork(e: Engine, tool: string): boolean {
+  const action = autoAction(tool);
+  if (action) return action.hasWork(e);
   if (toolById(tool)?.kind === 'heal') return e.doc.heals.length > 0;
   const layer = layerOf(tool);
   return !!layer && !!e.doc.layers[layer]?.painted;
+}
+
+/** Takes the effect of a tool off the photo, as one undo step. */
+export async function clearWork(e: Engine, tool: string): Promise<void> {
+  const action = autoAction(tool);
+  const meta = toolById(tool);
+  if (action) await action.clear(e);
+  else if (meta?.kind === 'heal') await e.healSpots([], 'Limpar');
+  else if (meta?.layer) await e.clearLayer(meta.layer);
 }
 
 /** Automatic, unless the person chose otherwise or the tool already holds work, as in a reopened project. */
@@ -413,19 +496,36 @@ function tellFaceSize(e: Engine, tool: string, source: SourceImage): void {
   e.requestRender();
 }
 
-/** Fills the open tool from what was found, as one undo step: its mask, or the spots it heals. */
+/** Does what the automatic mode found for a tool, as one undo step. */
+async function applyFill(e: Engine, tool: string, fill: Fill, label: string, fadeMs: number): Promise<void> {
+  switch (fill.kind) {
+    case 'spots': {
+      const healed = await e.healSpots(fill.spots, label, async () => bump());
+      if (healed === 0 && toolLimit.tool === tool) toast('Não achei manchas nesta pele. No Manual, toque na que quiser tirar.');
+      return;
+    }
+    case 'mask': {
+      const layer = layerOf(tool);
+      if (!layer) return;
+      if (e.source) tellFaceSize(e, tool, e.source);
+      await e.fillLayer(layer, fill.mask, label, fadeMs);
+      return;
+    }
+    case 'custom':
+      try {
+        await fill.action.apply(e, fill.found);
+      } catch (err) {
+        console.error(err);
+        toast('Não consegui aplicar agora. Tenta de novo ou use o Manual.');
+      }
+  }
+}
+
+/** Fills the open tool from what was found, as one undo step. */
 async function fillRegion(e: Engine, tool: string): Promise<void> {
   const fill = regionFill;
   if (!fill || toolLimit.tool !== tool || toolLimit.mode !== 'auto' || toolLimit.state !== 'on') return;
-  if ('spots' in fill) {
-    const healed = await e.healSpots(fill.spots, 'Automático', async () => bump());
-    if (healed === 0 && toolLimit.tool === tool) toast('Não achei manchas nesta pele. No Manual, toque na que quiser tirar.');
-  } else {
-    const layer = layerOf(tool);
-    if (!layer) return;
-    if (e.source) tellFaceSize(e, tool, e.source);
-    await e.fillLayer(layer, fill.mask, 'Automático', reducedMotion() ? 0 : FILL_FADE_MS);
-  }
+  await applyFill(e, tool, fill, 'Automático', reducedMotion() ? 0 : FILL_FADE_MS);
   bump();
 }
 
@@ -435,7 +535,7 @@ async function fillRegion(e: Engine, tool: string): Promise<void> {
  * In the automatic mode the region also becomes the mask, once the view has shown it. `refill`
  * replaces work already in the mask, for when the person asks for the automatic mode.
  */
-export async function limitTool(e: Engine, tool: string, region: FaceRegion, deeper = false, refill = false): Promise<void> {
+export async function limitTool(e: Engine, tool: string, region: FaceRegion | null, deeper = false, refill = false): Promise<void> {
   const { source, masks } = e;
   if (!source || !masks) return;
   cancelSearch();
@@ -452,47 +552,32 @@ export async function limitTool(e: Engine, tool: string, region: FaceRegion, dee
   const mine = ++current;
   const stopped = () => mine !== current || e.source !== source;
   const hair = region === 'hair';
-  const task = openJob(hair);
+  // Only an action can do without the detector: a region is always looked for.
+  const searching = !!region || !!autoAction(tool)?.faces;
+  const task = searching ? openJob(hair) : null;
   const moves = e.viewMoves;
-  toolLimit.state = 'searching';
-  e.holdStroke = `${LIMIT_WORDS[region].finding}. O pincel já vem.`;
+  if (searching) {
+    toolLimit.state = 'searching';
+    e.holdStroke = `${limitWords(tool, region)?.finding}. O pincel já vem.`;
+  }
   try {
-    const scan = await scanPhoto(source, task, deeper, stopped, hair);
-    if (!scan) return;
-    let data: Uint8Array | null;
-    let spots: Point[][];
+    const scan = task ? await scanPhoto(source, task, deeper, stopped, hair) : null;
+    if (task && !scan) return;
     // One target for the limit and the fill, so they share the skin they find.
-    const target = maskTarget(masks, source);
-    if (region === 'hair') {
-      const found = await findHair(source, masks, scan.list, task, stopped);
-      if (!found) return;
-      ({ data, spots } = found);
-    } else {
-      data = buildRegionMask(scan.list, region, target);
-      spots = focusPoints(scan.list, region);
-    }
-    // The automatic mode fills with the region, with its own shape, or for Manchas heals spots in it.
-    let fill: Fill | null = data ? { mask: data } : null;
-    const meta = toolById(tool);
-    if (data && meta?.kind === 'heal') {
-      const list = await findSpots(source, masks, scan.list, data, stopped);
-      if (!list) return;
-      fill = { spots: list };
-    } else if (data && meta?.fill && meta.fill !== region && meta.fill !== 'hair') {
-      const shape = buildRegionMask(scan.list, meta.fill, target);
-      fill = shape ? { mask: shape } : null;
-    }
+    const found = await findFill(tool, region, source, masks, scan, maskTarget(masks, source), task, stopped);
+    if (!found) return;
     tellFaceSize(e, tool, source);
-    e.setPaintLimit(data);
+    e.setPaintLimit(found.data);
     // The hair segmenter also looks at a photo without faces, so for hair the photo has none.
-    toolLimit.state = data ? 'on' : scan.list.length || hair ? 'no-region' : 'no-face';
-    if (data) {
-      regionFill = fill;
-      const auto = toolLimit.mode === 'auto' && !!fill;
-      if (!fill) toolLimit.mode = 'manual';
+    toolLimit.state = found.reached ? 'on' : scan?.list.length || hair ? 'no-region' : 'no-face';
+    if (found.reached) {
+      regionFill = found.fill;
+      const auto = toolLimit.mode === 'auto' && !!found.fill;
+      if (!found.fill) toolLimit.mode = 'manual';
       const filling = auto && (refill || !hasWork(e, tool));
       e.brushOff = auto;
-      void showRegion(e, spots, e.viewMoves === moves, !shown.has(tool), filling ? () => fillRegion(e, tool) : undefined);
+      // Without a limit there is nothing for the light to show.
+      void showRegion(e, found.spots, e.viewMoves === moves, !!found.data && !shown.has(tool), filling ? () => fillRegion(e, tool) : undefined);
       shown.add(tool);
     } else {
       // Nothing to fill from: the brush is the way.
@@ -505,7 +590,7 @@ export async function limitTool(e: Engine, tool: string, region: FaceRegion, dee
       toolLimit.mode = 'manual';
     }
   } finally {
-    task.stop();
+    task?.stop();
     if (mine === current) {
       facePick.task = null;
       e.holdStroke = null;
@@ -514,10 +599,80 @@ export async function limitTool(e: Engine, tool: string, region: FaceRegion, dee
   }
 }
 
+/** What the automatic mode of some tools found on this photo, ready to apply. */
+export interface PreparedFills {
+  fills: Map<string, Fill>;
+  /** Tools the photo gave nothing to work on, as teeth in a closed mouth. */
+  missed: string[];
+  /** The detector did not load or failed. */
+  failed: boolean;
+  /** Another search or another photo took over. Nothing was found, and nothing should be applied. */
+  stopped: boolean;
+}
+
+/**
+ * Finds what the automatic mode of each tool would do, without opening any of them and without changing
+ * the photo, so that the caller decides how it lands in the history. A tool holding work is left out,
+ * unless `refill`. The open tool must be closed first: this search takes the place of its search.
+ */
+export async function prepareToolFills(e: Engine, tools: readonly string[], { refill = false } = {}): Promise<PreparedFills> {
+  const out: PreparedFills = { fills: new Map(), missed: [], failed: false, stopped: false };
+  const { source, masks } = e;
+  if (!source || !masks) return { ...out, stopped: true };
+  const wanted = tools.filter((tool) => refill || !hasWork(e, tool));
+  if (!wanted.length) return out;
+  cancelSearch();
+  const mine = ++current;
+  const stopped = () => mine !== current || e.source !== source;
+  const hair = wanted.some((tool) => toolById(tool)?.region === 'hair');
+  const task = openJob(hair);
+  try {
+    const scan = await scanPhoto(source, task, false, stopped, hair);
+    if (!scan) return { ...out, stopped: true };
+    // One target for all of them, so they share the skin they find.
+    const target = maskTarget(masks, source);
+    for (const tool of wanted) {
+      await nextPaint();
+      if (stopped()) return { ...out, stopped: true };
+      const found = await findFill(tool, toolById(tool)?.region ?? null, source, masks, scan, target, task, stopped);
+      if (!found) return { ...out, stopped: true };
+      if (found.fill) out.fills.set(tool, found.fill);
+      else out.missed.push(tool);
+    }
+  } catch (err) {
+    console.error(err);
+    if (stopped()) return { ...out, stopped: true };
+    return { fills: new Map(), missed: [...wanted], failed: true, stopped: false };
+  } finally {
+    task.stop();
+    if (mine === current) facePick.task = null;
+    bump();
+  }
+  return out;
+}
+
+/**
+ * Applies what `prepareToolFills` found, each tool as one undo step. To have them all as one step, call
+ * it inside `history.group`. The masks arrive together, and the tools stay in Automático when opened.
+ */
+export async function applyToolFills(
+  e: Engine,
+  fills: ReadonlyMap<string, Fill>,
+  { label = 'Automático', fadeMs = reducedMotion() ? 0 : FILL_FADE_MS }: { label?: string; fadeMs?: number } = {},
+): Promise<void> {
+  const all = [...fills];
+  await Promise.all(all.filter(([, fill]) => fill.kind === 'mask').map(([tool, fill]) => applyFill(e, tool, fill, label, fadeMs)));
+  for (const [tool, fill] of all) {
+    if (fill.kind !== 'mask') await applyFill(e, tool, fill, label, fadeMs);
+    modes.set(tool, 'auto');
+  }
+  bump();
+}
+
 /** The switch of the panel. Off means free painting on this tool, for as long as this photo is open. */
 export function setToolLimit(e: Engine, on: boolean): void {
   const { tool, region } = toolLimit;
-  if (!tool || !region) return;
+  if (!tool) return;
   if (on) {
     freed.delete(tool);
     // Turning the switch on is the moment to see what it does.
@@ -543,7 +698,7 @@ export function setToolLimit(e: Engine, on: boolean): void {
  */
 export function setToolMode(e: Engine, mode: ToolMode): void {
   const { tool, region } = toolLimit;
-  if (!tool || !region || toolLimit.mode === mode) return;
+  if (!tool || toolLimit.mode === mode) return;
   modes.set(tool, mode);
   toolLimit.mode = mode;
   if (mode === 'manual') {
@@ -565,7 +720,7 @@ export function refillRegion(e: Engine): void {
 
 /** The open tool is closing. The engine drops the limit itself when the next tool arrives. */
 export function dropToolLimit(): void {
-  if (toolLimit.region) {
+  if (toolLimit.tool) {
     cancelSearch();
     stopRegionShow(hasEngine() ? engine() : null);
   }

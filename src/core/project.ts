@@ -3,7 +3,7 @@
  * Nothing here leaves the device.
  */
 
-import { FILTER_MASK, type EditDoc, type LayerId } from './doc';
+import { DEFAULT_ADJUST, FILTER_MASK, type EditDoc, type LayerId } from './doc';
 import type { Engine } from './engine';
 
 const DB_NAME = 'glowup';
@@ -24,6 +24,52 @@ export interface ProjectRecord extends ProjectSummary {
   doc: EditDoc;
   masks: Partial<Record<LayerId, Blob>>;
   field: Blob | null;
+}
+
+/**
+ * The project itself can never open: it is missing a part, or its data does not make sense. Only this
+ * error deletes a project. Anything else, as a failed read or a lost GPU, may pass, and the project stays.
+ */
+export class InvalidProjectError extends Error {
+  constructor(reason: string) {
+    super(`invalid-project: ${reason}`);
+    this.name = 'InvalidProjectError';
+  }
+}
+
+const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null;
+const allNumbers = (o: Record<string, unknown>, keys: readonly string[]) => keys.every((k) => Number.isFinite(o[k]));
+
+/** Why a document cannot open, or null when it can. */
+function docProblem(doc: unknown): string | null {
+  if (!isObject(doc)) return 'no document';
+  if (doc.version !== 1) return 'version';
+  const { width, height, adjust, filter, blur, crop, layers, heals } = doc;
+  if (!Number.isInteger(width) || !Number.isInteger(height) || (width as number) < 1 || (height as number) < 1) return 'size';
+  if (!isObject(adjust) || !allNumbers(adjust, Object.keys(DEFAULT_ADJUST))) return 'adjust';
+  if (!isObject(filter) || !allNumbers(filter, ['intensity']) || !(filter.id === null || typeof filter.id === 'string')) return 'filter';
+  if (!isObject(blur) || !['off', 'radial', 'tilt'].includes(blur.mode as string)) return 'blur';
+  if (!allNumbers(blur, ['cx', 'cy', 'focus', 'feather', 'angle', 'strength'])) return 'blur';
+  if (!isObject(crop) || !allNumbers(crop, ['angle', 'quarter', 'cx', 'cy', 'cw', 'ch'])) return 'crop';
+  if (!isObject(layers) || !Object.values(layers).every((l) => isObject(l) && isObject(l.params))) return 'layers';
+  if (!Array.isArray(heals)) return 'heals';
+  const healOk = (h: unknown) =>
+    isObject(h) && allNumbers(h, ['hardness', 'du', 'dv']) && Array.isArray(h.dabs) && h.dabs.every((d) => isObject(d) && allNumbers(d, ['u', 'v', 'r']));
+  if (!heals.every(healOk)) return 'heals';
+  return typeof doc.hasField === 'boolean' ? null : 'field flag';
+}
+
+/** What came out of the store, once it is known to make sense. Throws `InvalidProjectError` when it does not. */
+export function validProject(record: unknown, original: unknown): { record: ProjectRecord; original: Blob } {
+  if (!isObject(record)) throw new InvalidProjectError('no record');
+  if (!(original instanceof Blob) || original.size === 0) throw new InvalidProjectError('no original');
+  const problem = docProblem(record.doc);
+  if (problem) throw new InvalidProjectError(problem);
+  const { masks, field, thumb } = record;
+  if (!isObject(masks) || !Object.values(masks).every((m) => m instanceof Blob)) throw new InvalidProjectError('masks');
+  if (!(field === null || field instanceof Blob)) throw new InvalidProjectError('field');
+  if (!(thumb instanceof Blob)) throw new InvalidProjectError('thumb');
+  return { record: record as unknown as ProjectRecord, original };
 }
 
 function open(): Promise<IDBDatabase> {
@@ -77,12 +123,22 @@ export async function pack(data: Uint8Array): Promise<Blob> {
   return new Blob([new Uint8Array([1]), packed]);
 }
 
+/**
+ * The bytes `pack` stored. A failed read stays an ordinary error, and so does running out of memory. Bytes
+ * that are in hand and do not unpack can never open, so those are an `InvalidProjectError`.
+ */
 export async function unpack(blob: Blob): Promise<Uint8Array> {
-  const header = new Uint8Array(await blob.slice(0, 1).arrayBuffer())[0];
-  const body = blob.slice(1);
-  if (header === 0) return new Uint8Array(await body.arrayBuffer());
-  const stream = body.stream().pipeThrough(new DecompressionStream('deflate'));
-  return new Uint8Array(await new Response(stream).arrayBuffer());
+  const stored = new Uint8Array(await blob.arrayBuffer());
+  const header = stored[0];
+  if (header === 0) return stored.slice(1);
+  if (header !== 1) throw new InvalidProjectError('packed data');
+  const stream = new Blob([stored.subarray(1)]).stream().pipeThrough(new DecompressionStream('deflate'));
+  try {
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+  } catch (err) {
+    if (err instanceof RangeError) throw err;
+    throw new InvalidProjectError('packed data');
+  }
 }
 
 /** Saves the session in the background. Masks are read only when they changed. */

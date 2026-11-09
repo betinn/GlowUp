@@ -18,7 +18,8 @@
     try {
       const { listProjects } = await import('../core/project');
       const list = await listProjects();
-      recents = list.map((p) => ({ id: p.id, name: p.name, thumb: p.thumb, url: URL.createObjectURL(p.thumb) }));
+      // A damaged project may have no picture, and it must not take the rest of the list with it.
+      recents = list.map((p) => ({ id: p.id, name: p.name, thumb: p.thumb, url: p.thumb instanceof Blob ? URL.createObjectURL(p.thumb) : '' }));
     } catch {
       recents = [];
     }

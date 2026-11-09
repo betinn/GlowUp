@@ -4,7 +4,7 @@
   import BrushControls from '../BrushControls.svelte';
   import ColorRow from '../ColorRow.svelte';
   import { toolLimit } from '../facepick.svelte';
-  import RegionLimit from './RegionLimit.svelte';
+  import AutoMode from './AutoMode.svelte';
   import Segment from '../Segment.svelte';
   import Slider from '../Slider.svelte';
   import { bump, engine, ui } from '../state.svelte';
@@ -29,7 +29,7 @@
   }
 
   /** The automatic mode has no brush: the detector draws the mask. */
-  const brushShown = $derived(!toolLimit.region || toolLimit.mode === 'manual');
+  const brushShown = $derived(!toolLimit.tool || toolLimit.mode === 'manual');
 
   /** Hair color hides the old modes, which only projects saved before the Cabelo group still use. */
   function visible(key: string) {
@@ -41,9 +41,7 @@
 
 {#if state}
   <!-- First in the panel: on a phone it is short, and this says where the brush stands. -->
-  {#if toolLimit.region}
-    <RegionLimit {layer} />
-  {/if}
+  <AutoMode />
   {#each tool.controls as c (c.key)}
     {#if visible(c.key)}
       {#if c.type === 'slider'}
