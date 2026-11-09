@@ -248,7 +248,7 @@ test.describe('fotos difíceis', () => {
       mimeType: '',
       buffer: readFileSync('tests/fixtures/gradient.png'),
     });
-    await page.getByTestId('path-choice').waitFor({ timeout: 90_000 });
+    await expect(page.getByTestId('path-choice')).toBeVisible({ timeout: 90_000 });
   });
 
   test('Sombras não faz o ruído de cor de um preto virar mancha colorida', async ({ page }) => {
