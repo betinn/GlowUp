@@ -3,6 +3,7 @@
    * The completion of what a warp uncovers, as the panels of the face menu show it: progress with the time
    * left while it runs, a way to stop it, and a way to start it again.
    */
+  import { onPhone } from './device';
   import { cancelFill, fill, startFill } from './fill.svelte';
   import ProgressCard from './ProgressCard.svelte';
   import { engine } from './state.svelte';
@@ -11,7 +12,7 @@
   const busy = $derived(fill.state === 'download' || fill.state === 'running');
   const note = $derived(
     fill.state === 'download'
-      ? 'Baixa uma vez, cerca de 29 MB, e fica no aparelho. Já dá para mexer nos controles.'
+      ? `Baixa uma vez${onPhone() ? ', cerca de 29 MB: melhor no Wi-Fi' : ''}, e fica no aparelho. Já dá para mexer nos controles.`
       : 'Já dá para mexer nos controles: o que aparece atrás melhora quando terminar.',
   );
 </script>

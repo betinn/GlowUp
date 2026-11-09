@@ -137,7 +137,10 @@ duas linhas, em 84 px no computador e em 44 px no celular.
 - **O cartão de preenchimento.** Enquanto o modelo trabalha, o painel mostra a porcentagem, o passo e quanto
   falta, "cerca de 8 s" ou "cerca de 2 min", medido neste aparelho. Os controles funcionam durante. "Cancelar"
   para e deixa o palpite liso, com um botão "Completar com mais qualidade". Se o modelo não baixou, "Tentar de
-  novo". A exportação espera o preenchimento acabar. A primeira vez baixa cerca de 29 MB, e o cartão diz.
+  novo". A exportação espera o preenchimento acabar.
+- **Download.** A primeira vez baixa os modelos, e todo cartão de download mostra a porcentagem real e quanto
+  falta, pela velocidade que a rede teve até ali. Só num celular o cartão diz o tamanho, "cerca de 22 MB: melhor
+  no Wi-Fi" na separação e "cerca de 29 MB" no preenchimento. No computador não há aviso de tamanho.
 - **O que muda no fundo.** Junto da cabeça que se afastou, uns pixels de borda, e em volta do cabelo o chão onde
   havia pontas soltas, até 10% do tamanho do rosto. Tudo o mais sai igual ao original.
 - **Sem separar.** O painel diz o motivo e o que acontece: o fundo perto do rosto mexe junto, e o tamanho da

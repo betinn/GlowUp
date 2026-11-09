@@ -8,7 +8,7 @@
 import type { Engine } from '../core/engine';
 import { completePlates, type Inpaint } from '../core/face/complete';
 import type { InpaintAnswer, InpaintAsk } from '../core/face/inpaint.worker';
-import type { Stage } from '../core/progress';
+import { timeLeft, type Stage } from '../core/progress';
 import { bump } from './state.svelte';
 import { Task } from './task.svelte';
 
@@ -20,6 +20,9 @@ export const FILL_RUNTIME_BYTES = 28_747_738;
 const SPEED_KEY = 'glowup.fillTileMs';
 /** Before anything was measured: what a tile took on the machines this was built on. */
 const USUAL_TILE_MS = { webgpu: 150, wasm: 2200 };
+/** Where the time the model took to start on this device is kept, and what it usually takes. */
+const START_KEY = 'glowup.fillStartMs';
+const USUAL_START_MS = 2500;
 
 export type FillState = 'idle' | 'download' | 'running' | 'done' | 'off' | 'failed';
 
@@ -117,6 +120,24 @@ const inpaint: Inpaint = async (rgb, known, w, h) => {
   return answer.rgb;
 };
 
+/** A number this device measured before, or null. */
+function keptNumber(key: string): number | null {
+  try {
+    const kept = Number(localStorage.getItem(key));
+    return kept > 0 ? kept : null;
+  } catch {
+    return null;
+  }
+}
+
+function keepNumber(key: string, value: number): void {
+  try {
+    localStorage.setItem(key, String(Math.round(value)));
+  } catch {
+    // A convenience only.
+  }
+}
+
 function tileSpeed(how: 'webgpu' | 'wasm'): number {
   try {
     const kept = JSON.parse(localStorage.getItem(SPEED_KEY) ?? '{}') as Record<string, number>;
@@ -144,13 +165,6 @@ function held(): boolean {
   } catch {
     return false;
   }
-}
-
-/** A time in the words of the card: seconds up to a minute and a half, then minutes. */
-export function timeLeft(ms: number): string {
-  const seconds = Math.max(1, Math.round(ms / 1000));
-  if (seconds < 90) return `cerca de ${seconds} s`;
-  return `cerca de ${Math.round(seconds / 60)} min`;
 }
 
 /**
@@ -184,10 +198,15 @@ export function startFill(e: Engine, why: 'tool' | 'project' | 'asked'): void {
   settled = (async () => {
     try {
       if (!backend) task.stage('download');
+      let startedAt = 0;
       const how = await loadModel(
-        (fraction) => task.report(fraction),
-        () => task.stage('start'),
+        (fraction) => task.timed(fraction),
+        () => {
+          startedAt = performance.now();
+          task.stage('start', timeLeft(keptNumber(START_KEY) ?? USUAL_START_MS));
+        },
       );
+      if (startedAt) keepNumber(START_KEY, performance.now() - startedAt);
       fill.backend = how;
       if (stopped()) return;
       fill.state = 'running';

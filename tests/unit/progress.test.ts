@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { creep, StagedProgress, type Stage } from '../../src/core/progress';
+import { creep, leftFrom, StagedProgress, timeLeft, type Stage } from '../../src/core/progress';
+import { isPhone } from '../../src/ui/device';
 
 const STAGES: Stage[] = [
   { id: 'read', label: 'Lendo', weight: 20 },
@@ -70,5 +71,43 @@ describe('creep', () => {
     expect(creep(0, 1000)).toBe(0);
     expect(creep(1000, 1000)).toBeGreaterThan(0.6);
     expect(creep(100_000, 1000)).toBeLessThan(0.93);
+  });
+});
+
+describe('the time left', () => {
+  it('is said in seconds up to a minute and a half, then in minutes, and never as zero', () => {
+    expect(timeLeft(40)).toBe('cerca de 1 s');
+    expect(timeLeft(8400)).toBe('cerca de 8 s');
+    expect(timeLeft(89_000)).toBe('cerca de 89 s');
+    expect(timeLeft(120_000)).toBe('cerca de 2 min');
+  });
+
+  it('comes from how fast the step went so far: a download at the speed it has had', () => {
+    // A quarter done in 5 s leaves three times that.
+    expect(leftFrom(5000, 0.25)).toBe('cerca de 15 s');
+    // 10 MB of 40 MB in 30 s: a minute and a half to go.
+    expect(leftFrom(30_000, 10 / 40)).toBe('cerca de 2 min');
+  });
+
+  it('says nothing while there is too little to go by, or when the step is over', () => {
+    expect(leftFrom(200, 0.5)).toBe('');
+    expect(leftFrom(5000, 0.01)).toBe('');
+    expect(leftFrom(5000, 1)).toBe('');
+  });
+});
+
+describe('a phone', () => {
+  it('is told from a tablet and from a computer, by what the browser says of itself', () => {
+    expect(isPhone('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Version/17.0 Mobile/15E148 Safari/604.1')).toBe(true);
+    expect(isPhone('Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/126.0.0.0 Mobile Safari/537.36')).toBe(true);
+    expect(isPhone('Mozilla/5.0 (Android 14; Mobile; rv:127.0) Gecko/127.0 Firefox/127.0')).toBe(true);
+    expect(isPhone('Mozilla/5.0 (Linux; Android 14; SM-X710) AppleWebKit/537.36 Chrome/126.0.0.0 Safari/537.36')).toBe(false);
+    expect(isPhone('Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Version/17.0 Mobile/15E148 Safari/604.1')).toBe(false);
+    expect(isPhone('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126.0.0.0 Safari/537.36')).toBe(false);
+  });
+
+  it('believes the hint of the browser over its user agent', () => {
+    expect(isPhone('Mozilla/5.0 (Windows NT 10.0; Win64; x64)', true)).toBe(true);
+    expect(isPhone('Mozilla/5.0 (Linux; Android 14; Pixel 8) Mobile Safari/537.36', false)).toBe(false);
   });
 });

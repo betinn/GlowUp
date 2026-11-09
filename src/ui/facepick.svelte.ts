@@ -17,6 +17,7 @@ import { faceSpan, skinArea, spotGuard } from '../core/face/skin';
 import type { HealOp } from '../core/doc';
 import { nextPaint, type Stage } from '../core/progress';
 import { buildMouthMask } from '../core/face/makeup';
+import { onPhone } from './device';
 import { forgetFill, startFill } from './fill.svelte';
 import { finishMattes, personConfidence } from '../core/face/person';
 import { autoAction, type AutoAction, type AutoFound, type AutoWords } from '../tools/auto';
@@ -72,8 +73,13 @@ function stagesFor(hair: boolean, person = false): Stage[] {
 /** What the first search still has to download, in the words of the progress card. */
 function downloadNote(hair: boolean, person = false): string {
   // Sizes on the wire, with brotli: detector 6 MB, hair 0.7 MB, person and background 15 MB.
-  const personSize = person && !personStarted ? (hairStarted ? 'cerca de 15 MB' : 'cerca de 16 MB') : '';
-  const size = !detectorStarted ? (person ? 'cerca de 22 MB' : hair ? 'cerca de 7 MB' : 'cerca de 6 MB') : personSize || (hair && !hairStarted ? 'cerca de 1 MB' : '');
+  if (person && !personStarted) {
+    // The large one. Its size is a warning for a phone, which may be on mobile data, and for nobody else.
+    if (!onPhone()) return 'Só na primeira vez. A foto não sai do seu aparelho.';
+    const size = !detectorStarted ? 'cerca de 22 MB' : hairStarted ? 'cerca de 15 MB' : 'cerca de 16 MB';
+    return `Só na primeira vez, ${size}: melhor no Wi-Fi. A foto não sai do seu aparelho.`;
+  }
+  const size = !detectorStarted ? (hair ? 'cerca de 7 MB' : 'cerca de 6 MB') : hair && !hairStarted ? 'cerca de 1 MB' : '';
   return size ? `Só na primeira vez, ${size}. A foto não sai do seu aparelho.` : '';
 }
 
@@ -243,7 +249,7 @@ export async function scanPhoto(source: SourceImage, task: Task, deeper: boolean
   const { FaceScan, loadDetector } = await import('../core/face/detector');
   await loadDetector(
     (fraction) => {
-      if (loads) task.report(fraction);
+      if (loads) task.timed(fraction);
     },
     () => {
       if (loads) task.stage('start');
@@ -258,7 +264,7 @@ export async function scanPhoto(source: SourceImage, task: Task, deeper: boolean
   if (!scan?.finished || deeper) {
     scan ??= new FaceScan(source);
     scans.set(source, scan);
-    await scan.run((fraction) => task.report(fraction), stopped);
+    await scan.run((fraction) => task.timed(fraction), stopped);
   }
   if (stopped()) return null;
   facePick.faces = scan.list;
@@ -296,7 +302,7 @@ export async function findLock(e: Engine, faces: readonly Face[], task: Task | n
     const { loadDetector, segmentHair, segmentParts } = await import('../core/face/detector');
     await loadDetector(
       (fraction) => {
-        if (loads) task?.report(fraction);
+        if (loads) task?.timed(fraction);
       },
       () => undefined,
       true,
@@ -312,7 +318,7 @@ export async function findLock(e: Engine, faces: readonly Face[], task: Task | n
       faces,
       { parts: (area) => segmentParts(source, area), hair: (area) => segmentHair(source, area) },
       nextPaint,
-      (fraction) => task?.report(fraction),
+      (fraction) => task?.timed(fraction),
       stopped,
     );
     if (!seen) return false;

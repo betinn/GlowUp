@@ -270,7 +270,7 @@ export interface PlateSet {
 }
 
 export interface CompleteEvents {
-  /** A tile is done, of this many. */
+  /** A tile is done, of this many. Called once with none done, when the count is known. */
   tile(done: number, total: number): void;
   /** A plate is finished, at full size. */
   plate(which: 'back' | 'head', data: Uint8Array): void;
@@ -402,6 +402,8 @@ export async function completePlates(plates: PlateSet, inpaint: Inpaint, events:
   const plansBody = ringsOf(holeBody, toSeen, sw, sh);
   const total = [...plansBack, ...plansBody].reduce((sum, plan) => sum + plan.tiles.length, 0);
   let done = 0;
+  // Before the first tile, so the wait can be told from the start.
+  events.tile(0, total);
   const count = { tile: () => events.tile(++done, total), stopped: events.stopped };
   for (const plan of plansBack) if (!(await runFill(back, plan, sw, sh, inpaint, count))) return false;
   // The body alone, with the smooth guess of its own colors everywhere else, for the model to carry on from.

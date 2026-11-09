@@ -539,3 +539,50 @@ test.describe('o que fica atrás de quem se mexe', () => {
     expectNoErrors(errors);
   });
 });
+
+test.describe('o aviso do tamanho do download', () => {
+  /** A network of about 6 MB per second, so a download lasts long enough to say how long it will take. */
+  const slowNetwork = async (page: Page) => {
+    const session = await page.context().newCDPSession(page);
+    await session.send('Network.emulateNetworkConditions', { offline: false, latency: 10, downloadThroughput: 6_000_000, uploadThroughput: 6_000_000 });
+  };
+
+  for (const [device, userAgent, sized] of [
+    ['no celular diz o tamanho', 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36', true],
+    ['no computador não fala em tamanho', '', false],
+  ] as const) {
+    test.describe(device, () => {
+      // The hint of the browser goes with the user agent, as on a real phone.
+      if (userAgent) test.use({ userAgent, isMobile: true });
+
+      test('ao separar a pessoa do fundo e ao baixar o modelo de preenchimento, e o tempo que falta aparece', async ({ page }) => {
+        test.setTimeout(300_000);
+        const errors = watch(page);
+        await openEditor(page);
+        await slowNetwork(page);
+        await page.locator('[data-group=shape]').click();
+        await page.locator('[data-tool=faceshape]').click();
+        const search = page.locator('[data-shape=searching]');
+        await expect(search.locator('[role=progressbar]')).toBeVisible({ timeout: 60_000 });
+        await expect(search).toContainText('A foto não sai do seu aparelho');
+        if (sized) await expect(search).toContainText(/cerca de 22 MB: melhor no Wi-Fi/);
+        else await expect(search).not.toContainText('MB');
+        // Nobody waits blind: a download says how long it still takes, from the speed it has had.
+        await expect(search).toContainText(/Baixando [^,]+, cerca de \d+ (s|min)/, { timeout: 60_000 });
+        await expect(page.locator('[data-shape=on]')).toHaveCount(1, { timeout: 120_000 });
+        await page.getByTestId('fill-start').click();
+        const card = page.locator('[data-fill=download]');
+        await expect(card).toHaveCount(1, { timeout: 30_000 });
+        await expect(card).toContainText('Baixa uma vez');
+        if (sized) await expect(card).toContainText(/cerca de 29 MB: melhor no Wi-Fi/);
+        else await expect(card).not.toContainText('MB');
+        await expect(card).toContainText(/Baixando o modelo de preenchimento, cerca de \d+ (s|min)/, { timeout: 60_000 });
+        // Starting the model has no count of its own, so it says how long it took before.
+        await expect(card).toContainText(/Ligando o modelo, cerca de \d+ s/, { timeout: 120_000 });
+        await page.getByTestId('fill-cancel').click();
+        await expect(page.locator('[data-fill=off]')).toHaveCount(1);
+        expectNoErrors(errors);
+      });
+    });
+  }
+});
