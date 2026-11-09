@@ -222,9 +222,73 @@ Cada uma segue o mesmo caminho dos olhos e dentes, com as palavras do cabelo.
 
 - **Por menu.** "Zerar" aparece no fim da fila de ferramentas quando o menu tem algo a tirar. Tira as máscaras e
   os controles das ferramentas do menu, e também o que é só dele: manchas em Pele, liquify em Forma, filtro e
-  área em Looks, ajustes e desfoque em Luz, recorte em Quadro. Um aviso diz que o desfazer traz de volta.
+  área em Filtros, ajustes e desfoque em Luz, recorte em Quadro. Um aviso diz que o desfazer traz de volta.
 - **A foto toda.** Ícone no topo, ao lado do desfazer, apagado quando não há nada a tirar. Tira tudo num toque,
   sem pergunta: o desfazer, logo ao lado, traz tudo de volta se foi sem querer.
+
+## Filtros
+
+Um menu sério, no lugar de Looks. Filtro só mexe em cor, grão e vinheta. Nada aqui muda o desenho de um rosto, e o
+que brinca com a forma fica para outro menu. Um filtro de cada vez.
+
+- **Sugestão.** No topo, um filtro escolhido pelo tom da foto, com a miniatura e o motivo em uma frase. Ela só
+  sugere: nada muda na foto até o toque, e a pessoa escolhe outro quando quiser. O motivo diz o que o filtro alivia
+  de fato, então nunca promete o que ele não faz.
+- **Categorias.** Em linha, com Todos e Favoritos na frente. A estrela de cada miniatura guarda o favorito.
+- **Intensidade.** Aparece com o primeiro filtro e vale para tudo que ele traz: cor, grão e vinheta.
+- **No celular.** Os filtros correm em uma linha logo abaixo da foto, com a intensidade em seguida. Com um filtro
+  ligado, a sugestão sai para dar lugar à intensidade, e volta quando ele sai.
+
+### Como adicionar um filtro
+
+Basta um arquivo em `src/presets/filters/`, com qualquer nome, terminado em `.json`. Nenhum código muda, nem o de
+render. Ele entra no menu, na exportação e na sugestão sozinho.
+
+```json
+{
+  "id": "novo",
+  "name": "Novo",
+  "category": "Sol",
+  "grain": 10,
+  "vignette": 12,
+  "adjust": { "vibrance": 15 },
+  "lut": { "ops": [{ "op": "warm", "t": 0.2 }, { "op": "saturate", "k": 1.05 }] }
+}
+```
+
+- `id` e `name` não se repetem. O nome é da casa: nunca o nome ou a marca de um filtro de outro app. Os testes
+  conferem isso numa lista conhecida.
+- `category`: uma nova entra no fim do menu. A ordem das conhecidas fica em `CATEGORY_ORDER`, em `presets/luts.ts`.
+- `lut`: ou uma receita, com `ops` em ordem (`curve`, `rgbCurves`, `fade`, `saturate`, `warm`, `split`, `hueBand`,
+  `mono`, descritas no tipo `OpData`), ou uma tabela medida, com `size` e `table`, que é o que o script de réplica
+  escreve.
+- `grain` (0 a 100) e `vignette` (-100 a 100) são opcionais e têm as escalas do painel Ajustes.
+- `adjust` é opcional e tem as escalas do painel Ajustes, menos Nitidez, Granulação e Vinheta.
+- `suggest: false` deixa o filtro fora da sugestão. Serve para visual forte, que é escolha da pessoa.
+
+### Como replicar um filtro de fotos antes e depois
+
+```bash
+npm run replicate -- --pair antes.jpg depois.jpg --holdout antes2.jpg depois2.jpg --id novo --name "Novo" --category "Sol"
+```
+
+O script alinha as fotos, ajusta uma tabela 3D, mede curva de tom, grão e vinheta e testa o resultado no par separado.
+Mais de um `--pair` cobre mais cores. Tudo roda na máquina. Por padrão ele escreve em `.tmp/replica/`, fora do
+repositório, o arquivo do filtro e um relatório. Depois é ler o relatório e copiar o `.json` para
+`src/presets/filters/`. Só esse arquivo entra no repositório: nunca as fotos.
+
+- **Erro de cor.** Delta E 2000 nas fotos do ajuste e no par separado. O do par separado é o que vale. Até 2 é
+  difícil de ver lado a lado.
+- **Efeito local.** O relatório avisa quando parte da foto muda por conta própria: luz só no rosto, ou pele alisada.
+  Uma tabela global não faz isso, e o filtro sai sem esse efeito. O par ainda serve, mas o resultado vai parecer mais
+  fraco que o original.
+- **Limites.** A tabela só aprende as cores que as fotos mostram. O resto é extrapolado, e o relatório diz quanto
+  do cubo foi coberto. Luz local num rosto cuja cor não aparece em mais nenhum lugar da foto passa por efeito global.
+  Grão fino não dá para separar da compressão se uma das fotos foi redimensionada, então ele pode sair menor que o
+  real, e vinheta fraca em foto escura também.
+
+`npm run replicate:validate -- <pasta de fotos>` repete a prova: aplica filtros conhecidos às fotos, entrega só os
+resultados ao script e compara o que volta com o que entrou.
 
 ## Filtro em um rosto
 

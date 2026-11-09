@@ -29,6 +29,8 @@ npm run dev
 | `npm run e2e` | fluxos, telas e validação visual, na GPU e em paralelo (precisa de `npm run build` antes) |
 | `npm run fixtures` | regenera as imagens de teste procedurais |
 | `npm run scan` | varredura de higiene do repositório, do histórico e do `dist/` |
+| `npm run replicate` | cria um filtro a partir de fotos antes e depois, com relatório (veja [docs/DESIGN.md](docs/DESIGN.md)) |
+| `npm run replicate:validate` | prova o script de réplica com filtros conhecidos, em uma pasta de fotos |
 
 O e2e roda na GPU do aparelho e em 75% dos núcleos. `E2E_GPU=0` volta ao SwiftShader, para máquina
 sem GPU, e `E2E_PORT` troca a porta do preview, para duas cópias do repositório testarem ao mesmo tempo.
@@ -55,7 +57,10 @@ etapa do desfazer.
 
 **Forma:** liquify (empurrar, inflar, contrair, restaurar).
 
-**Geral:** 40 filtros em 10 categorias com intensidade e favoritos, receitas prontas e suas,
+**Filtros:** 40 filtros em 10 categorias, com intensidade, favoritos e uma sugestão pelo tom da foto. Cada filtro é um
+arquivo de dados, com cor, grão, vinheta e ajustes, e nunca muda o desenho do rosto.
+
+**Geral:** receitas prontas e suas,
 11 ajustes, desfoque radial e tilt-shift, recorte com rotação, espelho, endireitar e proporções,
 antes/depois (segurar ou dividir, com a foto original ou só sem o filtro), exportação em JPG, PNG e WebP.
 
