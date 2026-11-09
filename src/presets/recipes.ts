@@ -9,10 +9,10 @@ export interface RetouchPreset {
   adjust: Partial<Adjustments>;
   filter: FilterState;
   tools: Partial<Record<LayerId, Params>>;
-  custom?: boolean;
 }
 
-export const BUILTIN_PRESETS: RetouchPreset[] = [
+/** The looks of Glow na Hora. They go on any face, so they stay on what flatters any face: no color on the lips. */
+export const LOOKS: readonly RetouchPreset[] = [
   {
     id: 'natural',
     name: 'Natural',
@@ -33,9 +33,9 @@ export const BUILTIN_PRESETS: RetouchPreset[] = [
     adjust: { exposure: 6, shadows: 14, highlights: -10, vibrance: 10, temperature: 6 },
     filter: { id: 'mel', intensity: 0.35 },
     tools: {
-      smooth: { mode: 'light', strength: 80, texture: 95 },
-      highlight: { intensity: 70, glow: 65 },
-      blush: { opacity: 30 },
+      smooth: { mode: 'light', strength: 65, texture: 95 },
+      highlight: { intensity: 35, glow: 40 },
+      blush: { opacity: 12 },
     },
   },
   {
@@ -45,8 +45,8 @@ export const BUILTIN_PRESETS: RetouchPreset[] = [
     adjust: { contrast: 18, highlights: -14, shadows: -6, saturation: -8, sharpen: 24, vignette: 14 },
     filter: { id: 'capa', intensity: 0.7 },
     tools: {
-      smooth: { mode: 'strong', strength: 65, texture: 110 },
-      contour: { opacity: 45 },
+      smooth: { mode: 'light', strength: 65, texture: 110 },
+      contour: { opacity: 22 },
       sparkle: { contrast: 65, sharp: 60 },
     },
   },
@@ -57,18 +57,6 @@ export const BUILTIN_PRESETS: RetouchPreset[] = [
     adjust: { exposure: 4, contrast: -6, shadows: 18, temperature: 12, grain: 10 },
     filter: { id: 'verao-78', intensity: 0.45 },
     tools: { smooth: { mode: 'light', strength: 50, texture: 100 } },
-  },
-  {
-    id: 'festa',
-    name: 'Festa',
-    note: 'Olho aceso, make marcada.',
-    adjust: { contrast: 12, vibrance: 16, sharpen: 16 },
-    filter: { id: 'neon-baixo', intensity: 0.3 },
-    tools: {
-      sparkle: { contrast: 75, sharp: 65 },
-      lips: { opacity: 70, shine: 45 },
-      highlight: { intensity: 60, glow: 55 },
-    },
   },
   {
     id: 'preto-e-branco',
@@ -91,19 +79,19 @@ export function applyPresetToDoc(doc: EditDoc, preset: RetouchPreset): void {
   }
 }
 
-/** Captures the current look as a new preset. */
-export function presetFromDoc(doc: EditDoc, name: string): RetouchPreset {
-  const tools: RetouchPreset['tools'] = {};
-  for (const [id, layer] of Object.entries(doc.layers) as [LayerId, EditDoc['layers'][LayerId]][]) {
-    if (layer) tools[id] = { ...layer.params };
-  }
-  return {
-    id: `custom-${Date.now().toString(36)}`,
-    name,
-    note: 'Sua receita.',
-    adjust: { ...doc.adjust },
-    filter: { id: doc.filter.id, intensity: doc.filter.intensity },
-    tools,
-    custom: true,
-  };
+/** The settings of a preset are in the document, untouched. Masks do not count: a mouth may hold no teeth. */
+function wears(doc: EditDoc, preset: RetouchPreset): boolean {
+  const adjust: Adjustments = { ...DEFAULT_ADJUST, ...preset.adjust };
+  if ((Object.keys(adjust) as (keyof Adjustments)[]).some((key) => doc.adjust[key] !== adjust[key])) return false;
+  if (doc.filter.id !== preset.filter.id || doc.filter.intensity !== preset.filter.intensity) return false;
+  return (Object.entries(preset.tools) as [LayerId, Params][]).every(([id, params]) => {
+    const layer = doc.layers[id];
+    return !!layer && Object.entries(params).every(([key, value]) => layer.params[key] === value);
+  });
 }
+
+/**
+ * The look the document wears. It is read from the document, so undo, redo and a project opened again
+ * all tell the truth, and a look changed by hand no longer counts as that look.
+ */
+export const appliedLook = (doc: EditDoc): RetouchPreset | undefined => LOOKS.find((look) => wears(doc, look));

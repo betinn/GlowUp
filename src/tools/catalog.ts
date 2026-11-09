@@ -4,7 +4,7 @@ import type { LayerId } from '../core/doc';
 import type { FaceRegion } from '../core/face/regions';
 import type { ToolModule } from './types';
 
-export type ToolKind = 'mask' | 'heal' | 'liquify' | 'adjust' | 'filters' | 'presets' | 'blur' | 'crop';
+export type ToolKind = 'mask' | 'heal' | 'liquify' | 'adjust' | 'filters' | 'blur' | 'crop';
 export type GroupId = 'skin' | 'eyes' | 'makeup' | 'hair' | 'shape' | 'looks' | 'light' | 'frame';
 
 export interface ToolMeta {
@@ -61,7 +61,6 @@ export const TOOLS: ToolMeta[] = [
 
   { id: 'liquify', label: 'Liquify', group: 'shape', kind: 'liquify', hint: 'Empurre, infle ou contraia. Devagar fica mais natural.' },
 
-  { id: 'presets', label: 'Receitas', group: 'looks', kind: 'presets', hint: 'Combinações prontas de ajustes e ferramentas.' },
   { id: 'filters', label: 'Filtros', group: 'looks', kind: 'filters', hint: 'Toque de novo no filtro para tirar.' },
 
   { id: 'adjust', label: 'Ajustes', group: 'light', kind: 'adjust', hint: 'Dois toques em um controle voltam ao zero.' },

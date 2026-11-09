@@ -12,10 +12,11 @@ out vec4 outColor;
 uniform sampler2D uInput;
 uniform sampler3D uLut;
 uniform float uLutSize;
+uniform float uMix;
 void main() {
   vec3 c = texture(uInput, vUv).rgb;
   vec3 coord = c * ((uLutSize - 1.0) / uLutSize) + 0.5 / uLutSize;
-  outColor = vec4(texture(uLut, coord).rgb, 1.0);
+  outColor = vec4(mix(c, texture(uLut, coord).rgb, uMix), 1.0);
 }
 `;
 
@@ -44,11 +45,12 @@ export class ThumbRenderer {
     });
   }
 
-  async render(recipe: LutRecipe, canvas: HTMLCanvasElement): Promise<void> {
+  /** `mix` is how much of the filter shows, as its intensity does on the photo. */
+  async render(recipe: LutRecipe, canvas: HTMLCanvasElement, mix = 1): Promise<void> {
     const { glc } = this.engine;
     if (!this.base || !this.target) return;
     this.lut = glc.createLut(LUT_SIZE, buildLut(recipe, LUT_SIZE), this.lut);
-    glc.run(glc.program(shader(LUT_FRAG)), this.target, { uInput: this.base, uLut: this.lut, uLutSize: LUT_SIZE });
+    glc.run(glc.program(shader(LUT_FRAG)), this.target, { uInput: this.base, uLut: this.lut, uLutSize: LUT_SIZE, uMix: mix });
     const { data } = await glc.readAsync(this.target, { x: 0, y: 0, w: SIZE, h: SIZE });
     canvas.width = SIZE;
     canvas.height = SIZE;

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { boxBlur, buildFaceMask, fadeAlong, fillPolygon, guidedFilter, softBlur, type Point } from '../../src/core/face/mask';
 import { featherLod } from '../../src/core/pipeline/pipeline';
 import { createDoc } from '../../src/core/doc';
-import { applyPresetToDoc, BUILTIN_PRESETS, presetFromDoc } from '../../src/presets/recipes';
+import { applyPresetToDoc, LOOKS } from '../../src/presets/recipes';
 
 const sum = (a: ArrayLike<number>) => Array.from(a).reduce((n, v) => n + v, 0);
 
@@ -203,15 +203,9 @@ describe('recipes and the filter area', () => {
   it('a recipe changes the filter and keeps the chosen area', () => {
     const doc = createDoc(100, 100);
     doc.filter = { id: 'prata', intensity: 1, masked: true, feather: 30, reach: 0.2 };
-    applyPresetToDoc(doc, BUILTIN_PRESETS[0]);
-    expect(doc.filter.id).toBe(BUILTIN_PRESETS[0].filter.id);
+    applyPresetToDoc(doc, LOOKS[0]);
+    expect(doc.filter.id).toBe(LOOKS[0].filter.id);
     expect(doc.filter.masked).toBe(true);
     expect(doc.filter.reach).toBe(0.2);
-  });
-
-  it('a saved recipe never carries the area of one photo', () => {
-    const doc = createDoc(100, 100);
-    doc.filter = { id: 'prata', intensity: 1, masked: true, feather: 30, reach: 0.2 };
-    expect(presetFromDoc(doc, 'minha').filter).toEqual({ id: 'prata', intensity: 1 });
   });
 });

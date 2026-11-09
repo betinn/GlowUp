@@ -140,22 +140,32 @@ export interface RecipeOutcome {
   stopped: boolean;
 }
 
+export interface RecipeOptions {
+  /** Fill over the work a mask holds. */
+  refill?: boolean;
+  fadeMs?: number;
+  /** Masks to empty in the same undo step, so a look can take the place of another. */
+  clear?: LayerId[];
+}
+
 /**
  * Applies a recipe and fills the masks of its tools from the detector, all as one undo step, so one undo
  * takes the look off. The open tool closes first. A mask holding work keeps it, unless `refill`. The
  * search shows on `facePick.task`, for whoever wants a progress card. Throws when the code of a tool does
  * not load, with the photo as it was.
  */
-export async function applyRecipe(preset: RetouchPreset, { refill = false, fadeMs }: { refill?: boolean; fadeMs?: number } = {}): Promise<RecipeOutcome> {
+export async function applyRecipe(preset: RetouchPreset, { refill = false, fadeMs, clear = [] }: RecipeOptions = {}): Promise<RecipeOutcome> {
   const e = engine();
   await selectTool(null);
   const layers = Object.keys(preset.tools) as LayerId[];
   const tools = layers.flatMap((layer) => TOOLS.find((t) => t.layer === layer)?.id ?? []);
   const { fills, missed, failed, stopped } = await prepareToolFills(e, tools, { refill });
   if (stopped) return { filled: [], missed: [], failed: false, stopped: true };
-  await e.history.group('Receita', async () => {
+  await e.history.group('Look', async () => {
+    // The settings first: when the code of a tool does not load, nothing was cleared yet.
     await applyPreset(e, preset);
-    await applyToolFills(e, fills, { label: 'Receita', fadeMs });
+    if (clear.length) await e.resetParts('Look', { layers: clear });
+    await applyToolFills(e, fills, { label: 'Look', fadeMs });
   });
   bump();
   return { filled: [...fills.keys()], missed, failed, stopped: false };
