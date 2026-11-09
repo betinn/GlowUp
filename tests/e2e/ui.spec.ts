@@ -23,7 +23,7 @@ test.describe('telas, desktop', () => {
 
   test('filtros', async ({ page }) => {
     await openEditor(page);
-    await pickTool(page, 'looks', 'filters');
+    await pickTool(page, 'filters', 'filters');
     await page.locator('[data-filter=mel]').click();
     await settle(page, 2500);
     await page.screenshot({ path: shot('filtros') });
@@ -31,7 +31,7 @@ test.describe('telas, desktop', () => {
 
   test('receitas', async ({ page }) => {
     await openEditor(page);
-    await pickTool(page, 'looks', 'presets');
+    await pickTool(page, 'filters', 'presets');
     await settle(page, 400);
     await page.screenshot({ path: shot('receitas') });
   });
@@ -47,7 +47,7 @@ test.describe('telas, desktop', () => {
 
   test('antes e depois', async ({ page }) => {
     await openEditor(page);
-    await pickTool(page, 'looks', 'filters');
+    await pickTool(page, 'filters', 'filters');
     await page.locator('[data-filter=prata]').click();
     await page.getByTestId('compare').click();
     await settle(page, 1300);
@@ -75,7 +75,7 @@ test.describe('telas, celular', () => {
 
   test('filtros', async ({ page }) => {
     await openEditor(page);
-    await page.locator('[data-group=looks]').tap();
+    await page.locator('[data-group=filters]').tap();
     await page.locator('[data-tool=filters]').tap();
     await settle(page, 2500);
     await page.screenshot({ path: shot('celular-filtros') });

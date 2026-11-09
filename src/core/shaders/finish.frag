@@ -15,6 +15,8 @@ uniform float uMaxLod;
 uniform float uVignette;
 uniform float uGrain;
 uniform float uGrainCells;
+uniform float uFilterVignette;
+uniform float uFilterGrain;
 
 float valueNoise(vec2 p) {
   vec2 i = floor(p);
@@ -50,19 +52,24 @@ void main() {
     c = lod < 0.02 ? texture(uInput, vUv).rgb : bicubicLod(uInput, vUv, lod).rgb;
   }
 
-  if (uVignette != 0.0) {
+  // The filter's own grain and vignette reach only as far as the filter does, as develop wrote in alpha.
+  float share = texture(uInput, vUv).a;
+  float vignette = clamp(uVignette + share * uFilterVignette, -1.0, 1.0);
+  float grain = uGrain + share * uFilterGrain;
+
+  if (vignette != 0.0) {
     vec2 q = (st - 0.5) * 2.0;
     float v = smoothstep(0.35, 1.45, length(q));
     v = v * v * (3.0 - 2.0 * v);
-    c = uVignette > 0.0 ? c * (1.0 - uVignette * 0.85 * v) : mix(c, vec3(1.0), -uVignette * 0.7 * v);
+    c = vignette > 0.0 ? c * (1.0 - vignette * 0.85 * v) : mix(c, vec3(1.0), -vignette * 0.7 * v);
   }
 
-  if (uGrain > 0.0) {
+  if (grain > 0.0) {
     vec2 p = iuv * vec2(uGrainCells);
     float n = valueNoise(p) * 0.6 + valueNoise(p * 2.13 + 17.0) * 0.4 - 0.5;
     float l = luma(c);
     float weight = 0.35 + 0.65 * (1.0 - abs(l * 2.0 - 1.0));
-    c += n * uGrain * 0.22 * weight;
+    c += n * grain * 0.22 * weight;
   }
 
   outColor = vec4(clamp(c, 0.0, 1.0), 1.0);

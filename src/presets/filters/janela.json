@@ -1,0 +1,12 @@
+{
+  "id": "janela",
+  "name": "Janela",
+  "category": "Natural",
+  "lut": {
+    "ops": [
+      { "op": "curve", "points": [[0, 0.03], [0.3, 0.31], [0.7, 0.74], [1, 1]] },
+      { "op": "warm", "t": -0.03 },
+      { "op": "saturate", "k": 0.97 }
+    ]
+  }
+}

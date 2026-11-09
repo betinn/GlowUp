@@ -58,7 +58,7 @@ test.describe('voltar ao original', () => {
     await paint(page, scribble(-0.15, 0.12, 0.11, 0.1, 10));
     await pickTool(page, 'shape', 'liquify');
     await paint(page, [[-0.29, 0.14], [-0.22, 0.14]]);
-    await pickTool(page, 'looks', 'filters');
+    await pickTool(page, 'filters', 'filters');
     await page.locator('[data-filter=prata]').click();
     await settle(page, 300);
     const edited = await photo(page);

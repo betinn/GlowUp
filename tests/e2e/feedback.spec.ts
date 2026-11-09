@@ -231,7 +231,7 @@ test.describe('resposta ao usuário', () => {
     await openEditor(page);
     await pickTool(page, 'light', 'adjust');
     await setSlider(page, 'Exposição', 30);
-    await pickTool(page, 'looks', 'filters');
+    await pickTool(page, 'filters', 'filters');
     await page.mouse.move(2, 2);
     await settle(page, 500);
     const plain = await photoShot(page);
@@ -289,7 +289,7 @@ test.describe('resposta ao usuário', () => {
 
   test('sair dos filtros encerra a comparação do filtro', async ({ page }) => {
     await openEditor(page);
-    await pickTool(page, 'looks', 'filters');
+    await pickTool(page, 'filters', 'filters');
     await page.locator('[data-filter=prata]').click();
     await page.getByTestId('compare-filter').click();
     await expect(page.getByTestId('compare-line')).toBeVisible();
@@ -312,7 +312,7 @@ test.describe('resposta ao usuário, celular', () => {
 
   test('a divisão do filtro fica sobre a foto, fora do painel', async ({ page }) => {
     await openEditor(page);
-    await page.locator('[data-group=looks]').tap();
+    await page.locator('[data-group=filters]').tap();
     await page.locator('[data-tool=filters]').tap();
     await page.locator('[data-filter=prata]').tap();
     await page.getByTestId('compare-filter').tap();

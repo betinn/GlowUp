@@ -57,6 +57,9 @@ export class Pipeline {
   field: FieldSource | null = null;
   lut: Tex3D;
   lutMix = 0;
+  /** What the current filter adds to the last stage, on the scales of the Ajustes panel. */
+  filterGrain = 0;
+  filterVignette = 0;
   active: LayerId | null = null;
   /** Tiny low-pass of the whole photo, shared by every context so tiles agree on tone masks. */
   private globalLow: Tex | null = null;
@@ -269,6 +272,8 @@ export class Pipeline {
         uVignette: a.vignette / 100,
         uGrain: a.grain / 100,
         uGrainCells: 1500,
+        uFilterVignette: this.filterVignette / 100,
+        uFilterGrain: this.filterGrain / 100,
       },
       rect,
     );

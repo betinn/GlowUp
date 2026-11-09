@@ -5,7 +5,7 @@ import type { FaceRegion } from '../core/face/regions';
 import type { ToolModule } from './types';
 
 export type ToolKind = 'mask' | 'heal' | 'liquify' | 'adjust' | 'filters' | 'presets' | 'blur' | 'crop';
-export type GroupId = 'skin' | 'eyes' | 'makeup' | 'hair' | 'shape' | 'looks' | 'light' | 'frame';
+export type GroupId = 'skin' | 'eyes' | 'makeup' | 'hair' | 'shape' | 'filters' | 'light' | 'frame';
 
 export interface ToolMeta {
   id: string;
@@ -28,7 +28,7 @@ export const GROUPS: { id: GroupId; label: string }[] = [
   { id: 'makeup', label: 'Make' },
   { id: 'hair', label: 'Cabelo' },
   { id: 'shape', label: 'Forma' },
-  { id: 'looks', label: 'Looks' },
+  { id: 'filters', label: 'Filtros' },
   { id: 'light', label: 'Luz' },
   { id: 'frame', label: 'Quadro' },
 ];
@@ -61,8 +61,8 @@ export const TOOLS: ToolMeta[] = [
 
   { id: 'liquify', label: 'Liquify', group: 'shape', kind: 'liquify', hint: 'Empurre, infle ou contraia. Devagar fica mais natural.' },
 
-  { id: 'presets', label: 'Receitas', group: 'looks', kind: 'presets', hint: 'Combinações prontas de ajustes e ferramentas.' },
-  { id: 'filters', label: 'Filtros', group: 'looks', kind: 'filters', hint: 'Toque de novo no filtro para tirar.' },
+  { id: 'presets', label: 'Receitas', group: 'filters', kind: 'presets', hint: 'Combinações prontas de ajustes e ferramentas.' },
+  { id: 'filters', label: 'Filtros', group: 'filters', kind: 'filters', hint: 'Toque de novo no filtro para tirar.' },
 
   { id: 'adjust', label: 'Ajustes', group: 'light', kind: 'adjust', hint: 'Dois toques em um controle voltam ao zero.' },
   { id: 'blur', label: 'Desfoque', group: 'light', kind: 'blur', hint: 'Arraste o círculo para escolher o foco.' },

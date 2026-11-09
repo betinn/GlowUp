@@ -115,7 +115,7 @@ await page.locator('[data-group=shape]').click();
 await page.waitForTimeout(600);
 console.log('liquify:', await frames(page, () => stroke(page)));
 
-await page.locator('[data-group=looks]').click();
+await page.locator('[data-group=filters]').click();
 await page.locator('[data-tool=filters]').click();
 await page.locator('[data-filter=prata]').click();
 await page.waitForTimeout(600);

@@ -360,10 +360,10 @@ test.describe('limite do pincel', () => {
 
   test('sair dos filtros para uma ferramenta dos olhos não trava o pincel', async ({ page }) => {
     await openEditor(page);
-    await pickTool(page, 'looks', 'filters');
+    await pickTool(page, 'filters', 'filters');
     await pickTool(page, 'eyes', 'eyecolor');
     await expect(toggle(page)).toHaveAttribute('aria-checked', 'true');
-    await pickTool(page, 'looks', 'filters');
+    await pickTool(page, 'filters', 'filters');
     await expect(limit(page, 'on')).toHaveCount(0);
     await pickTool(page, 'eyes', 'sparkle');
     await expect(toggle(page)).toHaveAttribute('aria-checked', 'true');

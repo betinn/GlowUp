@@ -1,0 +1,11 @@
+{
+  "id": "giz",
+  "name": "Giz",
+  "category": "Pastel",
+  "lut": {
+    "ops": [
+      { "op": "fade", "black": 0.1, "white": 0.97 },
+      { "op": "saturate", "k": 0.68 }
+    ]
+  }
+}

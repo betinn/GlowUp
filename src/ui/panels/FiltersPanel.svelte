@@ -1,8 +1,9 @@
 <script lang="ts">
-  import { onDestroy, onMount, untrack } from 'svelte';
+  import { onDestroy, onMount, tick, untrack } from 'svelte';
   import { FILTER_MASK } from '../../core/doc';
   import { setFilter, syncFilter } from '../../presets/apply';
-  import { LUT_CATEGORIES, LUTS, type LutRecipe } from '../../presets/luts';
+  import { FILTER_CATEGORIES, FILTERS, lutById, type FilterData } from '../../presets/luts';
+  import { suggestFilter, type Fault, type Suggestion } from '../../presets/suggest';
   import { ThumbRenderer } from '../../presets/thumbs';
   import { filterBrush } from '../actions';
   import BrushControls from '../BrushControls.svelte';
@@ -19,17 +20,17 @@
   const FAV_KEY = 'glowup.favorites';
   let favorites = $state<string[]>(prefs.read(FAV_KEY, []));
   let category = $state<string>('Todos');
-  const categories = $derived(favorites.length ? ['Todos', 'Favoritos', ...LUT_CATEGORIES] : ['Todos', ...LUT_CATEGORIES]);
+  const categories = $derived(favorites.length ? ['Todos', 'Favoritos', ...FILTER_CATEGORIES] : ['Todos', ...FILTER_CATEGORIES]);
 
   const visible = $derived(
-    LUTS.filter((l) => (category === 'Todos' ? true : category === 'Favoritos' ? favorites.includes(l.id) : l.category === category)),
+    FILTERS.filter((l) => (category === 'Todos' ? true : category === 'Favoritos' ? favorites.includes(l.id) : l.category === category)),
   );
 
   const comparing = $derived((ui.splitOn || ui.compareHold) && ui.compareScope === 'filter');
 
   /** The labels on the divider follow the chosen filter, and without a filter there is nothing to compare. */
   $effect(() => {
-    ui.filterName = LUTS.find((l) => l.id === filter.id)?.name ?? '';
+    ui.filterName = (filter.id && lutById(filter.id)?.name) || '';
     if (!filter.id && ui.compareScope === 'filter') closeCompare();
   });
 
@@ -79,21 +80,54 @@
   const thumbs = new ThumbRenderer(e);
   let rendered = $state<Record<string, boolean>>({});
   const pending = new Map<string, HTMLCanvasElement>();
-  let queue = Promise.resolve();
   let alive = true;
+  /** The suggestion comes first, so it never waits behind the miniatures of the whole list. */
+  let startQueue: () => void = () => {};
+  let queue = new Promise<void>((resolve) => (startQueue = resolve));
 
-  function thumb(canvas: HTMLCanvasElement, recipe: LutRecipe) {
-    if (pending.has(recipe.id) && pending.get(recipe.id) === canvas) return;
-    pending.set(recipe.id, canvas);
+  function thumb(canvas: HTMLCanvasElement, item: FilterData) {
+    if (pending.has(item.id) && pending.get(item.id) === canvas) return;
+    pending.set(item.id, canvas);
     queue = queue.then(async () => {
       if (!alive) return;
-      await thumbs.render(recipe, canvas);
-      rendered[recipe.id] = true;
+      await thumbs.render(item, canvas);
+      rendered[item.id] = true;
       await new Promise((r) => setTimeout(r));
     });
   }
 
-  onMount(() => thumbs.prepare());
+  /** What the suggestion says it eases in the photo. */
+  const FAULT_WORDS: Record<Fault, string> = {
+    dark: 'A foto está escura, e este filtro abre a luz.',
+    bright: 'A foto está muito clara, e este filtro assenta a luz.',
+    flat: 'A foto está sem contraste, e este filtro dá corpo.',
+    hard: 'A foto está dura, e este filtro alivia o contraste.',
+    cold: 'A foto está fria, e este filtro aquece.',
+    warm: 'A foto está muito quente, e este filtro equilibra.',
+    dull: 'A foto está sem cor, e este filtro dá vida.',
+    loud: 'A foto está com cor demais, e este filtro acalma.',
+  };
+
+  let suggestion = $state<Suggestion | null>(null);
+  let suggestionCanvas = $state<HTMLCanvasElement>();
+  let suggestionReady = $state(false);
+  const suggested = $derived(suggestion ? lutById(suggestion.id) : undefined);
+
+  /** Reads the photo once the panel has opened, so the tone never holds up the first frame of the panel. */
+  async function readSuggestion() {
+    const pixels = await thumbs.pixels();
+    if (!alive || !pixels) return;
+    suggestion = suggestFilter(pixels, FILTERS);
+    await tick();
+    if (!alive || !suggested || !suggestionCanvas) return;
+    await thumbs.render(suggested, suggestionCanvas);
+    suggestionReady = true;
+  }
+
+  onMount(() => {
+    thumbs.prepare();
+    void readSuggestion().finally(startQueue);
+  });
 
   onDestroy(() => {
     alive = false;
@@ -115,13 +149,27 @@
   }
 </script>
 
+{#if suggested}
+  <button type="button" class="suggestion" class:on={filter.id === suggested.id} class:chosen={!!filter.id} aria-pressed={filter.id === suggested.id}
+    data-testid="filter-suggestion" data-suggested={suggested.id} onclick={() => pick(suggested.id)}>
+    <canvas bind:this={suggestionCanvas} class:ready={suggestionReady} width="104" height="104"></canvas>
+    <span class="words">
+      <span class="label">Sugestão para esta foto</span>
+      <strong>{suggested.name}</strong>
+      <span class="why">{suggestion?.fault ? FAULT_WORDS[suggestion.fault] : 'Este filtro combina com o tom desta foto.'}</span>
+    </span>
+  </button>
+{/if}
+
 <div class="cats scroll-x" role="tablist" aria-label="Categorias">
   {#each categories as c (c)}
     <button type="button" role="tab" aria-selected={category === c} class:on={category === c} onclick={() => (category = c)}>{c}</button>
   {/each}
 </div>
 
+<div class="menu">
 {#if filter.id}
+  <div class="controls">
   <div class="compare">
     <button type="button" class="btn" class:on={comparing} aria-pressed={comparing} data-testid="compare-filter" use:comparePress={'filter'}>
       <Icon name="compare" size={20} />
@@ -172,6 +220,7 @@
     />
     <button type="button" class="btn swap" data-testid="face-swap" onclick={() => searchFaces(e)}>Trocar rosto</button>
   {/if}
+  </div>
 {/if}
 
 <div class="grid">
@@ -194,8 +243,60 @@
     </div>
   {/each}
 </div>
+</div>
 
 <style>
+  .suggestion {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    margin-bottom: 10px;
+    padding: 8px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    text-align: left;
+    transition: border-color var(--t-fast);
+  }
+
+  .suggestion.on {
+    border-color: var(--safe);
+  }
+
+  .suggestion canvas {
+    flex: none;
+    width: 56px;
+    margin: 0;
+  }
+
+  .words {
+    display: grid;
+    gap: 1px;
+    min-width: 0;
+  }
+
+  .label {
+    font-size: 11.5px;
+    color: var(--paper-3);
+  }
+
+  .words strong {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--paper);
+  }
+
+  .why {
+    font-size: 12px;
+    line-height: 1.25;
+    color: var(--paper-2);
+  }
+
+  .menu {
+    display: flex;
+    flex-direction: column;
+  }
+
   .cats {
     display: flex;
     gap: 4px;
@@ -344,5 +445,78 @@
 
   .fav.on {
     color: var(--safe);
+  }
+
+  /* On a phone the filters run in a line right under the photo, then the intensity, all in sight. */
+  @media (max-width: 899px) {
+    .suggestion {
+      gap: 10px;
+      margin-bottom: 4px;
+      padding: 4px 8px 4px 4px;
+    }
+
+    .suggestion canvas {
+      width: 38px;
+      border-radius: 10px;
+    }
+
+    .why {
+      display: none;
+    }
+
+    /* With a filter on, the intensity needs the room. Taking the filter off brings the suggestion back. */
+    .suggestion.chosen {
+      display: none;
+    }
+
+    .words {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 0 8px;
+    }
+
+    .cats {
+      padding-bottom: 2px;
+    }
+
+    .controls {
+      order: 1;
+      display: flex;
+      flex-direction: column;
+      margin-top: 8px;
+    }
+
+    .compare {
+      order: 1;
+      margin: 8px 0 0;
+    }
+
+    .compare .tip {
+      display: none;
+    }
+
+    .grid {
+      display: flex;
+      gap: 8px;
+      margin-top: 0;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    .grid::-webkit-scrollbar {
+      display: none;
+    }
+
+    .item {
+      flex: none;
+      width: 66px;
+    }
+
+    .pick {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
   }
 </style>

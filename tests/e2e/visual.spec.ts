@@ -208,7 +208,7 @@ const CHECKS: Check[] = [
     title: 'Filtro: Cinema à Tarde',
     clip: FACE,
     run: async (page) => {
-      await pickTool(page, 'looks', 'filters');
+      await pickTool(page, 'filters', 'filters');
       await page.locator('[data-filter=cinema-tarde]').click();
     },
   },
@@ -217,7 +217,7 @@ const CHECKS: Check[] = [
     title: 'Filtro: Prata',
     clip: FACE,
     run: async (page) => {
-      await pickTool(page, 'looks', 'filters');
+      await pickTool(page, 'filters', 'filters');
       await page.locator('[data-filter=prata]').click();
     },
   },

@@ -1,0 +1,12 @@
+{
+  "id": "neblina",
+  "name": "Neblina",
+  "category": "Mar",
+  "lut": {
+    "ops": [
+      { "op": "warm", "t": -0.1 },
+      { "op": "fade", "black": 0.07, "white": 0.96 },
+      { "op": "saturate", "k": 0.8 }
+    ]
+  }
+}

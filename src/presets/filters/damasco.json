@@ -1,0 +1,12 @@
+{
+  "id": "damasco",
+  "name": "Damasco",
+  "category": "Sol",
+  "lut": {
+    "ops": [
+      { "op": "split", "shadow": "#7a4a50", "highlight": "#ffc8a0", "amount": 0.16 },
+      { "op": "curve", "points": [[0, 0], [0.25, 0.22], [0.75, 0.79], [1, 1]] },
+      { "op": "saturate", "k": 1.02 }
+    ]
+  }
+}

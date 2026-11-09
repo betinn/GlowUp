@@ -1,0 +1,13 @@
+{
+  "id": "desbotado",
+  "name": "Desbotado",
+  "category": "Retrô",
+  "suggest": false,
+  "lut": {
+    "ops": [
+      { "op": "fade", "black": 0.12, "white": 0.9 },
+      { "op": "saturate", "k": 0.7 },
+      { "op": "split", "shadow": "#6a6a50", "highlight": "#fff0d8", "amount": 0.08 }
+    ]
+  }
+}

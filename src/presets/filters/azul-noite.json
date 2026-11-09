@@ -1,0 +1,13 @@
+{
+  "id": "azul-noite",
+  "name": "Azul Noite",
+  "category": "Noite",
+  "suggest": false,
+  "lut": {
+    "ops": [
+      { "op": "warm", "t": -0.2 },
+      { "op": "curve", "points": [[0, 0], [0.5, 0.42], [1, 0.96]] },
+      { "op": "saturate", "k": 0.9 }
+    ]
+  }
+}

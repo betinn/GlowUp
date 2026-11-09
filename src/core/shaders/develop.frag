@@ -84,6 +84,8 @@ void main() {
   }
 
   c = clamp(c, 0.0, 1.0);
+  // Alpha carries how much of the filter this pixel took, for the grain and vignette of the next stage.
+  float share = 0.0;
   if (uLutMix > 0.0) {
     float m = 1.0;
     if (uFilterMasked) {
@@ -92,7 +94,8 @@ void main() {
       m = uFilterLod > 0.0 ? bicubicLod(uFilterMask, muv, uFilterLod).r : textureLod(uFilterMask, muv, 0.0).r;
     }
     vec3 coord = c * ((uLutSize - 1.0) / uLutSize) + 0.5 / uLutSize;
-    c = mix(c, texture(uLut, coord).rgb, uLutMix * m);
+    share = uLutMix * m;
+    c = mix(c, texture(uLut, coord).rgb, share);
   }
-  outColor = vec4(c, 1.0);
+  outColor = vec4(c, share);
 }

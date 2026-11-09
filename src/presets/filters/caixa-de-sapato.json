@@ -1,0 +1,14 @@
+{
+  "id": "caixa-de-sapato",
+  "name": "Caixa de Sapato",
+  "category": "Película",
+  "grain": 10,
+  "vignette": 10,
+  "lut": {
+    "ops": [
+      { "op": "curve", "points": [[0, 0.07], [0.25, 0.25], [0.75, 0.76], [1, 0.96]] },
+      { "op": "split", "shadow": "#5a4a70", "highlight": "#ffe0b0", "amount": 0.13 },
+      { "op": "saturate", "k": 0.88 }
+    ]
+  }
+}
