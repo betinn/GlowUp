@@ -566,7 +566,10 @@ export class Engine {
       after.layers[id] = { enabled: true, painted: false, params: { ...(this.toolDefaults.get(id) ?? after.layers[id]!.params) } };
     }
     if (scope.heals) after.heals = [];
-    if (scope.field) after.hasField = false;
+    if (scope.field) {
+      after.hasField = false;
+      delete after.shapeAmount;
+    }
     if (scope.adjust) after.adjust = { ...DEFAULT_ADJUST };
     if (scope.filter) after.filter = { id: null, intensity: 1 };
     if (scope.blur) after.blur = { ...DEFAULT_BLUR };

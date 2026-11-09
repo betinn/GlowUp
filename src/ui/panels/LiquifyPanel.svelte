@@ -2,11 +2,17 @@
   import BrushControls from '../BrushControls.svelte';
   import Icon from '../Icon.svelte';
   import Slider from '../Slider.svelte';
+  import { hasWork, refillRegion, toolLimit } from '../facepick.svelte';
   import { bump, engine, ui } from '../state.svelte';
+  import { previewShape, releaseShape, SHAPE_MIN, shapeAmount } from '../../tools/autoliquify';
+  import AutoMode from './AutoMode.svelte';
 
   const e = engine();
   const mode = $derived((ui.rev, e.liquifyMode));
   const strength = $derived((ui.rev, e.liquifyStrength));
+  const auto = $derived(toolLimit.mode === 'auto');
+  const filled = $derived((ui.rev, hasWork(e, 'liquify')));
+  const amount = $derived((ui.rev, shapeAmount(e)));
 
   const MODES = [
     { id: 'push', label: 'Empurrar' },
@@ -21,24 +27,44 @@
   }
 </script>
 
-<div class="modes" role="radiogroup" aria-label="Modo">
-  {#each MODES as m (m.id)}
-    <button type="button" role="radio" aria-checked={mode === m.id} class:on={mode === m.id} onclick={() => pick(m.id)}>
-      <Icon name={m.id} size={22} />
-      <span>{m.label}</span>
-    </button>
-  {/each}
-</div>
+<AutoMode />
 
-<Slider
-  label="Força"
-  value={strength * 100}
-  oninput={(v) => {
-    e.liquifyStrength = v / 100;
-    bump();
-  }}
-/>
-<BrushControls erasable={false} full={false} />
+{#if auto}
+  {#if filled && toolLimit.state === 'on'}
+    <Slider
+      label="Intensidade"
+      value={amount}
+      min={SHAPE_MIN}
+      oninput={(v) => {
+        previewShape(e, v);
+        bump();
+      }}
+      onchange={() => {
+        if (releaseShape(e)) refillRegion(e);
+        bump();
+      }}
+    />
+  {/if}
+{:else}
+  <div class="modes" role="radiogroup" aria-label="Pincel">
+    {#each MODES as m (m.id)}
+      <button type="button" role="radio" aria-checked={mode === m.id} class:on={mode === m.id} onclick={() => pick(m.id)}>
+        <Icon name={m.id} size={22} />
+        <span>{m.label}</span>
+      </button>
+    {/each}
+  </div>
+
+  <Slider
+    label="Força"
+    value={strength * 100}
+    oninput={(v) => {
+      e.liquifyStrength = v / 100;
+      bump();
+    }}
+  />
+  <BrushControls erasable={false} full={false} />
+{/if}
 
 <style>
   .modes {

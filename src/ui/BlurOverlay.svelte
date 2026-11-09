@@ -1,9 +1,14 @@
 <script lang="ts">
-  /** On-photo control for the focus area. Drag the center to move it, the ring to resize. */
+  /**
+   * On-photo control for the focus area. Drag the center to move it, the ring to resize. In the automatic
+   * mode the circle only shows where the focus went, and a drag moves the photo.
+   */
+  import { toolLimit } from './facepick.svelte';
   import { bump, engine, ui } from './state.svelte';
 
   const e = engine();
   const blur = $derived((ui.rev, { ...e.doc.blur }));
+  const movable = $derived(toolLimit.mode !== 'auto');
 
   const geo = $derived.by(() => {
     void ui.rev;
@@ -45,24 +50,26 @@
 {#if blur.mode !== 'off'}
   <div class="focus" class:tilt={blur.mode === 'tilt'} style:left="{geo.x}px" style:top="{geo.y}px" style:--r="{geo.r}px" style:--angle="{blur.angle}deg">
     <span class="shape"></span>
-    <button
-      type="button"
-      class="ring"
-      aria-label="Ajustar área em foco"
-      onpointerdown={(ev) => down(ev, 'ring')}
-      onpointermove={move}
-      onpointerup={up}
-      onpointercancel={up}
-    ></button>
-    <button
-      type="button"
-      class="center"
-      aria-label="Mover foco"
-      onpointerdown={(ev) => down(ev, 'center')}
-      onpointermove={move}
-      onpointerup={up}
-      onpointercancel={up}
-    ></button>
+    {#if movable}
+      <button
+        type="button"
+        class="ring"
+        aria-label="Ajustar área em foco"
+        onpointerdown={(ev) => down(ev, 'ring')}
+        onpointermove={move}
+        onpointerup={up}
+        onpointercancel={up}
+      ></button>
+      <button
+        type="button"
+        class="center"
+        aria-label="Mover foco"
+        onpointerdown={(ev) => down(ev, 'center')}
+        onpointermove={move}
+        onpointerup={up}
+        onpointercancel={up}
+      ></button>
+    {/if}
   </div>
 {/if}
 

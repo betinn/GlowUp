@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { compare, expectNoErrors, facePoint, imageRect, meanDiff, openEditor, pickTool, PORTRAIT, setSlider, settle, onSite } from './helpers';
+import { compare, expectNoErrors, facePoint, imageRect, meanDiff, openEditor, pickTool, PORTRAIT, setSlider, settle, onSite, limitSettled } from './helpers';
 
 /** The real detector runs in these tests: the procedural portraits are enough to trigger it. */
 const GROUP = { w: 1200, h: 750 };
@@ -201,6 +201,7 @@ test.describe('escolher rosto', () => {
     const still = await exportPng(page);
 
     await pickTool(page, 'shape', 'liquify');
+    await limitSettled(page);
     await setSlider(page, 'Tamanho', 92);
     // A strong push moves the whole face to the side, and the gray must go with it.
     const from = facePoint(page, -0.02, 0.05);
@@ -382,6 +383,7 @@ test.describe('escolher rosto', () => {
     await askForFace(page);
     await expect(rings(page)).toHaveCount(2);
     await pickTool(page, 'light', 'adjust');
+    await limitSettled(page);
     await expect(rings(page)).toHaveCount(0);
     const r = imageRect(page, GROUP);
     await page.mouse.move(r.x + r.w / 2, r.y + r.h / 2);

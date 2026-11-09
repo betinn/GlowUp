@@ -162,6 +162,7 @@ test.describe('fluxos', () => {
   test('exporta PNG, JPG e WebP em resolução total', async ({ page }) => {
     await openEditor(page);
     await pickTool(page, 'light', 'adjust');
+    await limitSettled(page);
     const png = imageSize(await exportFile(page, 'PNG'));
     expect(png).toMatchObject({ w: 1500, h: 1875, type: 'png' });
     const jpg = imageSize(await exportFile(page, 'JPG'));
@@ -194,8 +195,10 @@ test.describe('fluxos', () => {
     await pickTool(page, 'makeup', 'blush');
     await paint(page, scribble(-0.15, 0.1, 0.08, 0.08, 6), 3);
     await pickTool(page, 'shape', 'liquify');
+    await limitSettled(page);
     await paint(page, [[-0.29, 0.14], [-0.25, 0.14]]);
     await pickTool(page, 'light', 'adjust');
+    await limitSettled(page);
     await page.getByRole('slider', { name: 'Exposição' }).fill('30');
     await page.mouse.move(2, 2);
     await settle(page, 400);
@@ -241,6 +244,7 @@ test.describe('fluxos', () => {
     await page.getByRole('button', { name: 'Salvar receita' }).click();
     await expect(page.getByRole('button', { name: 'Apagar receita Minha' })).toBeVisible();
     await pickTool(page, 'light', 'adjust');
+    await limitSettled(page);
     await expect(page.getByRole('slider', { name: 'Exposição' })).toHaveValue('6');
   });
 
@@ -253,8 +257,10 @@ test.describe('fluxos', () => {
     await pickTool(page, 'skin', 'highlight');
     await paint(page, [[-0.1, 0.1], [0.1, 0.1]], 2);
     await pickTool(page, 'shape', 'liquify');
+    await limitSettled(page);
     await paint(page, [[-0.29, 0.14], [-0.24, 0.14]]);
     await pickTool(page, 'light', 'adjust');
+    await limitSettled(page);
     await setSlider(page, 'Sombras', 50);
     await setSlider(page, 'Realces', -40);
     await setSlider(page, 'Nitidez', 40);

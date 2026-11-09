@@ -1,7 +1,9 @@
 <script lang="ts">
   import Segment from '../Segment.svelte';
   import Slider from '../Slider.svelte';
+  import { toolLimit } from '../facepick.svelte';
   import { bump, engine, ui } from '../state.svelte';
+  import AutoMode from './AutoMode.svelte';
 
   const e = engine();
   const b = $derived((ui.rev, { ...e.doc.blur }));
@@ -12,19 +14,23 @@
   }
 </script>
 
-<Segment
-  label="Tipo de desfoque"
-  value={b.mode}
-  options={[
-    { value: 'off', label: 'Sem' },
-    { value: 'radial', label: 'Radial' },
-    { value: 'tilt', label: 'Tilt-shift' },
-  ]}
-  onchange={(v) => {
-    set({ mode: v as typeof b.mode });
-    e.commit();
-  }}
-/>
+<AutoMode />
+
+{#if toolLimit.mode !== 'auto'}
+  <Segment
+    label="Tipo de desfoque"
+    value={b.mode}
+    options={[
+      { value: 'off', label: 'Sem' },
+      { value: 'radial', label: 'Radial' },
+      { value: 'tilt', label: 'Tilt-shift' },
+    ]}
+    onchange={(v) => {
+      set({ mode: v as typeof b.mode });
+      e.commit();
+    }}
+  />
+{/if}
 
 {#if b.mode !== 'off'}
   <Slider label="Intensidade" value={b.strength} oninput={(v) => set({ strength: v })} onchange={() => e.commit()} />
