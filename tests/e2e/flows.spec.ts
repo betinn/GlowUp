@@ -220,7 +220,7 @@ test.describe('fluxos', () => {
 
   test('segurar compara, tocar divide', async ({ page }) => {
     await openEditor(page);
-    await pickTool(page, 'looks', 'filters');
+    await pickTool(page, 'filters', 'filters');
     await page.locator('[data-filter=prata]').click();
     await page.mouse.move(2, 2);
     await settle(page, 500);
@@ -253,7 +253,7 @@ test.describe('fluxos', () => {
     await setSlider(page, 'Realces', -40);
     await setSlider(page, 'Nitidez', 40);
     await setSlider(page, 'Granulação', 20);
-    await pickTool(page, 'looks', 'filters');
+    await pickTool(page, 'filters', 'filters');
     await page.locator('[data-filter=mel]').click();
     await settle(page, 400);
     const whole = await exportFile(page, 'PNG');

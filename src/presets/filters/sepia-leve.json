@@ -1,0 +1,13 @@
+{
+  "id": "sepia-leve",
+  "name": "Sépia Leve",
+  "category": "Mono",
+  "suggest": false,
+  "lut": {
+    "ops": [
+      { "op": "mono", "r": 0.34, "g": 0.56, "b": 0.1 },
+      { "op": "curve", "points": [[0, 0.07], [0.25, 0.25], [0.75, 0.76], [1, 0.96]] },
+      { "op": "split", "shadow": "#7a5a3a", "highlight": "#fff0d8", "amount": 0.2 }
+    ]
+  }
+}

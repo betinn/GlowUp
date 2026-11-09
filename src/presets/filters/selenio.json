@@ -1,0 +1,13 @@
+{
+  "id": "selenio",
+  "name": "Selênio",
+  "category": "Mono",
+  "suggest": false,
+  "lut": {
+    "ops": [
+      { "op": "mono", "r": 0.34, "g": 0.56, "b": 0.1 },
+      { "op": "curve", "points": [[0, 0], [0.25, 0.22], [0.75, 0.79], [1, 1]] },
+      { "op": "split", "shadow": "#60506a", "highlight": "#fdf5ee", "amount": 0.12 }
+    ]
+  }
+}

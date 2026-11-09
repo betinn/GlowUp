@@ -1,0 +1,13 @@
+{
+  "id": "balcao",
+  "name": "Balcão",
+  "category": "Noite",
+  "suggest": false,
+  "lut": {
+    "ops": [
+      { "op": "warm", "t": 0.2 },
+      { "op": "curve", "points": [[0, 0], [0.4, 0.33], [0.8, 0.85], [1, 1]] },
+      { "op": "split", "shadow": "#3a2a50", "highlight": "#ffc080", "amount": 0.14 }
+    ]
+  }
+}

@@ -22,7 +22,7 @@ function watch(page: Page) {
 }
 
 async function chooseFilter(page: Page, id = 'prata'): Promise<void> {
-  await pickTool(page, 'looks', 'filters');
+  await pickTool(page, 'filters', 'filters');
   await page.locator(`[data-filter=${id}]`).click();
   await setSlider(page, 'Intensidade', 100);
   await page.mouse.move(2, 2);
@@ -222,7 +222,7 @@ test.describe('escolher rosto', () => {
     expect(nowGray).toBeLessThan(wasColor - 10);
 
     // The ring goes where the face went.
-    await pickTool(page, 'looks', 'filters');
+    await pickTool(page, 'filters', 'filters');
     await page.getByTestId('face-swap').click();
     await expect(rings(page)).toHaveCount(1);
     await settle(page, 300);
@@ -279,7 +279,7 @@ test.describe('escolher rosto', () => {
     const reopened = await exportPng(page);
     expect(await meanDiff(page, reference, reopened)).toBeLessThan(0.05);
 
-    await pickTool(page, 'looks', 'filters');
+    await pickTool(page, 'filters', 'filters');
     await expect(page.getByRole('radio', { name: 'Escolher rosto' })).toHaveAttribute('aria-checked', 'true');
     await expect(page.getByTestId('face-swap')).toBeVisible();
   });
@@ -397,7 +397,7 @@ test.describe('escolher rosto, celular', () => {
   test('toque escolhe, e o detalhe do zoom respeita a máscara', async ({ page }) => {
     const seen = watch(page);
     await openEditor(page, 'portrait.png');
-    await page.locator('[data-group=looks]').tap();
+    await page.locator('[data-group=filters]').tap();
     await page.locator('[data-filter=prata]').tap();
     await setSlider(page, 'Intensidade', 100);
     await settle(page, 400);

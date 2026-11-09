@@ -3,8 +3,8 @@
 import type { Engine } from '../core/engine';
 import type { Tex, Tex3D } from '../core/gl/context';
 import { shader } from '../core/pipeline/pipeline';
-import { REGION_FRAG } from '../core/shaders/small';
-import { buildLut, type LutRecipe } from './luts';
+import { COPY_FRAG, REGION_FRAG } from '../core/shaders/small';
+import { buildLut, type FilterData } from './luts';
 
 const LUT_FRAG = `
 in vec2 vUv;
@@ -13,10 +13,14 @@ uniform sampler2D uInput;
 uniform sampler3D uLut;
 uniform float uLutSize;
 uniform float uMix;
+uniform float uVignette;
 void main() {
   vec3 c = texture(uInput, vUv).rgb;
   vec3 coord = c * ((uLutSize - 1.0) / uLutSize) + 0.5 / uLutSize;
-  outColor = vec4(mix(c, texture(uLut, coord).rgb, uMix), 1.0);
+  c = mix(c, texture(uLut, coord).rgb, uMix);
+  float v = smoothstep(0.35, 1.45, length((vUv - 0.5) * 2.0));
+  v = v * v * (3.0 - 2.0 * v);
+  outColor = vec4(uVignette > 0.0 ? c * (1.0 - uVignette * 0.85 * v) : mix(c, vec3(1.0), -uVignette * 0.7 * v), 1.0);
 }
 `;
 
@@ -45,12 +49,26 @@ export class ThumbRenderer {
     });
   }
 
+  /** The square as plain RGBA bytes, for reading the tone of the photo. */
+  async pixels(): Promise<Uint8Array | null> {
+    const { glc } = this.engine;
+    if (!this.base || !this.target) return null;
+    glc.run(glc.program(shader(COPY_FRAG)), this.target, { uInput: this.base });
+    return (await glc.readAsync(this.target, { x: 0, y: 0, w: SIZE, h: SIZE })).data;
+  }
+
   /** `mix` is how much of the filter shows, as its intensity does on the photo. */
-  async render(recipe: LutRecipe, canvas: HTMLCanvasElement, mix = 1): Promise<void> {
+  async render(filter: FilterData, canvas: HTMLCanvasElement, mix = 1): Promise<void> {
     const { glc } = this.engine;
     if (!this.base || !this.target) return;
-    this.lut = glc.createLut(LUT_SIZE, buildLut(recipe, LUT_SIZE), this.lut);
-    glc.run(glc.program(shader(LUT_FRAG)), this.target, { uInput: this.base, uLut: this.lut, uLutSize: LUT_SIZE, uMix: mix });
+    this.lut = glc.createLut(LUT_SIZE, buildLut(filter, LUT_SIZE), this.lut);
+    glc.run(glc.program(shader(LUT_FRAG)), this.target, {
+      uInput: this.base,
+      uLut: this.lut,
+      uLutSize: LUT_SIZE,
+      uMix: mix,
+      uVignette: ((filter.vignette ?? 0) / 100) * mix,
+    });
     const { data } = await glc.readAsync(this.target, { x: 0, y: 0, w: SIZE, h: SIZE });
     canvas.width = SIZE;
     canvas.height = SIZE;

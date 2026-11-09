@@ -1,0 +1,11 @@
+{
+  "id": "contraste-seco",
+  "name": "Contraste Seco",
+  "category": "Editorial",
+  "lut": {
+    "ops": [
+      { "op": "saturate", "k": 0.72 },
+      { "op": "curve", "points": [[0, 0], [0.22, 0.14], [0.5, 0.52], [0.78, 0.87], [1, 1]] }
+    ]
+  }
+}

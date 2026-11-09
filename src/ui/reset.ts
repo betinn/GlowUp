@@ -11,7 +11,7 @@ const layersOf = (group: GroupId) => TOOLS.filter((t) => t.group === group && t.
 const EXTRA: Partial<Record<GroupId, Omit<ResetScope, 'layers'>>> = {
   skin: { heals: true },
   shape: { field: true },
-  looks: { filter: true },
+  filters: { filter: true },
   light: { adjust: true, blur: true },
   frame: { crop: true },
 };

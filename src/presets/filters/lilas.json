@@ -1,0 +1,13 @@
+{
+  "id": "lilas",
+  "name": "Lilás",
+  "category": "Sonho",
+  "suggest": false,
+  "lut": {
+    "ops": [
+      { "op": "split", "shadow": "#6a5aa0", "highlight": "#f8e8ff", "amount": 0.2 },
+      { "op": "curve", "points": [[0, 0], [0.25, 0.22], [0.75, 0.79], [1, 1]] },
+      { "op": "saturate", "k": 0.94 }
+    ]
+  }
+}

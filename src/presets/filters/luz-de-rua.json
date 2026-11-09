@@ -1,0 +1,13 @@
+{
+  "id": "luz-de-rua",
+  "name": "Luz de Rua",
+  "category": "Noite",
+  "suggest": false,
+  "lut": {
+    "ops": [
+      { "op": "split", "shadow": "#204a58", "highlight": "#ffb060", "amount": 0.22 },
+      { "op": "curve", "points": [[0, 0], [0.25, 0.22], [0.75, 0.79], [1, 1]] },
+      { "op": "saturate", "k": 0.95 }
+    ]
+  }
+}

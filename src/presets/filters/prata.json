@@ -1,0 +1,12 @@
+{
+  "id": "prata",
+  "name": "Prata",
+  "category": "Mono",
+  "suggest": false,
+  "lut": {
+    "ops": [
+      { "op": "mono", "r": 0.3, "g": 0.59, "b": 0.11 },
+      { "op": "curve", "points": [[0, 0], [0.25, 0.22], [0.75, 0.79], [1, 1]] }
+    ]
+  }
+}

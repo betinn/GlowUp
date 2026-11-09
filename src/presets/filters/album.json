@@ -1,0 +1,14 @@
+{
+  "id": "album",
+  "name": "Álbum",
+  "category": "Retrô",
+  "suggest": false,
+  "vignette": 12,
+  "lut": {
+    "ops": [
+      { "op": "fade", "black": 0.08, "white": 0.93 },
+      { "op": "warm", "t": 0.14 },
+      { "op": "saturate", "k": 0.75 }
+    ]
+  }
+}

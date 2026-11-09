@@ -1,0 +1,15 @@
+{
+  "id": "verao-78",
+  "name": "Verão 78",
+  "category": "Retrô",
+  "suggest": false,
+  "grain": 8,
+  "lut": {
+    "ops": [
+      { "op": "curve", "points": [[0, 0.07], [0.25, 0.25], [0.75, 0.76], [1, 0.96]] },
+      { "op": "warm", "t": 0.2 },
+      { "op": "split", "shadow": "#5a3a60", "highlight": "#ffd890", "amount": 0.16 },
+      { "op": "saturate", "k": 1.06 }
+    ]
+  }
+}

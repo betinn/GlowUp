@@ -146,6 +146,16 @@
 - [x] Sombras não transforma o ruído de cor do preto em mancha colorida
 - [x] Arquivo `.jfif` abre, mesmo sem tipo declarado
 
+## Menu Filtros
+
+- [x] Um arquivo de dados por filtro, com tabela, grão, vinheta e ajustes, sem mudar o render
+- [x] Os 40 filtros migrados, com as mesmas tabelas
+- [x] Filtros no lugar de Looks, com categorias e intensidade
+- [x] Sugestão automática pelo tom da foto
+- [x] Script de réplica a partir de fotos antes e depois, com relatório e aviso de efeito local
+- [ ] Entrada de Filtros na tela de escolha de caminho, quando ela estiver na `main`
+- [ ] Filtros replicados dos pares reais
+
 ## Metas medidas
 
 Foto gerada de 12 MP (4000 x 3000), Chromium com aceleração, em uma placa dedicada (`node scripts/perf.mjs`):

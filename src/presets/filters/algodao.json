@@ -1,0 +1,13 @@
+{
+  "id": "algodao",
+  "name": "Algodão",
+  "category": "Pastel",
+  "lut": {
+    "ops": [
+      { "op": "fade", "black": 0.06 },
+      { "op": "saturate", "k": 0.78 },
+      { "op": "warm", "t": 0.05 },
+      { "op": "curve", "points": [[0, 0], [0.5, 0.56], [1, 1]] }
+    ]
+  }
+}

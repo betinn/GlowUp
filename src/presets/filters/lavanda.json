@@ -1,0 +1,12 @@
+{
+  "id": "lavanda",
+  "name": "Lavanda",
+  "category": "Pastel",
+  "lut": {
+    "ops": [
+      { "op": "split", "shadow": "#7a6a9a", "highlight": "#fff0fa", "amount": 0.15 },
+      { "op": "fade", "black": 0.05 },
+      { "op": "saturate", "k": 0.82 }
+    ]
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "id": "bronze",
+  "name": "Bronze",
+  "category": "Editorial",
+  "lut": {
+    "ops": [
+      { "op": "split", "shadow": "#4a3020", "highlight": "#ffd8a8", "amount": 0.18 },
+      { "op": "curve", "points": [[0, 0], [0.22, 0.14], [0.5, 0.52], [0.78, 0.87], [1, 1]] },
+      { "op": "saturate", "k": 0.98 }
+    ]
+  }
+}

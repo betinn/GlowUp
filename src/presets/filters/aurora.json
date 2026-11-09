@@ -1,0 +1,13 @@
+{
+  "id": "aurora",
+  "name": "Aurora",
+  "category": "Sonho",
+  "suggest": false,
+  "lut": {
+    "ops": [
+      { "op": "split", "shadow": "#5a70b0", "highlight": "#ffc8e0", "amount": 0.17 },
+      { "op": "fade", "black": 0.04 },
+      { "op": "saturate", "k": 1.04 }
+    ]
+  }
+}
