@@ -146,14 +146,14 @@
 - [x] Sombras não transforma o ruído de cor do preto em mancha colorida
 - [x] Arquivo `.jfif` abre, mesmo sem tipo declarado
 
-## Menu Filtros
+## M20. Menu Filtros
 
 - [x] Um arquivo de dados por filtro, com tabela, grão, vinheta e ajustes, sem mudar o render
 - [x] Os 40 filtros migrados, com as mesmas tabelas
 - [x] Filtros no lugar de Looks, com categorias e intensidade
 - [x] Sugestão automática pelo tom da foto
 - [x] Script de réplica a partir de fotos antes e depois, com relatório e aviso de efeito local
-- [ ] Entrada de Filtros na tela de escolha de caminho, quando ela estiver na `main`
+- [x] Entrada de Filtros na tela de escolha de caminho
 - [ ] Filtros replicados dos pares reais
 
 ## Metas medidas
