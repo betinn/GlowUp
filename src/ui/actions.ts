@@ -7,7 +7,8 @@ import type { RetouchPreset } from '../presets/recipes';
 import { ensureField, ensureHeal, ensureLayerTool } from '../tools/activate';
 import { autoAction } from '../tools/auto';
 import { toolById, TOOLS, type ToolMeta } from '../tools/catalog';
-import { applyToolFills, clearWork, dropToolLimit, forgetFreedTools, hasWork, limitTool, prepareToolFills, refillRegion, toolLimit } from './facepick.svelte';
+import { applyToolFills, clearWork, dropToolLimit, forgetFreedTools, hasWork, limitTool, prepareToolFills, refillRegion, resetLockState, toolLimit } from './facepick.svelte';
+import { dropShapeTool, forgetShapeFaces, openShapeTool, sectionHeld, setSectionOn } from './shapepick.svelte';
 import { regionShow } from './regionshow.svelte';
 import { bump, engine, toast, ui } from './state.svelte';
 
@@ -33,6 +34,8 @@ export const filterBrush = () => brushFor('filter-area', FILTER_BRUSH);
 export function resetToolMemory(): void {
   brushes.clear();
   forgetFreedTools();
+  resetLockState(engine());
+  forgetShapeFaces();
 }
 
 export async function selectTool(id: string | null): Promise<void> {
@@ -41,6 +44,9 @@ export async function selectTool(id: string | null): Promise<void> {
   const meta: ToolMeta | undefined = id ? toolById(id) : undefined;
   if (ui.tool === 'crop' && id !== 'crop') e.setCropEditing(false);
   dropToolLimit();
+  dropShapeTool();
+  e.showMatteLine = false;
+  e.requestRender();
   ui.tool = id;
   ui.toolModule = null;
   ui.showHint = true;
@@ -65,6 +71,12 @@ export async function selectTool(id: string | null): Promise<void> {
         if (ui.tool !== id) return;
         e.brush = brushFor('liquify', LIQUIFY_BRUSH);
         e.setTool('liquify');
+        break;
+      case 'shape':
+        await ensureField(e);
+        if (ui.tool !== id) return;
+        e.setTool('none');
+        void openShapeTool(e);
         break;
       case 'crop':
         e.setTool('none');
@@ -108,7 +120,7 @@ export function changeBrushSize(factor: number): void {
 /** Tools with an effect of their own on the photo, so a second tap on the tool can turn it off. */
 export const switchable = (id: string) => {
   const kind = toolById(id)?.kind;
-  return kind === 'mask' || kind === 'heal' || !!autoAction(id);
+  return kind === 'mask' || kind === 'heal' || kind === 'shape' || !!autoAction(id);
 };
 
 /**
@@ -120,7 +132,11 @@ export async function toggleEffect(id: string): Promise<void> {
   const e = engine();
   const meta = toolById(id);
   if (!meta || !switchable(id) || toolLimit.state === 'searching' || regionShow.phase || ui.painting) return;
-  if (hasWork(e, id)) {
+  if (meta.section) {
+    // Off keeps the numbers, so the next tap brings the same result back.
+    if (hasWork(e, id)) setSectionOn(e, meta.section, false);
+    else if (sectionHeld(e, meta.section)) setSectionOn(e, meta.section, true);
+  } else if (hasWork(e, id)) {
     await clearWork(e, id);
   } else if (toolLimit.tool === id && toolLimit.mode === 'auto' && toolLimit.state === 'on') {
     refillRegion(e);

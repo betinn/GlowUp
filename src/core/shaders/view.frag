@@ -23,6 +23,8 @@ uniform vec4 uRoi;
 uniform sampler2D uRoiFinal;
 uniform sampler2D uRoiBefore;
 uniform sampler2D uLimit;
+uniform bool uMatteLine;
+uniform sampler2D uMatte;
 uniform float uGlow;
 uniform float uSweep;
 uniform float uBand;
@@ -74,6 +76,13 @@ void main() {
     vec3 cool = vec3(0.78, 0.9, 1.0);
     c += cool * m * uGlow * (0.22 + 0.55 * band);
     c = mix(c, vec3(0.93, 0.98, 1.0), min(1.0, rim * uGlow * 1.4));
+  }
+  if (uMatteLine && !before) {
+    // A thin line along the edge of the person, on the photo as it was opened. It never reaches an export.
+    float m = textureLod(uMatte, uv, 0.0).r;
+    float w = fwidth(m);
+    float line = 1.0 - smoothstep(0.0, max(w, 1e-4) * 1.2, abs(m - 0.5));
+    c = mix(c, vec3(0.45, 0.95, 1.0), line * 0.9);
   }
   // Triangular dither hides banding from 16-bit buffers on an 8-bit display.
   float n = hash12(gl_FragCoord.xy) + hash12(gl_FragCoord.yx + 7.0) - 1.0;

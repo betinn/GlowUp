@@ -49,12 +49,16 @@ export function toolShader(pass: ToolPass): string {
 
 export interface FieldSource {
   tex: Tex;
+  /** The brush alone, while the background moves with it. */
+  readonly brushTex?: Tex | null;
 }
 
 export class Pipeline {
   readonly tools = new Map<LayerId, ToolPass>();
   healer: Healer | null = null;
   field: FieldSource | null = null;
+  /** The person and the background behind, in image UV, while warps keep the background. */
+  lock: { matte: Tex; plate: Tex } | null = null;
   lut: Tex3D;
   lutMix = 0;
   /** What the current filter adds to the last stage, on the scales of the Ajustes panel. */
@@ -217,6 +221,7 @@ export class Pipeline {
     const a = doc.adjust;
     const dev = ctx.slot('dev');
     const hasField = doc.hasField && !!this.field;
+    const lock = hasField ? this.lock : null;
     const area = this.filterArea(doc);
     glc.run(
       glc.program(shader(DEVELOP_FRAG)),
@@ -229,6 +234,11 @@ export class Pipeline {
         uRegion: ctx.regionUv,
         uTexel: [1 / ctx.w, 1 / ctx.h],
         uHasField: hasField,
+        uLocked: !!lock,
+        uMatte: lock?.matte ?? this.emptyField,
+        uPlate: lock?.plate ?? this.emptyField,
+        uBackField: (doc.unlocked && this.field?.brushTex) || this.emptyField,
+        uPixels: [doc.width, doc.height],
         uExposure: a.exposure / 100,
         uContrast: a.contrast / 100,
         uHighlights: a.highlights / 100,

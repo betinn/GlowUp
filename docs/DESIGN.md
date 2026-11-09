@@ -121,16 +121,45 @@ lixeira no painel. A própria ferramenta liga e desliga: com o efeito na foto, o
 um toque aplica de novo no Automático. No celular, com o painel recolhido, o toque primeiro reabre o painel.
 As outras ferramentas seguem recolhendo o painel no segundo toque.
 
-## Forma e Luz
+## Formato do rosto
 
-Liquify, Ajustes e Desfoque também abrem no Automático, como Pele e Make, com o mesmo seletor no topo do
-painel e o mesmo desfazer. Foto que já tem ajuste, deslocamento ou desfoque abre no Manual, sem trocar nada.
+O menu que era Forma. Quatro ferramentas na fila: Rosto, Olhos, Nariz e boca, e Liquify. Na barra, o nome ocupa
+duas linhas, em 84 px no computador e em 44 px no celular.
+
+- **O fundo fica parado.** Tudo aqui lê a pessoa de um lado e o fundo de outro. Ao abrir a primeira ferramenta o
+  app separa os dois, e o painel avisa "Fundo travado". Cada pixel além de uma faixa fina em volta da pessoa sai
+  igual ao original. Quando a pessoa cresce, cobre o fundo. Quando encolhe, o que aparece é preenchido a partir do
+  fundo em volta. O app nunca sabe o que estava lá, e em lençol com dobras ou objeto reto isso se nota.
+- **Sem separar.** O painel diz o motivo e o que acontece: o fundo perto do rosto mexe junto, e o tamanho da
+  cabeça some. Se o modelo não baixou, há um botão para tentar de novo.
+- **Controles.** Cada um começa no zero e vai para os dois lados, menos a papada, que só diminui. Mexer é uma
+  etapa do desfazer por gesto, e os números ficam no projeto. Um toque duplo volta ao zero.
+- **Rosto.** Em três partes: Contorno (linha da mandíbula, forma do maxilar, queixo, maçãs e têmporas), Altura
+  (testa e comprimento) e Cabeça (tamanho e papada). No fim, uma chave desenha em linhas finas o que foi detectado:
+  o contorno do rosto, olhos, íris, sobrancelhas, lábios, o meio do rosto e a borda da pessoa. Essas linhas nunca
+  vão para a exportação.
+- **Papada.** O controle só aparece quando a foto mostra uma dobra embaixo do queixo. Sem dobra, uma frase diz por
+  quê, e nada é adivinhado.
+- **Olhos.** Tamanho, ângulo, alongar, abrir e fechar, pupilas e altura das sobrancelhas.
+- **Nariz e boca.** Largura, ponte, comprimento e ponta do nariz. Largura, volume, altura e cantos da boca. Tudo
+  começa no zero e nada aqui entra sozinho, em nenhum automático.
+- **Vários rostos.** Uma fileira de botões e um anel em cada rosto dizem qual está sendo mexido. Cada rosto guarda
+  os próprios números.
+- **O interruptor.** O segundo toque em Rosto, Olhos ou Nariz e boca desliga aquela parte e guarda os números, e o
+  terceiro liga igual. Zerar tira todos os números e todos os traços, numa etapa.
+
+## Liquify, Ajustes e Desfoque
+
+Os três abrem no Automático, como Pele e Make, com o mesmo seletor no topo do painel e o mesmo desfazer. Foto que
+já tem ajuste, deslocamento ou desfoque abre no Manual, sem trocar nada.
 
 - **Liquify.** Um ajuste leve em cada rosto achado: o maxilar vem um pouco para dentro, das maçãs ao queixo, e
   os olhos abrem um pouco. Testa, nariz e boca ficam como estão. Nariz fica de fora de propósito: mexer nele
-  muda quem a pessoa é, e o Manual segue ali para quem quiser. "Intensidade" responde na hora enquanto o dedo
-  anda e entra como uma etapa ao soltar. Sem rosto, o painel diz e o pincel fica livre. No Manual o pincel
-  trabalha por cima. Voltar ao Automático começa de novo a partir da foto, e o desfazer traz os traços de volta.
+  muda quem a pessoa é, e os controles de Nariz e boca seguem ali para quem quiser. "Intensidade" responde na hora
+  enquanto o dedo anda e entra como uma etapa ao soltar. Sem rosto, o painel diz e o pincel fica livre. No Manual o
+  pincel trabalha por cima, com a chave "Travar o fundo" ligada: travado, o pincel só mexe na pessoa, e desligada a
+  chave ele mexe em tudo, sem levar os controles junto. Voltar ao Automático refaz os traços a partir da foto, e o
+  desfazer traz de volta.
 - **Ajustes.** O tom vem da própria foto e cai nos controles de sempre, então dá para refinar sem trocar de
   modo. Só mexe em exposição, contraste, temperatura e tint. Foto já no ponto continua igual e ganha um aviso.
   Sem rosto, mede a foto toda.
@@ -222,7 +251,7 @@ ocular.
 
 ## Cabelo
 
-Menu próprio na barra de grupos, entre Make e Forma, com Cor, Escurecer, Clarear, Contraste e Nitidez.
+Menu próprio na barra de grupos, entre Make e Formato do rosto, com Cor, Escurecer, Clarear, Contraste e Nitidez.
 Cada uma segue o mesmo caminho dos olhos e dentes, com as palavras do cabelo.
 
 - **Busca.** O cartão diz "Procurando o cabelo" e, depois dos rostos, "Achando os fios". Na primeira vez
@@ -239,7 +268,7 @@ Cada uma segue o mesmo caminho dos olhos e dentes, com as palavras do cabelo.
 ## Voltar ao original
 
 - **Por menu.** "Zerar" aparece no fim da fila de ferramentas quando o menu tem algo a tirar. Tira as máscaras e
-  os controles das ferramentas do menu, e também o que é só dele: manchas em Pele, liquify em Forma, filtro e
+  os controles das ferramentas do menu, e também o que é só dele: manchas em Pele, controles e liquify em Formato do rosto, filtro e
   área em Filtros, ajustes e desfoque em Luz, recorte em Quadro. Um aviso diz que o desfazer traz de volta.
 - **A foto toda.** Ícone no topo, ao lado do desfazer, apagado quando não há nada a tirar. Tira tudo num toque,
   sem pergunta: o desfazer, logo ao lado, traz tudo de volta se foi sem querer.

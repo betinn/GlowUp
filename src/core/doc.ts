@@ -52,6 +52,9 @@ export const LAYER_ORDER: readonly LayerId[] = [
 /** Mask key of a filter limited to part of the photo. It never joins the chain of tools. */
 export const FILTER_MASK = 'filter' as unknown as LayerId;
 
+/** Mask key of the person, for the lock of the background. It comes from the photo and no edit changes it. */
+export const PERSON_MASK = 'person' as unknown as LayerId;
+
 export type ParamValue = number | string;
 export type Params = Record<string, ParamValue>;
 
@@ -125,6 +128,12 @@ export interface FilterState {
   reach?: number;
 }
 
+/** The sliders of the face menu on one face: where the face is, so they find it again, and their numbers. */
+export interface FaceShape {
+  at: [number, number];
+  values: Record<string, number>;
+}
+
 /** One healing operation. Coordinates are image UV, radii are fractions of the long side. */
 export interface HealOp {
   id: number;
@@ -146,8 +155,14 @@ export interface EditDoc {
   layers: Partial<Record<LayerId, LayerState>>;
   heals: HealOp[];
   hasField: boolean;
-  /** Strength of the automatic Liquify, 0..100, while the field holds it. Older projects leave this out. */
+  /** Strength of the automatic Liquify, 0..100, when it is on. Older projects leave this out. */
   shapeAmount?: number;
+  /** The sliders of the face menu, per face. Older projects leave this out. */
+  shapes?: FaceShape[];
+  /** Sections of the face menu switched off. Their numbers stay. */
+  shapesOff?: ('face' | 'eyes' | 'nose')[];
+  /** The brush of Liquify moves the background too. Older projects leave this out: the background stays. */
+  unlocked?: boolean;
 }
 
 export function createDoc(width: number, height: number): EditDoc {

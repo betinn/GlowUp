@@ -39,6 +39,8 @@ export interface AutoAction {
    * runs with an empty list, and leaving it out runs at once, with no search and no progress card.
    */
   faces?: 'required' | 'optional';
+  /** It warps the photo, so the background has to be told apart first. */
+  person?: boolean;
   /** Applies the effect, replacing what the action applied before, as one undo step. */
   apply(e: Engine, found: AutoFound): Promise<void>;
   /** The effect is on this photo. */

@@ -1,4 +1,5 @@
-// Global color stage: applies the liquify warp, then every tone and color adjustment, then the LUT.
+// Global color stage: applies the liquify warp, with the background held in place when there is a matte of
+// the person, then every tone and color adjustment, then the LUT.
 in vec2 vUv;
 out vec4 outColor;
 
@@ -9,6 +10,11 @@ uniform sampler3D uLut;
 uniform vec4 uRegion;
 uniform vec2 uTexel;
 uniform bool uHasField;
+uniform bool uLocked;
+uniform sampler2D uMatte;
+uniform sampler2D uPlate;
+uniform sampler2D uBackField;
+uniform vec2 uPixels;
 uniform float uExposure;
 uniform float uContrast;
 uniform float uHighlights;
@@ -34,13 +40,34 @@ vec3 sCurve(vec3 x, float k) {
 
 void main() {
   vec2 uv = vUv;
+  vec3 layered = vec3(0.0);
+  bool composed = false;
   if (uHasField) {
     vec2 iuv = uRegion.xy + vUv * uRegion.zw;
     vec2 d = texture(uField, iuv).xy;
     uv = (iuv + d - uRegion.xy) / uRegion.zw;
+    if (uLocked) {
+      // Two layers. The person is read from where the field says. The background is read from right here,
+      // or from where the brush says when it may move the background too, and it is not warped.
+      float person = textureLod(uMatte, iuv + d, 0.0).r;
+      vec2 back = iuv + texture(uBackField, iuv).xy;
+      vec2 buv = (back - uRegion.xy) / uRegion.zw;
+      if (person < 0.999) {
+        // Where a person stood and left, nothing knows the photo: the plate takes over. Only where something
+        // moved, so a warp at zero is the photo itself, down to the bit.
+        float moved = smoothstep(0.0, 1.5, length(d * uPixels));
+        // The alpha of the plate says where a person stood, and is zero on all the rest of the photo.
+        vec4 plate = texture(uPlate, back);
+        vec3 behind = mix(texture(uInput, buv).rgb, plate.rgb, plate.a * moved);
+        layered = mix(behind, texture(uInput, uv).rgb, person);
+        composed = true;
+        // What comes next reads around the same place, so it goes to the layer that is on top here.
+        if (person < 0.5) uv = buv;
+      }
+    }
   }
   vec4 src = texture(uInput, uv);
-  vec3 c = src.rgb;
+  vec3 c = composed ? layered : src.rgb;
 
   if (uSharpen > 0.0) {
     vec2 o = uTexel * uSharpenRadius;

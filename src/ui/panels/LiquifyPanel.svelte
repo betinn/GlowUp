@@ -2,9 +2,10 @@
   import BrushControls from '../BrushControls.svelte';
   import Icon from '../Icon.svelte';
   import Slider from '../Slider.svelte';
-  import { hasWork, refillRegion, toolLimit } from '../facepick.svelte';
+  import { ensureLock, hasWork, lockState, toolLimit } from '../facepick.svelte';
   import { bump, engine, ui } from '../state.svelte';
-  import { previewShape, releaseShape, SHAPE_MIN, shapeAmount } from '../../tools/autoliquify';
+  import { previewShape, SHAPE_MIN, shapeAmount } from '../../tools/autoliquify';
+  import Switch from '../Switch.svelte';
   import AutoMode from './AutoMode.svelte';
 
   const e = engine();
@@ -21,8 +22,21 @@
     { id: 'restore', label: 'Restaurar' },
   ];
 
+  const locked = $derived((ui.rev, !e.doc.unlocked));
+  /** A brush that went free before the search ended still gets the lock. */
+  const searched = $derived(toolLimit.state !== 'searching');
+
+  $effect(() => {
+    if (searched && lockState.state === 'idle') void ensureLock(e);
+  });
+
   function pick(id: string) {
     e.liquifyMode = id;
+    bump();
+  }
+
+  function setLock(on: boolean) {
+    e.setBrushFree(!on);
     bump();
   }
 </script>
@@ -40,7 +54,7 @@
         bump();
       }}
       onchange={() => {
-        if (releaseShape(e)) refillRegion(e);
+        e.commit();
         bump();
       }}
     />
@@ -64,9 +78,30 @@
     }}
   />
   <BrushControls erasable={false} full={false} />
+  <Switch label="Travar o fundo" checked={locked} testid="lock-toggle" onchange={setLock} />
+{/if}
+
+{#if lockState.state === 'none' || lockState.state === 'failed'}
+  <p class="note warn" role="status" data-testid="lock-note">
+    {lockState.state === 'failed' ? 'A separação do fundo não carregou' : 'Não achei uma pessoa para separar do fundo nesta foto'}. O pincel e o Automático mexem também no que estiver atrás.
+  </p>
+{:else if !auto && lockState.state === 'on'}
+  <p class="note" role="status" data-testid="lock-note">
+    {locked ? 'Com o fundo travado, o pincel só mexe na pessoa.' : 'Com o fundo solto, o pincel mexe em tudo. Os controles de Rosto, Olhos, Nariz e boca seguem sem mexer no fundo.'}
+  </p>
 {/if}
 
 <style>
+  .note {
+    font-size: 13px;
+    line-height: 1.3;
+    color: var(--paper-2);
+  }
+
+  .warn {
+    color: var(--safe);
+  }
+
   .modes {
     display: grid;
     grid-template-columns: repeat(4, 1fr);

@@ -5,7 +5,7 @@
   import { Autosave, InvalidProjectError, loadOriginal, loadProject, unpack, validProject } from '../core/project';
   import { nextPaint } from '../core/progress';
   import { readFile, SourceImage } from '../core/source';
-  import { FILTER_MASK, type LayerId } from '../core/doc';
+  import { FILTER_MASK, PERSON_MASK, type LayerId } from '../core/doc';
   import { syncFilter } from '../presets/apply';
   import { ensureDocTools } from '../tools/activate';
   import { GROUPS, TOOLS, toolById, type GroupId } from '../tools/catalog';
@@ -31,6 +31,7 @@
   /** Panels and overlays of the non-brush tools load on demand. */
   const PANELS: Record<string, () => Promise<{ default: Component }>> = {
     liquify: () => import('./panels/LiquifyPanel.svelte'),
+    shape: () => import('./panels/ShapePanel.svelte'),
     adjust: () => import('./panels/AdjustPanel.svelte'),
     filters: () => import('./panels/FiltersPanel.svelte'),
     blur: () => import('./panels/BlurPanel.svelte'),
@@ -40,6 +41,7 @@
   const loadBlurOverlay = () => import('./BlurOverlay.svelte');
   const loadFaceOverlay = () => import('./FaceOverlay.svelte');
   const loadHealOverlay = () => import('./HealOverlay.svelte');
+  const loadShapeOverlay = () => import('./ShapeOverlay.svelte');
 
   let canvas = $state<HTMLCanvasElement>();
   let ready = $state(false);
@@ -136,7 +138,7 @@
         const bytes = await unpack(blob);
         const store = e.masks!;
         // The mask of a tool that no longer exists stays out, so the next save drops it.
-        if (id !== FILTER_MASK && !e.doc.layers[id]) continue;
+        if (id !== FILTER_MASK && id !== PERSON_MASK && !e.doc.layers[id]) continue;
         if (bytes.length === store.w * store.h) store.write(id, bytes);
         // A mask made for another screen size is lost, and a filter with no mask would just vanish.
         else if (id === FILTER_MASK) e.doc.filter = { ...e.doc.filter, masked: false, reach: undefined };
@@ -147,6 +149,14 @@
         if (bytes.byteLength !== e.field.serialize().byteLength) throw new InvalidProjectError('field size');
         e.field.restore(new Float32Array(bytes.buffer as ArrayBuffer, bytes.byteOffset, bytes.byteLength / 4));
       }
+      if (record.shape && e.field) {
+        const bytes = await unpack(record.shape);
+        if (bytes.byteLength !== e.field.serialize().byteLength) throw new InvalidProjectError('field size');
+        e.field.restoreShape(new Float32Array(bytes.buffer as ArrayBuffer, bytes.byteOffset, bytes.byteLength / 4));
+      }
+      // Before this field, the automatic mode was written into the strokes, so there is no strength to move.
+      if (record.shape === undefined) delete e.doc.shapeAmount;
+      await e.refreshLock();
       await syncFilter(e);
       e.ctx?.invalidate('healed');
       await firstFrame(e);
@@ -401,6 +411,11 @@
     {#if ui.faceChoosing}
       {#await loadFaceOverlay() then { default: FaceOverlay }}
         <FaceOverlay />
+      {/await}
+    {/if}
+    {#if meta?.kind === 'shape' && !ui.splitOn && !ui.compareHold}
+      {#await loadShapeOverlay() then { default: ShapeOverlay }}
+        <ShapeOverlay />
       {/await}
     {/if}
   {/if}
@@ -721,12 +736,15 @@
     display: none;
   }
 
-  /* Eight groups fit across a 375 px phone. */
+  /* Eight groups fit across a 375 px phone. A long name goes on two lines, with the others at the top. */
   .group {
     flex: 1;
+    align-content: start;
     min-width: 44px;
     min-height: 50px;
     padding: 5px 0 3px;
+    line-height: 1.1;
+    text-align: center;
   }
 
   .group.on {

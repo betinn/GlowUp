@@ -5,12 +5,14 @@
 
 import { GLContext, type Tex } from './gl/context';
 import { DEFAULT_BRUSH, StrokeInterpolator, type BrushSettings, type Dab } from './brush';
-import { clone, createDoc, DEFAULT_ADJUST, DEFAULT_BLUR, FILTER_MASK, type Adjustments, type BlurSettings, type EditDoc, type FilterState, type HealOp, type LayerId, type ParamValue } from './doc';
+import { clone, createDoc, DEFAULT_ADJUST, DEFAULT_BLUR, FILTER_MASK, PERSON_MASK, type Adjustments, type BlurSettings, type EditDoc, type FaceShape, type FilterState, type HealOp, type LayerId, type ParamValue } from './doc';
+import type { Face } from './face/scan';
 import { applyMat3, defaultCrop, imageToOutput, outputSize, outputToImage, rotatedBounds, type Crop } from './geometry';
 import { decodeTile, encodeTile } from './history/codec';
 import { History, type HistoryEntry } from './history/history';
 import { MaskStore, type MaskTile } from './masks';
 import { Pipeline, shader } from './pipeline/pipeline';
+import { buildPlate } from './face/plate';
 import { RenderContext } from './pipeline/context';
 import type { ToolPass } from './pipeline/types';
 import { SourceImage } from './source';
@@ -44,6 +46,8 @@ export interface ResetScope {
   heals?: boolean;
   field?: boolean;
   adjust?: boolean;
+  /** The strokes of the brush and the automatic mode, and the sliders stay. `field` takes all of it. */
+  liquify?: boolean;
   /** The filter, its area and the softness of the area. */
   filter?: boolean;
   blur?: boolean;
@@ -73,9 +77,22 @@ export type FieldScript =
   | { strokes: readonly FieldStroke[] }
   | { offset(u: number, v: number): readonly [number, number]; area?: { u0: number; v0: number; u1: number; v1: number } };
 
+/** What the document asks of the shape of the faces. */
+export interface ShapeSource {
+  /** Strength of the automatic mode, when it is on. */
+  amount: number | undefined;
+  shapes: readonly FaceShape[];
+  off: readonly ('face' | 'eyes' | 'nose')[];
+  faces: readonly Face[];
+  w: number;
+  h: number;
+}
+
 /** What the liquify module provides once loaded. */
 export interface FieldController {
   tex: Tex;
+  /** The brush alone, while the background moves with it. */
+  readonly brushTex: Tex | null;
   lookup(u: number, v: number): [number, number];
   begin(mode: string, radius: number, strength: number): void;
   stroke(u: number, v: number): void;
@@ -83,8 +100,17 @@ export interface FieldController {
   /** Runs a script at once and returns its undo step, or null when it changed nothing. Not during a stroke. */
   apply(script: FieldScript, label: string): HistoryEntry | null;
   isEmpty(): boolean;
+  /** No stroke of the brush holds anything. */
+  brushEmpty(): boolean;
+  /** The strokes of the brush. */
   serialize(): Float32Array;
   restore(data: Float32Array): void;
+  /** Works out again what the document asks for. Null takes it off. */
+  setShape(source: ShapeSource | null): void;
+  /** What the document asks for as it stands, for saving, so a project opens with no detector. */
+  shapeData(): Float32Array | null;
+  restoreShape(data: Float32Array | null): void;
+  setBrushOnBackground(on: boolean): void;
   maxDisplacement(): number;
   destroy(): void;
 }
@@ -127,6 +153,8 @@ export class Engine {
   liquifyStrength = 0.6;
   /** Paints the mark of the touched area over the photo. Every tool opens with it off. */
   showMask = false;
+  /** Draws a thin line along the edge of the person. Only the on-screen pass draws it. */
+  showMatteLine = false;
   /** The mask of the open tool comes from the detector: a drag moves the photo and paints nothing. */
   brushOff = false;
   /** The automatic mode of Manchas is going over the spots. The healing brush waits for it. */
@@ -136,6 +164,10 @@ export class Engine {
   exporting = false;
   /** Changes whenever the liquify field changes, so autosave knows when to write it. */
   fieldRev = 0;
+  /** The faces the sliders hold on to. Empty on a reopened project until the menu looks for them. */
+  shapeFaces: readonly Face[] = [];
+  /** The background behind the person, while the matte exists. */
+  private plate: Tex | null = null;
   /** Id of the filter whose LUT is on the GPU. */
   loadedLut: string | null = null;
   /** Re-uploads the LUT after an undo changes the filter. */
@@ -238,6 +270,7 @@ export class Engine {
     this.needsRender = false;
     this.dropRoi();
     this.ctx?.destroy();
+    this.dropPlate();
     this.masks?.destroy();
     this.field?.destroy();
     this.glc.drainPool();
@@ -247,6 +280,7 @@ export class Engine {
     this.pipeline = null;
     this.source = null;
     this.field = null;
+    this.shapeFaces = [];
     this.heal = null;
     this.mode = 'none';
     this.activeLayer = null;
@@ -284,6 +318,111 @@ export class Engine {
   registerField(field: FieldController): void {
     this.field = field;
     if (this.pipeline) this.pipeline.field = field;
+    field.setBrushOnBackground(!!this.doc.unlocked);
+  }
+
+  /* The lock of the background */
+
+  /** The matte of the person came, or none was found. The warps keep the background from here on. */
+  setPerson(matte: Uint8Array | null): void {
+    const { masks, source, pipeline } = this;
+    if (!masks || !source || !pipeline) return;
+    this.dropPlate();
+    if (matte) {
+      masks.write(PERSON_MASK, matte);
+      const { w, h } = masks;
+      const photo = source.draw(0, 0, source.w, source.h, w, h).getContext('2d')!.getImageData(0, 0, w, h).data;
+      this.plate = this.glc.createTex(w, h, 'rgba8', { noTarget: true });
+      this.glc.upload(this.plate, { x: 0, y: 0, w, h }, buildPlate(photo, matte, w, h));
+      pipeline.lock = { matte: masks.get(PERSON_MASK)!, plate: this.plate };
+    } else {
+      masks.clear(PERSON_MASK);
+    }
+    this.ctx?.invalidate('global');
+    this.requestRender();
+    this.emit('change');
+  }
+
+  /** Builds what the lock needs from the matte in the store, as when a saved project opens. */
+  async refreshLock(): Promise<void> {
+    const { masks } = this;
+    const matte = masks?.get(PERSON_MASK) ? await masks.read(PERSON_MASK) : null;
+    if (matte) this.setPerson(matte);
+  }
+
+  private dropPlate(): void {
+    if (this.plate) this.glc.destroyTex(this.plate);
+    this.plate = null;
+    if (this.pipeline) this.pipeline.lock = null;
+  }
+
+  /** The matte is on, and warps leave the background where it is. */
+  get locking(): boolean {
+    return !!this.pipeline?.lock;
+  }
+
+  /** The brush may move the background too, as one undo step. Takes effect at once, for what is already there. */
+  setBrushFree(free: boolean): void {
+    this.applyPatch('Fundo', (doc) => {
+      if (free) doc.unlocked = true;
+      else delete doc.unlocked;
+    });
+    this.field?.setBrushOnBackground(free);
+    this.ctx?.invalidate('global');
+    this.requestRender();
+  }
+
+  /* The shape of the faces */
+
+  /** Works out the field again from the numbers in the document. The strokes of the brush stay on top. */
+  syncShape(): void {
+    const { field, doc } = this;
+    if (!field) return;
+    field.setBrushOnBackground(!!doc.unlocked);
+    const shapes = (doc.shapes ?? []).filter((s) => Object.values(s.values).some((v) => v !== 0));
+    if (doc.shapeAmount === undefined && !shapes.length) {
+      field.setShape(null);
+    } else if (this.shapeFaces.length) {
+      field.setShape({ amount: doc.shapeAmount, shapes, off: doc.shapesOff ?? [], faces: this.shapeFaces, w: doc.width, h: doc.height });
+    }
+    // A reopened project with no faces yet keeps what it saved, which is the same field.
+    doc.hasField = !field.isEmpty();
+    this.fieldRev++;
+    this.ctx?.invalidate('global');
+    this.requestRender();
+  }
+
+  /** Live change of a slider of a face. Call `commit` when the gesture ends. */
+  setShapeValue(at: readonly [number, number], id: string, value: number): void {
+    this.track('Formato do rosto');
+    const shapes = (this.doc.shapes ??= []);
+    let shape = shapes.find((s) => s.at[0] === at[0] && s.at[1] === at[1]);
+    if (!shape) {
+      shape = { at: [at[0], at[1]], values: {} };
+      shapes.push(shape);
+    }
+    if (value === 0) delete shape.values[id];
+    else shape.values[id] = value;
+    this.syncShape();
+    this.emit('change');
+  }
+
+  /** Live change of the strength of the automatic mode. Call `commit` when the gesture ends. */
+  setShapeAmount(amount: number): void {
+    this.track('Automático');
+    this.doc.shapeAmount = amount;
+    this.syncShape();
+  }
+
+  /** Turns a section of the sliders off or on, as one undo step. The numbers stay. */
+  setShapeSectionOff(section: 'face' | 'eyes' | 'nose', off: boolean): void {
+    this.applyPatch(off ? 'Limpar' : 'Formato do rosto', (doc) => {
+      const list = (doc.shapesOff ?? []).filter((s) => s !== section);
+      if (off) list.push(section);
+      if (list.length) doc.shapesOff = list;
+      else delete doc.shapesOff;
+    });
+    this.syncShape();
   }
 
   setTool(mode: ToolMode, layer: LayerId | null = null): void {
@@ -534,7 +673,8 @@ export class Engine {
     return (
       scope.layers.some((id) => doc.layers[id]?.painted) ||
       (!!scope.heals && doc.heals.length > 0) ||
-      (!!scope.field && doc.hasField) ||
+      (!!scope.field && (doc.hasField || !!doc.shapes?.some((s) => Object.keys(s.values).length))) ||
+      (!!scope.liquify && (doc.shapeAmount !== undefined || (!!this.field && !this.field.brushEmpty()))) ||
       (!!scope.adjust && Object.values(doc.adjust).some((v) => v !== 0)) ||
       (!!scope.filter && (!!doc.filter.id || !!doc.filter.masked)) ||
       (!!scope.blur && doc.blur.mode !== 'off') ||
@@ -559,16 +699,21 @@ export class Engine {
       const data = await masks.read(id);
       saved.set(id, data ? encodeTile(data, w, h) : null);
     }
-    const field = scope.field && this.field && !this.field.isEmpty() ? this.field.serialize().slice() : null;
+    const strokes = scope.field || scope.liquify;
+    const field = strokes && this.field && !this.field.brushEmpty() ? this.field.serialize().slice() : null;
+    // A reopened project has no faces yet, so the undo brings back what it opened with instead of working it out.
+    const shapeField = strokes ? (this.field?.shapeData()?.slice() ?? null) : null;
     const before = clone(this.doc);
     const after = clone(this.doc);
     for (const id of ids) {
       after.layers[id] = { enabled: true, painted: false, params: { ...(this.toolDefaults.get(id) ?? after.layers[id]!.params) } };
     }
     if (scope.heals) after.heals = [];
+    if (strokes) delete after.shapeAmount;
     if (scope.field) {
       after.hasField = false;
-      delete after.shapeAmount;
+      delete after.shapes;
+      delete after.shapesOff;
     }
     if (scope.adjust) after.adjust = { ...DEFAULT_ADJUST };
     if (scope.filter) after.filter = { id: null, intensity: 1 };
@@ -583,9 +728,14 @@ export class Engine {
         if (packed) masks.write(id, decodeTile(packed, w, h));
         else masks.clear(id);
       }
-      if (scope.field && this.field) {
+      if (strokes && this.field) {
         this.field.restore(back && field ? field : new Float32Array(this.field.serialize().length));
         this.fieldRev++;
+      }
+      if (strokes) this.syncShape();
+      if (strokes && back && shapeField && !this.shapeFaces.length) {
+        this.field?.restoreShape(shapeField);
+        this.doc.hasField = true;
       }
       if (this.pipeline) this.pipeline.lutMix = this.doc.filter.intensity;
       this.onFilterRestore?.();
@@ -622,13 +772,15 @@ export class Engine {
       const current = this.doc;
       const next = clone(d);
       next.heals = current.heals;
-      next.hasField = current.hasField;
       for (const id of Object.keys(current.layers) as LayerId[]) {
         const layer = next.layers[id];
         if (layer) layer.painted = current.layers[id]!.painted;
         else next.layers[id] = current.layers[id];
       }
       this.doc = next;
+      // Numbers of the shape come from the snapshot, and the field follows them.
+      this.syncShape();
+      if (!this.field) next.hasField = current.hasField;
       this.onFilterRestore?.();
       this.ctx?.invalidate('prefix');
       this.emit('view');
@@ -901,7 +1053,7 @@ export class Engine {
     this.fieldRev++;
     const refresh = () => {
       this.fieldRev++;
-      this.doc.hasField = !this.field?.isEmpty();
+      this.doc.hasField = !!this.field && !this.field.isEmpty();
       this.ctx?.invalidate('global');
       this.requestRender();
     };
@@ -1264,6 +1416,7 @@ export class Engine {
     const healing = this.mode === 'heal' && !!this.stroke;
     const showOverlay = !!overlay && (healing || (this.showMask && this.mode === 'mask'));
     const hasField = doc.hasField && !!this.field;
+    const matte = this.showMatteLine ? masks.get(PERSON_MASK) : null;
     const before = (c: RenderContext) => (this.compareBase === 'unfiltered' ? c.slot('unfiltered') : c.source);
     const light = this.revealState();
     glc.run(
@@ -1286,6 +1439,8 @@ export class Engine {
         uBackground: [0.043, 0.043, 0.047],
         uOverlayColor: [1, 0.72, 0.47],
         uLimit: masks.limitTex ?? ctx.source,
+        uMatteLine: !!matte,
+        uMatte: matte ?? ctx.source,
         uGlow: light.glow,
         uSweep: light.sweep,
         uBand: light.still ? 0 : 1,

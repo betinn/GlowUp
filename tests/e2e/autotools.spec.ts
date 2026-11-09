@@ -155,7 +155,7 @@ test.describe('Liquify no Automático', () => {
     await settle(page, 300);
     await page.getByTestId('reset-group').click();
     await settle(page, 300);
-    expect(await field(page)).toMatchObject({ has: false, max: 0, amount: undefined, label: 'Zerar Forma' });
+    expect(await field(page)).toMatchObject({ has: false, max: 0, amount: undefined, label: 'Zerar Formato do rosto' });
     await expect(button).toHaveAttribute('data-effect', 'off');
 
     await undo(page);

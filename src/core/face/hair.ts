@@ -63,7 +63,7 @@ export function hairCrop(box: Area, w: number, h: number): Area {
 }
 
 /** Reads the cut at a point given as a share of its width and height, with bilinear blending. */
-function sample(cut: HairCut, fx: number, fy: number): number {
+export function sampleCut(cut: HairCut, fx: number, fy: number): number {
   const x = clamp(fx * cut.w - 0.5, 0, cut.w - 1);
   const y = clamp(fy * cut.h - 0.5, 0, cut.h - 1);
   const x0 = Math.floor(x);
@@ -130,7 +130,7 @@ export function addHair(out: Uint8Array, target: MaskTarget, area: Area, cut: Ha
   for (let y = 0; y < a.h; y++) {
     const fy = (y + a.y + 0.5 - area.y) / area.h;
     for (let x = 0; x < a.w; x++) {
-      const raw = sample(cut, (x + a.x + 0.5 - area.x) / area.w, fy);
+      const raw = sampleCut(cut, (x + a.x + 0.5 - area.x) / area.w, fy);
       const v = smooth(raw, SURE_LOW, SURE_HIGH);
       shape[y * a.w + x] = v;
       reach[y * a.w + x] = smooth(raw, REACH_LOW, REACH_HIGH);

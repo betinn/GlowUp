@@ -3,7 +3,7 @@
  * Nothing here leaves the device.
  */
 
-import { DEFAULT_ADJUST, FILTER_MASK, type EditDoc, type LayerId } from './doc';
+import { DEFAULT_ADJUST, FILTER_MASK, PERSON_MASK, type EditDoc, type LayerId } from './doc';
 import type { Engine } from './engine';
 
 const DB_NAME = 'glowup';
@@ -24,6 +24,11 @@ export interface ProjectRecord extends ProjectSummary {
   doc: EditDoc;
   masks: Partial<Record<LayerId, Blob>>;
   field: Blob | null;
+  /**
+   * The field of the sliders and the automatic mode, so a project opens with no detector. Older projects leave
+   * this out, and their automatic mode is inside `field`.
+   */
+  shape?: Blob | null;
 }
 
 /**
@@ -68,6 +73,7 @@ export function validProject(record: unknown, original: unknown): { record: Proj
   const { masks, field, thumb } = record;
   if (!isObject(masks) || !Object.values(masks).every((m) => m instanceof Blob)) throw new InvalidProjectError('masks');
   if (!(field === null || field instanceof Blob)) throw new InvalidProjectError('field');
+  if (!(record.shape === undefined || record.shape === null || record.shape instanceof Blob)) throw new InvalidProjectError('shape');
   if (!(thumb instanceof Blob)) throw new InvalidProjectError('thumb');
   return { record: record as unknown as ProjectRecord, original };
 }
@@ -149,6 +155,7 @@ export class Autosave {
   private readonly savedRev = new Map<LayerId, number>();
   private masks: ProjectRecord['masks'] = {};
   private field: Blob | null = null;
+  private shape: Blob | null = null;
   private thumb: Blob | null = null;
   private originalSaved = false;
   private savedFieldRev = -1;
@@ -162,6 +169,7 @@ export class Autosave {
     if (restored) {
       this.masks = { ...restored.masks };
       this.field = restored.field;
+      this.shape = restored.shape ?? null;
       this.thumb = restored.thumb;
       this.originalSaved = true;
       this.savedFieldRev = engine.fieldRev;
@@ -205,7 +213,7 @@ export class Autosave {
     try {
       for (const id of masks.ids()) {
         const rev = masks.rev(id);
-        const kept = !!engine.doc.layers[id] || id === FILTER_MASK;
+        const kept = !!engine.doc.layers[id] || id === FILTER_MASK || id === PERSON_MASK;
         if (this.savedRev.get(id) === rev || !kept) continue;
         const bytes = await masks.read(id);
         if (bytes) this.masks[id] = await pack(bytes);
@@ -214,7 +222,9 @@ export class Autosave {
       if (this.savedFieldRev !== engine.fieldRev) {
         this.savedFieldRev = engine.fieldRev;
         const data = engine.field?.serialize();
-        this.field = data && engine.doc.hasField ? await pack(new Uint8Array(data.buffer, data.byteOffset, data.byteLength)) : null;
+        this.field = data && engine.doc.hasField && !engine.field?.brushEmpty() ? await pack(new Uint8Array(data.buffer, data.byteOffset, data.byteLength)) : null;
+        const shape = engine.field?.shapeData();
+        this.shape = shape && engine.doc.hasField ? await pack(new Uint8Array(shape.buffer, shape.byteOffset, shape.byteLength)) : null;
       }
       if (!this.originalSaved) {
         // The original is written once. Later saves touch only the small edit stack.
@@ -232,6 +242,7 @@ export class Autosave {
         doc: engine.doc,
         masks: this.masks,
         field: this.field,
+        shape: this.shape,
       };
       await tx('readwrite', (s) => s.put(structuredClone(record)));
       await this.prune();

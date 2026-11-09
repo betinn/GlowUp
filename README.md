@@ -55,7 +55,10 @@ o lugar sozinho no Automático, e no Manual o pincel fica preso a ele.
 **Voltar ao original:** "Zerar" tira tudo de um menu, e o botão no topo tira tudo da foto. Os dois são uma
 etapa do desfazer.
 
-**Forma:** liquify (empurrar, inflar, contrair, restaurar).
+**Formato do rosto:** controles pelos pontos do rosto, cada um a partir do zero. Rosto (mandíbula, maxilar, queixo, maçãs,
+têmporas, testa, comprimento, tamanho da cabeça e papada quando a foto mostra), Olhos (tamanho, ângulo, alongar, abrir e
+fechar, pupilas, sobrancelhas) e Nariz e boca. Liquify (empurrar, inflar, contrair, restaurar), com o fundo travado por
+padrão. A pessoa é separada do fundo no próprio aparelho, e fora dela nada se mexe.
 
 **Filtros:** 40 filtros em 10 categorias, com intensidade, favoritos e uma sugestão pelo tom da foto. Cada filtro é um
 arquivo de dados, com cor, grão, vinheta e ajustes, e nunca muda o desenho do rosto.
@@ -71,7 +74,8 @@ olheiras, a íris, o branco do olho, os dentes ou os fios, em todos os rostos ac
 libera o pincel. Se o detector não acha
 rosto, a boca está fechada ou o download falha, o pincel fica livre. O detector baixa só na primeira vez
 que alguém abre uma dessas ferramentas ou escolhe um rosto, cerca de 6 MB, do próprio site. O de cabelo
-soma menos de 1 MB, só na primeira ferramenta de cabelo.
+soma menos de 1 MB, só na primeira ferramenta de cabelo. O que separa a pessoa do fundo soma 250 KB, só na primeira
+ferramenta de Formato do rosto.
 
 Ao abrir uma delas, a foto aproxima do rosto, dos olhos, da boca ou do cabelo e um brilho rápido mostra onde
 o pincel alcança. No modo Automático, que vem ligado, a ferramenta já aplica em todos os rostos achados,
@@ -189,6 +193,6 @@ distribuídas via Fontsource.
 
 ## Licenças de terceiros
 
-O detector usa `@mediapipe/tasks-vision` e os modelos `face_landmarker.task` e `hair_segmenter.tflite`,
-todos sob Apache 2.0. O aviso e o texto da licença estão em [`public/third-party.txt`](public/third-party.txt)
+O detector usa `@mediapipe/tasks-vision` e os modelos `face_landmarker.task`, `hair_segmenter.tflite` e
+`selfie_segmenter.tflite`, todos sob Apache 2.0. O aviso e o texto da licença estão em [`public/third-party.txt`](public/third-party.txt)
 e seguem junto com o site.

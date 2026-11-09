@@ -18,7 +18,7 @@ export interface ShapeField {
 }
 
 /** At full strength the edge of the jaw moves this share of the half width of the face, on each side. */
-const JAW_MOVE = 0.055;
+export const JAW_MOVE = 0.055;
 /** At full strength the middle of each eye grows this much. */
 const EYE_GROW = 0.05;
 /** How far past the edge of the jaw the move fades out, as a share of the half width. */
@@ -100,7 +100,7 @@ function softened(table: Float32Array): Float32Array {
 }
 
 /** A face, measured in its own frame. Lengths are shares of the long side of the photo. */
-interface Frame {
+export interface FaceFrame {
   ox: number;
   oy: number;
   /** Down the face, from the forehead to the chin. */
@@ -115,9 +115,12 @@ interface Frame {
   /** Radius around the frame origin outside which this face moves nothing. */
   reach: number;
   eyes: { x: number; y: number; r: number }[];
+  /** Sideways position of the middle of the face, and half its width at the widest. */
+  mid: number;
+  halfWidth: number;
 }
 
-function buildFrame(face: Face, kx: number, ky: number): Frame | null {
+export function faceFrame(face: Face, kx: number, ky: number): FaceFrame | null {
   const flat = ([u, v]: Point): [number, number] => [u * kx, v * ky];
   const outline = face.outline.map(flat);
   const top = outline[0];
@@ -163,11 +166,13 @@ function buildFrame(face: Face, kx: number, ky: number): Frame | null {
       return { x: sum[0] / eye.length, y: sum[1] / eye.length, r: width * EYE_REACH };
     });
   const widest = Math.max(...plus, ...minus);
-  return { ox: top[0], oy: top[1], dx, dy, length, nose, plus, minus, reach: length * JAW_UNTIL[1] + widest * (1 + JAW_FADE), eyes };
+  const mid = nose.reduce((sum, v) => sum + v, 0) / LEVELS;
+  const halfWidth = (Math.max(...plus) + Math.max(...minus)) / 2;
+  return { ox: top[0], oy: top[1], dx, dy, length, nose, plus, minus, reach: length * JAW_UNTIL[1] + widest * (1 + JAW_FADE), eyes, mid, halfWidth };
 }
 
 /** How far, in shares of the long side, to read away from a point for the jaw of this face. */
-function jawMove(f: Frame, x: number, y: number, strength: number): [number, number] {
+export function jawMove(f: FaceFrame, x: number, y: number, strength: number): [number, number] {
   const rx = x - f.ox;
   const ry = y - f.oy;
   const side = rx * -f.dy + ry * f.dx;
@@ -193,7 +198,7 @@ export function shapeField(faces: readonly Face[], w: number, h: number, strengt
   const long = Math.max(w, h);
   const kx = w / long;
   const ky = h / long;
-  const frames = faces.flatMap((face) => buildFrame(face, kx, ky) ?? []);
+  const frames = faces.flatMap((face) => faceFrame(face, kx, ky) ?? []);
   const area = { u0: 1, v0: 1, u1: 0, v1: 0 };
   for (const f of frames) {
     area.u0 = Math.min(area.u0, (f.ox - f.reach) / kx);

@@ -156,6 +156,21 @@
 - [x] Entrada de Filtros na tela de escolha de caminho
 - [ ] Filtros replicados dos pares reais
 
+## M21. Formato do rosto
+
+- [x] Grupo Forma vira Formato do rosto, com Rosto, Olhos, Nariz e boca, e Liquify
+- [x] Pessoa separada do fundo no aparelho, com o Selfie Segmenter servido pelo site, lazy, e licença registrada
+- [x] Toda deformação deste menu deixa o fundo parado, inclusive o Automático do Liquify
+- [x] Chave "Travar o fundo" no pincel do Liquify, ligada por padrão, uma etapa do desfazer
+- [x] O painel diz quando não dá para separar o fundo e o que acontece
+- [x] Controles pelos pontos do rosto, no zero e para os dois lados, sem acumular erro
+- [x] Rosto: mandíbula, maxilar, queixo, maçãs, têmporas, testa, comprimento, cabeça e papada quando dá para ver
+- [x] Olhos: tamanho, ângulo, alongar, abrir e fechar, pupilas e sobrancelhas
+- [x] Nariz e boca, sempre no zero: largura, ponte, comprimento, ponta; largura, volume, altura e cantos
+- [x] Cabeça maior e menor, com o que aparece preenchido a partir do fundo
+- [x] Traços do pincel e controles juntos, Zerar, interruptor, vários rostos e projeto salvo
+- [x] Conferido nas quatro fotos reais, com linhas finas sobre a foto ampliada
+
 ## Metas medidas
 
 Foto gerada de 12 MP (4000 x 3000), Chromium com aceleração, em uma placa dedicada (`node scripts/perf.mjs`):
@@ -232,6 +247,18 @@ gzip, e o detector continua fora do precache.
 A cobertura dos dentes usa uma estimativa por brilho e cor, não um contorno feito à mão. Rosto muito virado
 leva o contorno do olho mais distante para fora do lugar. Isto também é teste de fumaça, com poucas fotos e
 poucos tons de pele.
+
+### Formato do rosto
+
+As quatro fotos reais da pasta de testes, com a cabeça em -100, o maior deslocamento dos controles. Conta a exportação
+inteira, pixel a pixel, deixando de fora a faixa da placa, de 0,6% do lado maior, e o que a pessoa passa a cobrir.
+
+| Foto | Fundo comparado | Pixels de fundo que mudaram | Tempo da separação |
+| --- | --- | --- | --- |
+| Selfie na rua, 827 x 1351 | 325 mil | 0 | 1,4 s |
+| Close no carro, 399 x 501 | 57 mil | 0 | 0,4 s |
+| Close na cama, 675 x 1200 | 205 mil | 0 | 1,1 s |
+| Retrato com parede clara, 800 x 993 | 295 mil | 37, com uma só diferença acima de 12 níveis, em fio de cabelo | 1,0 s |
 
 ### Automático de Forma e Luz
 

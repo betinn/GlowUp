@@ -11,10 +11,12 @@ import { faceShare } from '../core/face/makeup';
 import { addHair, faceSize, hairCrop } from '../core/face/hair';
 import { buildFaceMask, type MaskTarget, type Point } from '../core/face/mask';
 import { buildRegionMask, type FaceRegion } from '../core/face/regions';
+import { sliderById } from '../core/face/reshape';
 import { CHIN, type Face } from '../core/face/scan';
 import { faceSpan, skinArea, spotGuard } from '../core/face/skin';
 import type { HealOp } from '../core/doc';
 import { nextPaint, type Stage } from '../core/progress';
+import { finishMatte, personConfidence } from '../core/face/person';
 import { autoAction, type AutoAction, type AutoFound, type AutoWords } from '../tools/auto';
 import { toolById } from '../tools/catalog';
 import { reducedMotion } from './motion';
@@ -44,9 +46,10 @@ const WHOLE_PHOTO_FACE = 0.3;
 
 const SCAN: Stage = { id: 'scan', label: 'Procurando rostos', weight: 32 };
 const HAIR: Stage = { id: 'hair', label: 'Achando os fios', weight: 30 };
+const PERSON: Stage = { id: 'person', label: 'Separando a pessoa do fundo', weight: 24 };
 
-/** The steps of a search. The downloads happen once, and the hair segmenter only for the hair tools. */
-function stagesFor(hair: boolean): Stage[] {
+/** The steps of a search. The downloads happen once, and each segmenter only for the tools that need it. */
+function stagesFor(hair: boolean, person = false): Stage[] {
   const list: Stage[] = [];
   if (!detectorStarted) {
     list.push({ id: 'download', label: 'Baixando o detector', weight: 62 }, { id: 'start', label: 'Ligando o detector', weight: 6, estimate: 400 });
@@ -58,12 +61,13 @@ function stagesFor(hair: boolean): Stage[] {
   }
   list.push(SCAN);
   if (hair) list.push(HAIR);
+  if (person) list.push(PERSON);
   return list;
 }
 
 /** What the first search still has to download, in the words of the progress card. */
-function downloadNote(hair: boolean): string {
-  const size = !detectorStarted ? (hair ? 'cerca de 7 MB' : 'cerca de 6 MB') : hair && !hairStarted ? 'menos de 1 MB' : '';
+function downloadNote(hair: boolean, person = false): string {
+  const size = !detectorStarted ? (hair || person ? 'cerca de 7 MB' : 'cerca de 6 MB') : (hair || person) && !hairStarted ? 'cerca de 1 MB' : '';
   return size ? `Só na primeira vez, ${size}. A foto não sai do seu aparelho.` : '';
 }
 
@@ -214,10 +218,10 @@ export async function paintArea(e: Engine): Promise<void> {
   bump();
 }
 
-function openJob(hair = false): Task {
-  const task = new Task(stagesFor(hair));
+export function openJob(hair = false, person = false): Task {
+  const task = new Task(stagesFor(hair, person));
   facePick.task = task;
-  facePick.download = downloadNote(hair);
+  facePick.download = downloadNote(hair, person);
   return task;
 }
 
@@ -225,12 +229,18 @@ function openJob(hair = false): Task {
  * Loads the detector if needed and goes through the photo. `hair` also loads the hair segmenter.
  * Returns null when the search was stopped.
  */
-async function scanPhoto(source: SourceImage, task: Task, deeper: boolean, stopped: () => boolean, hair = false): Promise<FaceScan | null> {
-  if (!detectorStarted || (hair && !hairStarted)) task.stage('download');
+export async function scanPhoto(source: SourceImage, task: Task, deeper: boolean, stopped: () => boolean, hair = false): Promise<FaceScan | null> {
+  // A load another tool began can still finish during this search, in a job with no steps for it.
+  const loads = !detectorStarted || (hair && !hairStarted);
+  if (loads) task.stage('download');
   const { FaceScan, loadDetector } = await import('../core/face/detector');
   await loadDetector(
-    (fraction) => task.report(fraction),
-    () => task.stage('start'),
+    (fraction) => {
+      if (loads) task.report(fraction);
+    },
+    () => {
+      if (loads) task.stage('start');
+    },
     hair,
   );
   detectorStarted = true;
@@ -247,6 +257,88 @@ async function scanPhoto(source: SourceImage, task: Task, deeper: boolean, stopp
   facePick.faces = scan.list;
   facePick.more = scan.more;
   return scan;
+}
+
+/** Whether warps can keep the background of this photo. */
+export type LockState = 'idle' | 'finding' | 'on' | 'none' | 'failed';
+
+export const lockState = $state({ state: 'idle' as LockState });
+
+/** What the search found on each photo, so it runs once. */
+const locks = new WeakMap<SourceImage, 'on' | 'none'>();
+
+/**
+ * Separates the person from the background, once per photo, for every warp from here on. A photo with no
+ * person, or a segmenter that does not load, leaves the warps as they always were, and the panel says so.
+ * False when the search was stopped.
+ */
+export async function findLock(e: Engine, faces: readonly Face[], task: Task | null, stopped: () => boolean): Promise<boolean> {
+  const { source, masks } = e;
+  if (!source || !masks) return false;
+  const known = locks.get(source);
+  if (known || e.locking) {
+    lockState.state = known ?? 'on';
+    return true;
+  }
+  lockState.state = 'finding';
+  task?.stage('person');
+  try {
+    const { loadDetector, segmentHair, segmentPerson } = await import('../core/face/detector');
+    await loadDetector(
+      () => undefined,
+      () => undefined,
+      true,
+      true,
+    );
+    hairStarted = true;
+    if (stopped()) return false;
+    const seen = await personConfidence(
+      { w: source.w, h: source.h },
+      { w: masks.w, h: masks.h },
+      faces,
+      { person: (area) => segmentPerson(source, area), hair: (area) => segmentHair(source, area) },
+      nextPaint,
+      (fraction) => task?.report(fraction),
+      stopped,
+    );
+    if (!seen) return false;
+    await nextPaint();
+    const matte = finishMatte(seen, faces, maskTarget(masks, source));
+    if (stopped()) return false;
+    e.setPerson(matte);
+    locks.set(source, matte ? 'on' : 'none');
+    lockState.state = matte ? 'on' : 'none';
+    return true;
+  } catch (err) {
+    console.error(err);
+    if (stopped()) return false;
+    lockState.state = 'failed';
+    return true;
+  }
+}
+
+/** Runs the search for the lock on its own, for a brush that went free before it ended. */
+export async function ensureLock(e: Engine): Promise<void> {
+  const { source } = e;
+  if (!source || ['finding', 'on', 'none'].includes(lockState.state)) return;
+  const stopped = () => e.source !== source;
+  lockState.state = 'finding';
+  const task = new Task(stagesFor(false, true));
+  try {
+    const scan = await scanPhoto(source, task, false, stopped);
+    if (scan) await findLock(e, scan.list, task, stopped);
+  } catch (err) {
+    console.error(err);
+    if (!stopped()) lockState.state = 'failed';
+  } finally {
+    task.stop();
+    bump();
+  }
+}
+
+/** Forgets the state of the lock, for the next photo. */
+export function resetLockState(e: Engine): void {
+  lockState.state = e.locking ? 'on' : 'idle';
 }
 
 /** The photo as the mask grid sees it. */
@@ -458,6 +550,11 @@ const layerOf = (tool: string) => toolById(tool)?.layer ?? null;
 
 /** The tool already changed this photo: a mask with paint, healed spots for Manchas, or what its action says. */
 export function hasWork(e: Engine, tool: string): boolean {
+  const section = toolById(tool)?.section;
+  if (section) {
+    if (e.doc.shapesOff?.includes(section)) return false;
+    return (e.doc.shapes ?? []).some((shape) => Object.entries(shape.values).some(([id, v]) => v !== 0 && sliderById(id)?.section === section));
+  }
   const action = autoAction(tool);
   if (action) return action.hasWork(e);
   if (toolById(tool)?.kind === 'heal') return e.doc.heals.length > 0;
@@ -557,7 +654,8 @@ export async function limitTool(e: Engine, tool: string, region: FaceRegion | nu
   const hair = region === 'hair';
   // Only an action can do without the detector: a region is always looked for.
   const searching = !!region || !!autoAction(tool)?.faces;
-  const task = searching ? openJob(hair) : null;
+  const wantsLock = !!autoAction(tool)?.person;
+  const task = searching ? openJob(hair, wantsLock) : null;
   const moves = e.viewMoves;
   if (searching) {
     toolLimit.state = 'searching';
@@ -566,6 +664,7 @@ export async function limitTool(e: Engine, tool: string, region: FaceRegion | nu
   try {
     const scan = task ? await scanPhoto(source, task, deeper, stopped, hair) : null;
     if (task && !scan) return;
+    if (scan && wantsLock && !(await findLock(e, scan.list, task, stopped))) return;
     // One target for the limit and the fill, so they share the skin they find.
     const found = await findFill(tool, region, source, masks, scan, maskTarget(masks, source), task, stopped);
     if (!found) return;

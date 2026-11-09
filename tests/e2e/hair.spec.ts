@@ -36,7 +36,7 @@ async function applied(page: Page, tool: string): Promise<Buffer> {
 }
 
 test.describe('cabelo', () => {
-  test('Cabelo tem menu próprio, entre Make e Forma, com cinco ferramentas', async ({ page }) => {
+  test('Cabelo tem menu próprio, entre Make e Formato do rosto, com cinco ferramentas', async ({ page }) => {
     await openEditor(page);
     const groups = await page.locator('[data-group]').evaluateAll((list) => list.map((b) => b.getAttribute('data-group')));
     expect(groups.indexOf('hair')).toBe(groups.indexOf('makeup') + 1);
