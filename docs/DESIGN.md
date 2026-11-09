@@ -115,11 +115,29 @@ desligada.
 
 ## A ferramenta é o interruptor
 
-As ferramentas com efeito próprio, as de pincel e Manchas, não têm botão de lixeira no painel. A própria
-ferramenta liga e desliga: com o efeito na foto, o botão mostra uma chavinha âmbar no canto, e um segundo
-toque na ferramenta aberta tira o efeito, numa etapa "Limpar" do desfazer. Mais um toque aplica de novo no
-Automático. No celular, com o painel recolhido, o toque primeiro reabre o painel. As outras ferramentas
-seguem recolhendo o painel no segundo toque.
+As ferramentas com efeito próprio, as de pincel, Manchas, Liquify, Ajustes e Desfoque, não têm botão de
+lixeira no painel. A própria ferramenta liga e desliga: com o efeito na foto, o botão mostra uma chavinha
+âmbar no canto, e um segundo toque na ferramenta aberta tira o efeito, numa etapa "Limpar" do desfazer. Mais
+um toque aplica de novo no Automático. No celular, com o painel recolhido, o toque primeiro reabre o painel.
+As outras ferramentas seguem recolhendo o painel no segundo toque.
+
+## Forma e Luz
+
+Liquify, Ajustes e Desfoque também abrem no Automático, como Pele e Make, com o mesmo seletor no topo do
+painel e o mesmo desfazer. Foto que já tem ajuste, deslocamento ou desfoque abre no Manual, sem trocar nada.
+
+- **Liquify.** Um ajuste leve em cada rosto achado: o maxilar vem um pouco para dentro, das maçãs ao queixo, e
+  os olhos abrem um pouco. Testa, nariz e boca ficam como estão. Nariz fica de fora de propósito: mexer nele
+  muda quem a pessoa é, e o Manual segue ali para quem quiser. "Intensidade" responde na hora enquanto o dedo
+  anda e entra como uma etapa ao soltar. Sem rosto, o painel diz e o pincel fica livre. No Manual o pincel
+  trabalha por cima. Voltar ao Automático começa de novo a partir da foto, e o desfazer traz os traços de volta.
+- **Ajustes.** O tom vem da própria foto e cai nos controles de sempre, então dá para refinar sem trocar de
+  modo. Só mexe em exposição, contraste, temperatura e tint. Foto já no ponto continua igual e ganha um aviso.
+  Sem rosto, mede a foto toda.
+- **Desfoque.** O foco vai para a cabeça, com o cabelo dentro do círculo, e o desfoque começa mais suave que o
+  padrão do painel. Em foto de grupo o círculo abraça os rostos principais e deixa de fora os do fundo. O círculo
+  aparece, mas só se move no Manual, que traz de volta Sem, Radial e Tilt-shift. Sem rosto nada muda, a foto segue
+  sem desfoque, o painel diz que o foco fica no centro e a pessoa escolhe o tipo.
 
 ## Olhos e dentes
 
@@ -267,6 +285,7 @@ Exemplos:
 - Erro de arquivo: "Não consegui abrir esse arquivo. Tenta um JPG, PNG ou WebP?"
 - Sem WebGL2: "Este navegador não acende a luz: falta WebGL2."
 - Escolher rosto: "Toque no rosto que recebe o filtro." e "Não achei rosto nesta foto. Pinte a área com o pincel."
+- Tom no lugar: "Esta foto já está com o tom no lugar. Os controles seguem à mão."
 
 ## Acessibilidade
 

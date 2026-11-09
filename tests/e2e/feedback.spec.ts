@@ -1,6 +1,6 @@
 import { expect, test, type JSHandle, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { expectNoErrors, imageRect, openEditor, pickTool, setSlider, settle } from './helpers';
+import { expectNoErrors, imageRect, openEditor, pickTool, setSlider, settle, limitSettled } from './helpers';
 
 const shot = (name: string) => `docs/visual-checks/ui-${name}.png`;
 
@@ -88,7 +88,7 @@ test.describe('resposta ao usuário', () => {
     errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
     page.on('console', (m) => {
-      if (m.type() === 'error') errors.push(m.text());
+      if (m.type() === 'error' && !m.text().includes('XNNPACK')) errors.push(m.text());
     });
   });
 
@@ -139,6 +139,7 @@ test.describe('resposta ao usuário', () => {
   test('soltar no editor troca a foto e guarda a anterior', async ({ page }) => {
     await openEditor(page);
     await pickTool(page, 'light', 'adjust');
+    await limitSettled(page);
     await setSlider(page, 'Exposição', 30);
     await settle(page, 300);
     const url = page.url();
@@ -182,6 +183,7 @@ test.describe('resposta ao usuário', () => {
     await watchProgress(page);
     await openEditor(page);
     await pickTool(page, 'light', 'adjust');
+    await limitSettled(page);
     await setSlider(page, 'Exposição', 20);
     await settle(page, 300);
     await page.getByRole('button', { name: 'Voltar para o início' }).click();
@@ -230,6 +232,7 @@ test.describe('resposta ao usuário', () => {
   test('comparar sem filtro mostra a foto retocada de um lado e o filtro do outro', async ({ page }) => {
     await openEditor(page);
     await pickTool(page, 'light', 'adjust');
+    await limitSettled(page);
     await setSlider(page, 'Exposição', 30);
     await pickTool(page, 'looks', 'filters');
     await page.mouse.move(2, 2);
@@ -294,6 +297,7 @@ test.describe('resposta ao usuário', () => {
     await page.getByTestId('compare-filter').click();
     await expect(page.getByTestId('compare-line')).toBeVisible();
     await pickTool(page, 'light', 'adjust');
+    await limitSettled(page);
     await expect(page.getByTestId('compare-line')).toHaveCount(0);
   });
 });

@@ -2,6 +2,7 @@
   import type { Adjustments } from '../../core/doc';
   import Slider from '../Slider.svelte';
   import { bump, engine, ui } from '../state.svelte';
+  import AutoMode from './AutoMode.svelte';
 
   const e = engine();
   const a = $derived((ui.rev, { ...e.doc.adjust }));
@@ -35,6 +36,8 @@
     },
   ];
 </script>
+
+<AutoMode />
 
 {#each GROUPS as g (g.title)}
   <h3 class="serif">{g.title}</h3>

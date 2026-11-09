@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { expectNoErrors, imageRect, meanDiff, openEditor, paint, pickTool, scribble, setSlider, settle } from './helpers';
+import { expectNoErrors, imageRect, meanDiff, openEditor, paint, pickTool, scribble, setSlider, settle, limitSettled } from './helpers';
 
 /** Only the photo, below the notes that show over its top: the panels around it change with the menu. */
 async function photo(page: Page): Promise<Buffer> {
@@ -27,6 +27,7 @@ test.describe('voltar ao original', () => {
     await paint(page, scribble(-0.15, 0.12, 0.11, 0.1, 10));
     await expect(page.getByTestId('reset-group')).toBeVisible();
     await pickTool(page, 'light', 'adjust');
+    await limitSettled(page);
     await setSlider(page, 'Contraste', 40);
     await settle(page, 300);
     const edited = await photo(page);
@@ -57,6 +58,7 @@ test.describe('voltar ao original', () => {
     await pickTool(page, 'skin', 'smooth');
     await paint(page, scribble(-0.15, 0.12, 0.11, 0.1, 10));
     await pickTool(page, 'shape', 'liquify');
+    await limitSettled(page);
     await paint(page, [[-0.29, 0.14], [-0.22, 0.14]]);
     await pickTool(page, 'looks', 'filters');
     await page.locator('[data-filter=prata]').click();

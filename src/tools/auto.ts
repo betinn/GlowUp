@@ -1,13 +1,16 @@
 /**
  * Automatic behaviour declared by a tool whose effect is neither a mask nor healed spots. The tool adds
  * its action to `AUTO_ACTIONS` and gets what the mask tools have: the search, Automático and Manual, the
- * second tap that turns the effect off, and the mark on its button. Only types come in here, so the table
- * costs nothing until an action is added.
+ * second tap that turns the effect off, and the mark on its button. The table sits with the editor, so
+ * each action keeps its math behind a dynamic import.
  */
 
 import type { Engine } from '../core/engine';
 import type { Face } from '../core/face/scan';
 import type { SourceImage } from '../core/source';
+import { adjustAction } from './autoadjust';
+import { blurAction } from './autoblur';
+import { liquifyAction } from './autoliquify';
 
 /** What the search left for the action. `faces` is empty when the action asked for no search. */
 export interface AutoFound {
@@ -25,6 +28,8 @@ export interface AutoWords {
   place: string;
   /** Replaces the hint of the tool while in Automático. */
   hint: string;
+  /** Replaces the note that says the effect is on, for an action that does not go on a place it found. */
+  applied?: string;
 }
 
 export interface AutoAction {
@@ -43,6 +48,10 @@ export interface AutoAction {
 }
 
 /** The actions, by tool id. */
-export const AUTO_ACTIONS = new Map<string, AutoAction>();
+export const AUTO_ACTIONS = new Map<string, AutoAction>([
+  ['liquify', liquifyAction],
+  ['adjust', adjustAction],
+  ['blur', blurAction],
+]);
 
 export const autoAction = (tool: string): AutoAction | undefined => AUTO_ACTIONS.get(tool);

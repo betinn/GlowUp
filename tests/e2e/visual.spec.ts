@@ -1,6 +1,6 @@
 import { test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { compare, expectNoErrors, facePoint, openEditor, paint, pickTool, scribble, setSlider, settle, tap } from './helpers';
+import { compare, expectNoErrors, facePoint, openEditor, paint, pickTool, scribble, setSlider, settle, tap, limitSettled } from './helpers';
 
 const fixture = JSON.parse(readFileSync('tests/fixtures/portrait.json', 'utf8')) as { blemishes: { x: number; y: number }[] };
 
@@ -183,6 +183,7 @@ const CHECKS: Check[] = [
     clip: FACE,
     run: async (page) => {
       await pickTool(page, 'shape', 'liquify');
+      await limitSettled(page);
       await paint(page, [[-0.29, 0.14], [-0.24, 0.14]]);
       await page.getByRole('radio', { name: 'Inflar' }).click();
       await setSlider(page, 'Tamanho', 45);
@@ -195,6 +196,7 @@ const CHECKS: Check[] = [
     clip: FACE,
     run: async (page) => {
       await pickTool(page, 'light', 'adjust');
+      await limitSettled(page);
       await setSlider(page, 'Contraste', 25);
       await setSlider(page, 'Sombras', 30);
       await setSlider(page, 'Temperatura', 18);
@@ -227,6 +229,7 @@ const CHECKS: Check[] = [
     clip: { x: -0.4, y: -0.5, w: 0.8, h: 1 },
     run: async (page) => {
       await pickTool(page, 'light', 'blur');
+      await limitSettled(page);
       await page.getByRole('radio', { name: 'Radial' }).click();
       await setSlider(page, 'Intensidade', 80);
     },
@@ -237,6 +240,7 @@ const CHECKS: Check[] = [
     clip: { x: -0.4, y: -0.5, w: 0.8, h: 1 },
     run: async (page) => {
       await pickTool(page, 'light', 'blur');
+      await limitSettled(page);
       await page.getByRole('radio', { name: 'Tilt-shift' }).click();
       await setSlider(page, 'Intensidade', 80);
       await setSlider(page, 'Área em foco', 12);

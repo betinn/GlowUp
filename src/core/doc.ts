@@ -146,6 +146,8 @@ export interface EditDoc {
   layers: Partial<Record<LayerId, LayerState>>;
   heals: HealOp[];
   hasField: boolean;
+  /** Strength of the automatic Liquify, 0..100, while the field holds it. Older projects leave this out. */
+  shapeAmount?: number;
 }
 
 export function createDoc(width: number, height: number): EditDoc {

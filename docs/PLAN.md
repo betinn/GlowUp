@@ -127,6 +127,15 @@
 - [x] Deslocamento do Liquify por código, em traços ou por função, com desfazer
 - [x] Projeto salvo inválido sai da lista com aviso, e falha passageira avisa e mantém o projeto
 
+## M18. Automático de Forma e Luz
+
+- [x] Liquify no Automático: maxilar e olhos pelos pontos do rosto, numa etapa, com intensidade ao vivo
+- [x] O pincel do Liquify segue funcionando por cima do Automático
+- [x] Ajustes no Automático: exposição, contraste e balanço de branco lidos da foto, nos controles de sempre
+- [x] Desfoque no Automático: foco na cabeça, e sem rosto a foto não muda e o painel diz
+- [x] Chavinha, segundo toque, Zerar e desfazer como em Pele e Make
+- [x] Conferido nas fotos reais e em cópias escurecidas, clareadas e com dominante de cor
+
 ## Metas medidas
 
 Foto gerada de 12 MP (4000 x 3000), Chromium com aceleração, em uma placa dedicada (`node scripts/perf.mjs`):
@@ -203,6 +212,27 @@ gzip, e o detector continua fora do precache.
 A cobertura dos dentes usa uma estimativa por brilho e cor, não um contorno feito à mão. Rosto muito virado
 leva o contorno do olho mais distante para fora do lugar. Isto também é teste de fumaça, com poucas fotos e
 poucos tons de pele.
+
+### Automático de Forma e Luz
+
+As quatro fotos reais da pasta de testes, e cópias delas alteradas. As fotos não entram no repositório.
+
+| Foto | Exposição | Contraste | Temperatura | Tint | Maior deslocamento em 50 |
+| --- | --- | --- | --- | --- | --- |
+| Selfie na rua, ao entardecer | 0 | +16 | -4 | -4 | 0,49% do lado maior |
+| Retrato com parede clara | 0 | 0 | -7 | +6 | 0,63% |
+| Close no carro, teto bege | 0 | 0 | 0 | +6 | 1,00% |
+| Close na cama, luz de abajur | 0 | +6 | -14 | +6 | 0,97% |
+
+| Cópia alterada | Exposição | Contraste | Temperatura | Tint |
+| --- | --- | --- | --- | --- |
+| Retrato, valores de sRGB a 45% | +51 | +23 | -5 | +6 |
+| Retrato, valores de sRGB a 150% | -25 | 0 | 0 | +6 |
+| Retrato com sépia a 35% | 0 | 0 | -11 | +6 |
+| Close no carro, contraste a 60% | 0 | +22 | +5 | +6 |
+
+Quatro fotos é pouco, e nenhuma tem pele retinta. O limite que protege esse caso está em teste unitário com
+pele desenhada, não em foto real. Sem foto de grupo real, o foco de vários rostos só rodou no retrato gerado.
 
 ### Foco, brilho e modo automático
 
