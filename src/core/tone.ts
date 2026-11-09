@@ -149,7 +149,7 @@ function findExposure(p: Pixels): number {
     if (p.skin[i]) faceLight.push(p.y[i]);
     logSum += Math.log(Math.max(p.y[i], 1e-3));
   }
-  const level = faceLight.length ? faceLight.sort((a, b) => a - b)[faceLight.length >> 1] : Math.exp(logSum / p.y.length);
+  const level = faceLight.length ? median(faceLight) : Math.exp(logSum / p.y.length);
   const stops = stopsToBand(level, faceLight.length ? FACE_BAND : SCENE_BAND);
   if (stops <= 0) return Math.max(stops, -MAX_DROP_STOPS);
   const sorted = p.y.slice().sort();
@@ -169,7 +169,8 @@ const redOverBlue = (p: Pixels, i: number) => Math.log(p.r[i] / Math.max(p.b[i],
 const magentaOverGreen = (p: Pixels, i: number) => Math.log(Math.sqrt(p.r[i] * p.b[i]) / Math.max(p.g[i], 1e-3));
 
 function median(list: number[]): number {
-  return list.sort((a, b) => a - b)[list.length >> 1];
+  list.sort((a, b) => a - b);
+  return list[list.length >> 1];
 }
 
 /** The color of the skin metered, in the terms of the neutral search. Null without faces. */
@@ -183,6 +184,9 @@ function skinColor(p: Pixels): { rb: number; green: number } | null {
   }
   return rb.length ? { rb: median(rb), green: median(green) } : null;
 }
+
+/** Off the heads. Too dark says little and carries noise, and a clipped channel lies about the color. */
+const saysTheLight = (p: Pixels, i: number) => !p.head[i] && p.y[i] >= 0.03 && Math.max(p.r[i], p.g[i], p.b[i]) <= 0.94;
 
 /**
  * Gray pixels away from the skin say what color the light is. Skin cannot: it is never neutral, and gray
@@ -200,8 +204,7 @@ function findCast(p: Pixels, skin: { rb: number; green: number } | null): { rb: 
     let sumGreen = 0;
     let count = 0;
     for (let i = 0; i < n; i++) {
-      // Too dark says little and carries noise, and a clipped channel lies about the color.
-      if (p.head[i] || p.y[i] < 0.03 || Math.max(p.r[i], p.g[i], p.b[i]) > 0.94) continue;
+      if (!saysTheLight(p, i)) continue;
       const rb = redOverBlue(p, i);
       const green = magentaOverGreen(p, i);
       if (Math.abs(rb - centerRb) > width * 2 || Math.abs(green - centerGreen) > width) continue;
@@ -236,8 +239,10 @@ function findBalance(p: Pixels): Pick<AutoTone, 'temperature' | 'tint'> {
   return { temperature, tint };
 }
 
+const NO_FACES: ToneFaces = { skin: [], heads: [] };
+
 /** What the sliders should say for this photo. `rgba` is a small copy of it. */
-export function autoTone(rgba: ArrayLike<number>, w: number, h: number, faces: ToneFaces = { skin: [], heads: [] }): AutoTone {
+export function autoTone(rgba: ArrayLike<number>, w: number, h: number, faces: ToneFaces = NO_FACES): AutoTone {
   const p = readPixels(rgba, w, h, faces);
   const stops = findExposure(p);
   const { temperature, tint } = findBalance(p);
