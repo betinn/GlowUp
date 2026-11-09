@@ -4,15 +4,23 @@
  * hole, and the fine texture of the background next to the hole is mirrored into it, so a fill over asphalt or
  * a sheet does not look like a smooth patch. Plain arrays, so it can be tested without a GPU.
  *
- * Alpha says where the plate counts: the person and a few cells around, for what an edge leaves on the pixels
- * next to it. Everywhere else alpha is zero, and that is what keeps the background out of every warp.
+ * Alpha says where the plate counts: the layer and a few cells around, for what an edge leaves on the pixels
+ * next to it. Where the matte fades out slowly, as the shadow of a head on a neck, alpha fades with it, so the
+ * photo gives way to the guess only as far as the layer really was there. Everywhere else alpha is zero, and
+ * that is what keeps the background out of every warp.
  */
 
-/** A cell of the matte above this is the person. */
+/**
+ * A cell of the matte above this is the layer for sure, and one at or below the second has nothing of it. A
+ * value from 1 to the third is a trace: nothing of the layer, but ground the plate has to clear, as the loose
+ * ends around hair. See `TRACE` in `person.ts`.
+ */
+const SOLID_LEVEL = 127;
 const PERSON_LEVEL = 8;
-/** Room kept around a person, as a share of the long side and in cells. */
-const ROOM_SHARE = 0.006;
-const ROOM_MIN = 3;
+const TRACE_FULL = 4;
+/** Room kept around a layer, as a share of the long side and in cells. */
+const ROOM_SHARE = 0.0025;
+const ROOM_MIN = 2;
 /** Over this many cells at the outer side of that room, the plate gives way to the photo. */
 const SOFT_CELLS = 2;
 /** Rounds of relaxation at the coarsest level and at each finer one. */
@@ -180,8 +188,26 @@ function membrane(top: Level): void {
   }
 }
 
+/**
+ * A picture, as RGBA, with every cell that is not known replaced by the smooth guess of the known ones around
+ * it. Alpha is 255 where it is a guess. For the model to carry on from one kind of thing only: what is not of
+ * that kind is taken out first.
+ */
+export function spreadKnown(rgba: ArrayLike<number>, known: Uint8Array, w: number, h: number): Uint8Array {
+  const n = w * h;
+  const color = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) for (let c = 0; c < 3; c++) color[i * 3 + c] = known[i] ? rgba[i * 4 + c] : 0;
+  if (known.some((v) => v > 0)) membrane({ w, h, color, known });
+  const out = new Uint8Array(n * 4);
+  for (let i = 0; i < n; i++) {
+    for (let c = 0; c < 3; c++) out[i * 4 + c] = Math.max(0, Math.min(255, Math.round(color[i * 3 + c])));
+    out[i * 4 + 3] = known[i] ? 0 : 255;
+  }
+  return out;
+}
+
 /** The average of each channel over a square around each cell, counting only known cells. */
-function blurKnown(color: Float32Array, known: Uint8Array, w: number, h: number, r: number): Float32Array {
+export function blurKnown(color: Float32Array, known: Uint8Array, w: number, h: number, r: number): Float32Array {
   const out = new Float32Array(color.length);
   const pass = (from: Float32Array, weight: Float32Array, to: Float32Array, toWeight: Float32Array, horizontal: boolean) => {
     const lines = horizontal ? h : w;
@@ -237,7 +263,7 @@ export function buildPlate(rgba: ArrayLike<number>, matte: Uint8Array, w: number
   const person = new Uint8Array(n);
   let any = false;
   for (let i = 0; i < n; i++) {
-    if (matte[i] > PERSON_LEVEL) {
+    if (matte[i] > SOLID_LEVEL) {
       person[i] = 1;
       any = true;
     }
@@ -262,11 +288,14 @@ export function buildPlate(rgba: ArrayLike<number>, matte: Uint8Array, w: number
       const fx = from % w;
       const fy = (from - fx) / w;
       const d = Math.hypot(fx - x, fy - y);
-      if (d > room + SOFT_CELLS) {
+      // Past the room around the solid part, the plate counts as much as the matte still does.
+      const t = Math.min(1, Math.max(0, (matte[at] - PERSON_LEVEL) / (SOLID_LEVEL - PERSON_LEVEL)));
+      const faint = matte[at] > PERSON_LEVEL ? Math.round(255 * t * t * (3 - 2 * t)) : Math.round(255 * Math.min(1, matte[at] / TRACE_FULL));
+      const near = d > room + SOFT_CELLS ? 0 : d <= room ? 255 : Math.round(255 * (1 - (d - room) / (SOFT_CELLS + 1)));
+      alpha[at] = Math.max(faint, near);
+      if (!alpha[at]) {
         known[at] = 1;
         knownCount++;
-      } else {
-        alpha[at] = d <= room ? 255 : Math.round(255 * (1 - (d - room) / (SOFT_CELLS + 1)));
       }
     }
   }
@@ -335,4 +364,60 @@ export function buildPlate(rgba: ArrayLike<number>, matte: Uint8Array, w: number
     }
   }
   return out;
+}
+
+/**
+ * Around each mouth, writes into a plate what is inside the mouth, carried on under the lips. Lips shaped by a
+ * slider slide over the teeth, and where they uncover more than the photo shows, this is what appears: the
+ * dark of a corner next to a corner, and tooth next to a tooth. `mouth` is the opening, `reach` how far around
+ * it the lips can move, in cells. The inside itself keeps the color of the photo.
+ */
+export function extendMouth(plate: Uint8Array, rgba: ArrayLike<number>, mouth: Uint8Array, w: number, h: number, reach: number): void {
+  const inside = new Uint8Array(w * h);
+  let x0 = w;
+  let y0 = h;
+  let x1 = -1;
+  let y1 = -1;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (mouth[y * w + x] < 128) continue;
+      inside[y * w + x] = 1;
+      if (x < x0) x0 = x;
+      if (x > x1) x1 = x;
+      if (y < y0) y0 = y;
+      if (y > y1) y1 = y;
+    }
+  }
+  if (x1 < 0) return;
+  const r = Math.max(2, Math.ceil(reach));
+  x0 = Math.max(0, x0 - r);
+  y0 = Math.max(0, y0 - r);
+  x1 = Math.min(w - 1, x1 + r);
+  y1 = Math.min(h - 1, y1 + r);
+  const bw = x1 - x0 + 1;
+  const bh = y1 - y0 + 1;
+  const color = new Float32Array(bw * bh * 3);
+  const known = new Uint8Array(bw * bh);
+  for (let y = 0; y < bh; y++) {
+    for (let x = 0; x < bw; x++) {
+      const from = (y + y0) * w + x + x0;
+      if (!inside[from]) continue;
+      known[y * bw + x] = 1;
+      for (let c = 0; c < 3; c++) color[(y * bw + x) * 3 + c] = rgba[from * 4 + c];
+    }
+  }
+  const near = nearestCells(known, bw, bh);
+  membrane({ w: bw, h: bh, color, known });
+  for (let y = 0; y < bh; y++) {
+    for (let x = 0; x < bw; x++) {
+      const at = y * bw + x;
+      const from = near[at];
+      if (from < 0) continue;
+      const fx = from % bw;
+      const fy = (from - fx) / bw;
+      if (Math.hypot(fx - x, fy - y) > r) continue;
+      const to = ((y + y0) * w + x + x0) * 4;
+      for (let c = 0; c < 3; c++) plate[to + c] = Math.max(0, Math.min(255, Math.round(color[at * 3 + c])));
+    }
+  }
 }

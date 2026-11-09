@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { DEV_ORIGIN } from '../../playwright.config';
-import { expectNoErrors, meanDiff, openEditor, setSlider, settle, showSettled, imageRect, limitSettled } from './helpers';
+import { expectNoErrors, meanDiff, openEditor, PORTRAIT, setSlider, settle, showSettled, imageRect, limitSettled } from './helpers';
 
 /** The dev server serves each module by address, so a test can read the document and the pixels. */
 test.use({ baseURL: DEV_ORIGIN });
@@ -30,7 +30,11 @@ async function openShape(page: Page, tool = 'faceshape'): Promise<void> {
   await settle(page, 300);
 }
 
-/** Exports a PNG and compares it with one taken before, over the pixels that are background for sure. */
+/**
+ * Exports a PNG and compares it with one taken before. Every pixel outside the person counts, with no band left
+ * out: the result says how many of them changed, how far from the head the farthest one is, and how many of
+ * the changed ones the head now covers, which is the head growing and not the background moving.
+ */
 const COMPARE = `
   async function shot() {
     const { exportImage } = await import(/* @vite-ignore */ '/src/core/export.ts');
@@ -42,55 +46,68 @@ const COMPARE = `
     return g.getImageData(0, 0, bitmap.width, bitmap.height);
   }
   async function compare(a, b) {
-    const { PERSON_MASK } = await import(/* @vite-ignore */ '/src/core/doc.ts');
-    const matte = await e.masks.read(PERSON_MASK);
+    const { PERSON_MASK, HEAD_MASK } = await import(/* @vite-ignore */ '/src/core/doc.ts');
+    const { distanceTo } = await import(/* @vite-ignore */ '/src/core/face/complete.ts');
+    const person = await e.masks.read(PERSON_MASK);
+    const head = await e.masks.read(HEAD_MASK);
     const mw = e.masks.w;
     const mh = e.masks.h;
-    // A band around the person belongs to the plate. Past it, nothing may change.
-    const room = Math.max(3, Math.round(Math.max(mw, mh) * 0.006)) + 4;
-    const near = new Uint8Array(mw * mh);
-    for (let y = 0; y < mh; y++) {
-      for (let x = 0; x < mw; x++) {
-        if (!matte || !matte[y * mw + x]) continue;
-        const y0 = Math.max(0, y - room);
-        const y1 = Math.min(mh - 1, y + room);
-        const x0 = Math.max(0, x - room);
-        const x1 = Math.min(mw - 1, x + room);
-        for (const yy of [y0, y1]) near.fill(1, yy * mw + x0, yy * mw + x1 + 1);
-        for (let yy = y0; yy <= y1; yy++) near.fill(1, yy * mw + x0, yy * mw + x1 + 1);
-      }
-    }
-    let background = 0;
-    let moved = 0;
-    let person = 0;
-    let personMoved = 0;
-    // A person that grows over a pixel covers it. That is not the background moving, so those are left out.
+    const solid = new Uint8Array(mw * mh);
+    for (let i = 0; i < solid.length; i++) solid[i] = head[i] > 127 ? 1 : 0;
+    const toHead = distanceTo(solid, mw, mh);
+    // Where the head ends up over a pixel, the pixel is covered: read the matte where the field reads the photo,
+    // and the cells around, because the edge of the head covers a pixel in part.
     const covered = (u, v) => {
       const [du, dv] = e.field.lookup(u, v);
       const cx = Math.floor((u + du) * mw);
       const cy = Math.floor((v + dv) * mh);
-      for (let yy = Math.max(0, cy - 2); yy <= Math.min(mh - 1, cy + 2); yy++) {
-        for (let xx = Math.max(0, cx - 2); xx <= Math.min(mw - 1, cx + 2); xx++) if (matte && matte[yy * mw + xx]) return true;
+      for (let y = Math.max(0, cy - 2); y <= Math.min(mh - 1, cy + 2); y++) {
+        for (let x = Math.max(0, cx - 2); x <= Math.min(mw - 1, cx + 2); x++) if (head[y * mw + x] > 8) return true;
       }
       return false;
     };
+    const out = { background: 0, changed: 0, coveredByHead: 0, farthest: 0, body: 0, bodyChanged: 0, bodyFarthest: 0, headChanged: 0 };
     for (let y = 0; y < a.height; y++) {
       for (let x = 0; x < a.width; x++) {
         const o = (y * a.width + x) * 4;
         const changed = a.data[o] !== b.data[o] || a.data[o + 1] !== b.data[o + 1] || a.data[o + 2] !== b.data[o + 2];
-        const cell = Math.floor((y / a.height) * mh) * mw + Math.floor((x / a.width) * mw);
-        if (near[cell] || covered((x + 0.5) / a.width, (y + 0.5) / a.height)) {
-          person++;
-          if (changed) personMoved++;
-        } else {
-          background++;
-          if (changed) moved++;
+        const u = (x + 0.5) / a.width;
+        const v = (y + 0.5) / a.height;
+        const cell = Math.floor(v * mh) * mw + Math.floor(u * mw);
+        if (person[cell] <= 8) {
+          out.background++;
+          if (!changed) continue;
+          if (covered(u, v)) out.coveredByHead++;
+          else {
+            out.changed++;
+            out.farthest = Math.max(out.farthest, toHead[cell]);
+          }
+        } else if (head[cell] === 0) {
+          // The body, past the shadow of the head.
+          out.body++;
+          if (changed && !covered(u, v)) {
+            out.bodyChanged++;
+            out.bodyFarthest = Math.max(out.bodyFarthest, toHead[cell]);
+          }
+        } else if (changed) {
+          out.headChanged++;
         }
       }
     }
-    return { background, moved, person, personMoved };
+    return out;
   }
 `;
+
+interface Compared {
+  background: number;
+  changed: number;
+  coveredByHead: number;
+  farthest: number;
+  body: number;
+  bodyChanged: number;
+  bodyFarthest: number;
+  headChanged: number;
+}
 
 test.describe('o menu Formato do rosto', () => {
   test('tem nome inteiro na barra e quatro ferramentas', async ({ page }) => {
@@ -113,45 +130,41 @@ test.describe('o menu Formato do rosto', () => {
 });
 
 test.describe('o fundo travado', () => {
-  test('um controle deixa cada pixel do fundo igual, e o rosto muda', async ({ page }) => {
-    const errors = watch(page);
-    await openEditor(page);
-    await openShape(page);
-    await expect(page.getByTestId('lock-note')).toHaveText(/Fundo travado/);
-    const result = await inPage<{ background: number; moved: number; person: number; personMoved: number }>(
-      page,
-      `${COMPARE}
-      const before = await shot();
-      const { placeOf, chosenFace } = await import(/* @vite-ignore */ '/src/ui/shapepick.svelte.ts');
-      e.setShapeValue(placeOf(e, chosenFace()), 'jawline', -100);
-      e.commit();
-      const after = await shot();
-      return compare(before, after);`,
-    );
-    expect(result.background).toBeGreaterThan(1000);
-    expect(result.moved).toBe(0);
-    expect(result.personMoved).toBeGreaterThan(100);
-    expectNoErrors(errors);
-  });
-
-  test('diminuir a cabeça deixa o fundo igual, e a área revelada vem do fundo', async ({ page }) => {
-    const errors = watch(page);
-    await openEditor(page);
-    await openShape(page);
-    const result = await inPage<{ background: number; moved: number; personMoved: number }>(
-      page,
-      `${COMPARE}
-      const before = await shot();
-      const { placeOf, chosenFace } = await import(/* @vite-ignore */ '/src/ui/shapepick.svelte.ts');
-      e.setShapeValue(placeOf(e, chosenFace()), 'head', -100);
-      e.commit();
-      const after = await shot();
-      return compare(before, after);`,
-    );
-    expect(result.moved).toBe(0);
-    expect(result.personMoved).toBeGreaterThan(1000);
-    expectNoErrors(errors);
-  });
+  for (const [name, id, value] of [
+    ['estreitar a mandíbula', 'jawline', 100],
+    ['alargar a mandíbula', 'jawline', -100],
+    ['subir o queixo', 'chin', -100],
+    ['diminuir a cabeça', 'head', -100],
+    ['aumentar a cabeça', 'head', 100],
+  ] as const) {
+    test(`${name} mexe na cabeça e em mais nada: o fundo e o corpo ficam, pixel por pixel`, async ({ page }) => {
+      const errors = watch(page);
+      await openEditor(page);
+      await openShape(page);
+      await expect(page.getByTestId('lock-note')).toHaveText(/Fundo travado/);
+      const result = await inPage<Compared>(
+        page,
+        `${COMPARE}
+        const before = await shot();
+        const { placeOf, chosenFace } = await import(/* @vite-ignore */ '/src/ui/shapepick.svelte.ts');
+        e.setShapeValue(placeOf(e, chosenFace()), '${id}', ${value});
+        e.commit();
+        const after = await shot();
+        return compare(before, after);`,
+      );
+      expect(result.background).toBeGreaterThan(1000);
+      expect(result.headChanged).toBeGreaterThan(100);
+      // No band is left out of the count. What changes outside the person is the edge the head left: a few
+      // cells next to it, and around hair the ground its loose ends reach. Nothing far from the head changes.
+      const long = Math.max(PORTRAIT.w, PORTRAIT.h);
+      expect(result.farthest).toBeLessThan(long * 0.06);
+      expect(result.changed).toBeLessThan(result.background * 0.01);
+      // The body is where it was, to the pixel, but for the few cells right against the head.
+      expect(result.body).toBeGreaterThan(1000);
+      expect(result.bodyFarthest).toBeLessThan(long * 0.006);
+      expectNoErrors(errors);
+    });
+  }
 
   test('o pincel do Liquify traz a chave ligada: no fundo não mexe, com ela desligada mexe', async ({ page }) => {
     const errors = watch(page);
@@ -208,7 +221,7 @@ test.describe('o fundo travado', () => {
   test('sem separar o fundo, o painel diz o que acontece, e o tamanho da cabeça sai', async ({ page }) => {
     const errors = watch(page);
     // Only the model itself: on the dev server the address of the file is a module of the same name.
-    await page.route(/selfie_segmenter[^?]*\.tflite$/, (route) => route.abort());
+    await page.route(/selfie_multiclass[^?]*\.tflite$/, (route) => route.abort());
     await openEditor(page);
     await openShape(page);
     await expect(page.getByTestId('lock-note')).toHaveText(/não carregou.*o fundo perto do rosto mexe junto.*cabeça fica desligado/);
@@ -229,7 +242,7 @@ test.describe('a troca de ferramenta', () => {
     // The file of the model arrives late, so the next tool starts its search while the load is still going.
     let asked: () => void = () => undefined;
     const reached = new Promise<void>((done) => (asked = done));
-    await page.route(/selfie_segmenter[^?]*\.tflite$/, async (route) => {
+    await page.route(/selfie_multiclass[^?]*\.tflite$/, async (route) => {
       asked();
       await new Promise((done) => setTimeout(done, 1500));
       await route.continue();
@@ -467,6 +480,62 @@ test.describe('os controles', () => {
     await openShape(page);
     await expect(page.getByRole('slider', { name: 'Tamanho da cabeça' })).toHaveValue('-80');
     expect((await doc(page)).max).toBeCloseTo(saved.max, 4);
+    expectNoErrors(errors);
+  });
+});
+
+test.describe('o que fica atrás de quem se mexe', () => {
+  test('é completado em segundo plano, com progresso e tempo, e dá para cancelar e retomar', async ({ page }) => {
+    test.setTimeout(480_000);
+    const errors = watch(page);
+    await openEditor(page);
+    await openShape(page);
+    // The tests hold it back. The panel then says the quick guess is in use and offers the real thing.
+    await expect(page.locator('[data-fill=off]')).toHaveCount(1);
+    await expect(page.getByTestId('fill-note')).toHaveText(/Preenchimento rápido/);
+    const quick = await inPage<number[]>(page, 'return Array.from(e.plateData().head.slice(0, 4000000));');
+    await page.getByTestId('fill-start').click();
+    const card = page.locator('[data-fill] [role=progressbar]');
+    await expect(card).toBeVisible({ timeout: 120_000 });
+    // Nobody waits for it: a slider moves while the model works.
+    await setSlider(page, 'Linha da mandíbula', 60);
+    expect(await inPage<boolean>(page, 'return e.doc.hasField;')).toBe(true);
+    await expect(page.locator('[data-fill=running]')).toHaveCount(1, { timeout: 240_000 });
+    await expect(card).toContainText(/cerca de \d+ (s|min)/, { timeout: 120_000 });
+    await page.getByTestId('fill-cancel').click();
+    await expect(page.locator('[data-fill=off]')).toHaveCount(1);
+    await settle(page, 500);
+    // Stopped halfway, the plate is still the quick guess.
+    const stopped = await inPage<number[]>(page, 'return Array.from(e.plateData().head.slice(0, 4000000));');
+    expect(stopped).toEqual(quick);
+    await page.getByTestId('fill-start').click();
+    await expect(page.locator('[data-fill=done]')).toHaveCount(1, { timeout: 420_000 });
+    const result = await inPage<{ changed: number; outside: number }>(
+      page,
+      `const data = e.plateData();
+      const quick = ${JSON.stringify([])};
+      void quick;
+      let changed = 0;
+      let outside = 0;
+      const { HEAD_MASK } = await import(/* @vite-ignore */ '/src/core/doc.ts');
+      const head = await e.masks.read(HEAD_MASK);
+      const { source } = e;
+      const photo = source.draw(0, 0, source.w, source.h, data.w, data.h).getContext('2d').getImageData(0, 0, data.w, data.h).data;
+      for (let i = 0; i < data.w * data.h; i++) {
+        const same = data.head[i * 4] === photo[i * 4] && data.head[i * 4 + 1] === photo[i * 4 + 1] && data.head[i * 4 + 2] === photo[i * 4 + 2];
+        if (data.head[i * 4 + 3] === 0) {
+          // Where no layer was, the finished plate is the photo, to the bit.
+          if (!same) outside++;
+        } else if (head[i] > 127 && !same) {
+          changed++;
+        }
+      }
+      return { changed, outside };`,
+    );
+    expect(result.outside).toBe(0);
+    expect(result.changed).toBeGreaterThan(1000);
+    const done = await inPage<number[]>(page, 'return Array.from(e.plateData().head.slice(0, 4000000));');
+    expect(done).not.toEqual(quick);
     expectNoErrors(errors);
   });
 });

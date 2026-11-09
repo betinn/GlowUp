@@ -170,6 +170,16 @@
 - [x] Cabeça maior e menor, com o que aparece preenchido a partir do fundo
 - [x] Traços do pincel e controles juntos, Zerar, interruptor, vários rostos e projeto salvo
 - [x] Conferido nas quatro fotos reais, com linhas finas sobre a foto ampliada
+- [x] Separação pelo Selfie Multiclass: cabeça, corpo e fundo, sem o travesseiro ao lado da mandíbula
+- [x] Controles movem só a cabeça, com a sombra do queixo junto, e pescoço, ombros e fundo parados
+- [x] Olhos, nariz e boca em zonas: a parte muda inteira, a vizinha não se mexe, e nada dobra
+- [x] Lábios deslizam sobre os dentes, e a altura move a boca inteira
+- [x] O que aparece atrás completado pelo MI-GAN, fundo e corpo cada um do seu tipo, em anéis
+- [x] Cartão de progresso com tempo medido no aparelho, cancelar e retomar, e a exportação espera
+- [x] Conferido nas sete fotos reais, cada controle nas duas pontas, com a contagem sem faixa de fora
+- [ ] Quem usa decide se o download de cerca de 44 MB no primeiro uso do menu fica
+- [ ] Placa na resolução da foto: hoje ela tem a da prévia, e numa foto de 12 MP o que aparece atrás sai mais suave
+- [ ] Retoques de pele chegarem à placa: o pescoço que aparece vem da foto sem Suavizar nem Tom de pele
 
 ## Metas medidas
 
@@ -250,15 +260,36 @@ poucos tons de pele.
 
 ### Formato do rosto
 
-As quatro fotos reais da pasta de testes, com a cabeça em -100, o maior deslocamento dos controles. Conta a exportação
-inteira, pixel a pixel, deixando de fora a faixa da placa, de 0,6% do lado maior, e o que a pessoa passa a cobrir.
+As fotos reais da pasta de testes, na exportação inteira, pixel a pixel. Conta todo pixel fora da pessoa, sem deixar
+faixa nenhuma de fora. A medida anterior deixava de fora uma faixa de 0,6% do lado maior e o que a pessoa cobria, e
+por isso dava zero. O que muda é a borda que a cabeça deixou e o chão das pontas soltas do cabelo, completados pelo
+modelo. Entre parênteses, quantos mudaram mais de 8 níveis.
 
-| Foto | Fundo comparado | Pixels de fundo que mudaram | Tempo da separação |
+| Foto | Pixels fora da pessoa | Mudaram com a cabeça em -100 | Mudaram com a mandíbula em -100 |
 | --- | --- | --- | --- |
-| Selfie na rua, 827 x 1351 | 325 mil | 0 | 1,4 s |
-| Close no carro, 399 x 501 | 57 mil | 0 | 0,4 s |
-| Close na cama, 675 x 1200 | 205 mil | 0 | 1,1 s |
-| Retrato com parede clara, 800 x 993 | 295 mil | 37, com uma só diferença acima de 12 níveis, em fio de cabelo | 1,0 s |
+| Close na cama, travesseiro claro, 675 x 1200 | 272 mil | 8.643 (3.178) | 2.948 (808) |
+| Selfie na rua, asfalto, 827 x 1351 | 374 mil | 13.469 (5.071) | 14 (0) |
+| Close no carro, 399 x 501 | 64 mil | 3.596 (2.053) | 402 (211) |
+| Retrato com parede clara, 800 x 993 | 336 mil | 5.090 (1.899) | 664 (179) |
+| Selfie de óculos, calçada, 774 x 1600 | 548 mil | 14.575 (6.523) | 3.077 (1.193) |
+| Retrato com fundo claro e mão na cabeça, 758 x 1341 | 419 mil | 3.018 (812) | 385 (91) |
+
+No retrato gerado dos testes, de 1500 x 1875: até 4.176 de 1,14 milhão de pixels de fundo, 0,4%, todos a menos de
+5% do lado maior da cabeça, e no corpo só os que encostam nela, a 7 células.
+
+Download e tempo, medidos nesta máquina, com os arquivos `.br` do build:
+
+| Item | Na rede | Tempo |
+| --- | --- | --- |
+| Selfie Multiclass | 14.955.395 bytes | 0,3 s por recorte, três por rosto |
+| MI-GAN | 24.252.773 bytes | 0,1 s por bloco com WebGPU, 1,7 s em WebAssembly |
+| ONNX Runtime Web, WebAssembly e worker | 4.349.039 bytes | cerca de 2,5 s para ligar |
+| Preenchimento do close na cama, com WebGPU | | cerca de 5 s |
+| Preenchimento do retrato dos testes, sem WebGPU | | 1,3 min |
+
+O que ficou limitado, visto nas fotos: óculos na frente do nariz ou dos olhos entortam com os controles dessas
+partes. Em fundo com textura, o chão das pontas soltas do cabelo volta com textura parecida e não igual. Com a
+cabeça em -100, um ou outro risco fino pode aparecer no fundo liso ao lado do rosto, visto só com zoom.
 
 ### Automático de Forma e Luz
 

@@ -54,6 +54,12 @@ export const FILTER_MASK = 'filter' as unknown as LayerId;
 
 /** Mask key of the person, for the lock of the background. It comes from the photo and no edit changes it. */
 export const PERSON_MASK = 'person' as unknown as LayerId;
+/** Mask key of the heads: hair, face and what is worn on them. The sliders of the face move this and nothing else. */
+export const HEAD_MASK = 'head' as unknown as LayerId;
+/** Mask key of the opening of the mouths, which lips shaped by a slider slide over. */
+export const MOUTH_MASK = 'mouth' as unknown as LayerId;
+/** The masks that come from the photo. No edit changes them, and they go into a saved project. */
+export const PHOTO_MASKS: readonly LayerId[] = [PERSON_MASK, HEAD_MASK, MOUTH_MASK];
 
 export type ParamValue = number | string;
 export type Params = Record<string, ParamValue>;

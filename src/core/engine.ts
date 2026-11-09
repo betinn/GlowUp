@@ -5,14 +5,14 @@
 
 import { GLContext, type Tex } from './gl/context';
 import { DEFAULT_BRUSH, StrokeInterpolator, type BrushSettings, type Dab } from './brush';
-import { clone, createDoc, DEFAULT_ADJUST, DEFAULT_BLUR, FILTER_MASK, PERSON_MASK, type Adjustments, type BlurSettings, type EditDoc, type FaceShape, type FilterState, type HealOp, type LayerId, type ParamValue } from './doc';
+import { clone, createDoc, DEFAULT_ADJUST, DEFAULT_BLUR, FILTER_MASK, HEAD_MASK, MOUTH_MASK, PERSON_MASK, PHOTO_MASKS, type Adjustments, type BlurSettings, type EditDoc, type FaceShape, type FilterState, type HealOp, type LayerId, type ParamValue } from './doc';
 import type { Face } from './face/scan';
 import { applyMat3, defaultCrop, imageToOutput, outputSize, outputToImage, rotatedBounds, type Crop } from './geometry';
 import { decodeTile, encodeTile } from './history/codec';
 import { History, type HistoryEntry } from './history/history';
 import { MaskStore, type MaskTile } from './masks';
 import { Pipeline, shader } from './pipeline/pipeline';
-import { buildPlate } from './face/plate';
+import { buildPlate, extendMouth } from './face/plate';
 import { RenderContext } from './pipeline/context';
 import type { ToolPass } from './pipeline/types';
 import { SourceImage } from './source';
@@ -57,6 +57,23 @@ export interface ResetScope {
 /** What the before side of the comparison shows. */
 export type CompareBase = 'original' | 'unfiltered';
 
+/** The mattes of a photo: the person, the heads inside it, and the opening of the mouths when one is open. */
+export interface PhotoMattes {
+  person: Uint8Array;
+  head: Uint8Array;
+  mouth: Uint8Array | null;
+}
+
+/** How far around a mouth its lips can move, as a share of the span of the heads. */
+const MOUTH_REACH = 0.07;
+
+/** A length that goes with the size of the heads of a photo, in cells: the side of a square with their area. */
+export function headSpan(head: Uint8Array): number {
+  let area = 0;
+  for (let i = 0; i < head.length; i++) if (head[i] > 127) area++;
+  return Math.sqrt(area);
+}
+
 /** A stroke from code, in the terms of a stroke of the person. */
 export interface FieldStroke {
   /** push, bloat, pinch or restore. */
@@ -91,8 +108,10 @@ export interface ShapeSource {
 /** What the liquify module provides once loaded. */
 export interface FieldController {
   tex: Tex;
-  /** The brush alone, while the background moves with it. */
-  readonly brushTex: Tex | null;
+  /** The brush alone: what moves a body, which the sliders leave where it is. */
+  readonly brushTex: Tex;
+  /** The share of the sliders that shapes the lips, while there is one. */
+  readonly lipTex: Tex | null;
   lookup(u: number, v: number): [number, number];
   begin(mode: string, radius: number, strength: number): void;
   stroke(u: number, v: number): void;
@@ -110,7 +129,6 @@ export interface FieldController {
   /** What the document asks for as it stands, for saving, so a project opens with no detector. */
   shapeData(): Float32Array | null;
   restoreShape(data: Float32Array | null): void;
-  setBrushOnBackground(on: boolean): void;
   maxDisplacement(): number;
   destroy(): void;
 }
@@ -153,7 +171,7 @@ export class Engine {
   liquifyStrength = 0.6;
   /** Paints the mark of the touched area over the photo. Every tool opens with it off. */
   showMask = false;
-  /** Draws a thin line along the edge of the person. Only the on-screen pass draws it. */
+  /** Draws a thin line along the edge of the heads, the part the sliders move. Only the on-screen pass draws it. */
   showMatteLine = false;
   /** The mask of the open tool comes from the detector: a drag moves the photo and paints nothing. */
   brushOff = false;
@@ -166,8 +184,10 @@ export class Engine {
   fieldRev = 0;
   /** The faces the sliders hold on to. Empty on a reopened project until the menu looks for them. */
   shapeFaces: readonly Face[] = [];
-  /** The background behind the person, while the matte exists. */
-  private plate: Tex | null = null;
+  /** The photo with nobody in it and with no head in it, while the mattes exist. */
+  private plates: { w: number; h: number; span: number; back: { data: Uint8Array; tex: Tex }; head: { data: Uint8Array; tex: Tex }; mattes: { person: Uint8Array; head: Uint8Array } } | null = null;
+  /** Counts the times the layers were set, so work done for older ones is not taken for these. */
+  private layersRev = 0;
   /** Id of the filter whose LUT is on the GPU. */
   loadedLut: string | null = null;
   /** Re-uploads the LUT after an undo changes the filter. */
@@ -318,41 +338,86 @@ export class Engine {
   registerField(field: FieldController): void {
     this.field = field;
     if (this.pipeline) this.pipeline.field = field;
-    field.setBrushOnBackground(!!this.doc.unlocked);
   }
 
   /* The lock of the background */
 
-  /** The matte of the person came, or none was found. The warps keep the background from here on. */
-  setPerson(matte: Uint8Array | null): void {
-    const { masks, source, pipeline } = this;
+  /**
+   * The mattes of the photo came, or no person was found. From here on warps move each layer alone: the
+   * sliders the head, the brush the person. The plates start as a quick guess, good enough to move a slider
+   * right away, and `setPlate` brings the finished ones when the completion is done.
+   */
+  setLayers(mattes: PhotoMattes | null): void {
+    const { masks, source, pipeline, glc } = this;
     if (!masks || !source || !pipeline) return;
     this.dropPlate();
-    if (matte) {
-      masks.write(PERSON_MASK, matte);
+    if (mattes) {
       const { w, h } = masks;
+      masks.write(PERSON_MASK, mattes.person);
+      masks.write(HEAD_MASK, mattes.head);
+      if (mattes.mouth) masks.write(MOUTH_MASK, mattes.mouth);
+      else masks.clear(MOUTH_MASK);
       const photo = source.draw(0, 0, source.w, source.h, w, h).getContext('2d')!.getImageData(0, 0, w, h).data;
-      this.plate = this.glc.createTex(w, h, 'rgba8', { noTarget: true });
-      this.glc.upload(this.plate, { x: 0, y: 0, w, h }, buildPlate(photo, matte, w, h));
-      pipeline.lock = { matte: masks.get(PERSON_MASK)!, plate: this.plate };
+      const back = buildPlate(photo, mattes.person, w, h);
+      const head = buildPlate(photo, mattes.head, w, h);
+      const span = headSpan(mattes.head);
+      if (mattes.mouth) extendMouth(head, photo, mattes.mouth, w, h, span * MOUTH_REACH);
+      const tex = (data: Uint8Array) => {
+        const t = glc.createTex(w, h, 'rgba8', { noTarget: true });
+        glc.upload(t, { x: 0, y: 0, w, h }, data);
+        return t;
+      };
+      this.plates = { w, h, span, back: { data: back, tex: tex(back) }, head: { data: head, tex: tex(head) }, mattes: { person: mattes.person, head: mattes.head } };
+      pipeline.lock = {
+        person: masks.get(PERSON_MASK)!,
+        head: masks.get(HEAD_MASK)!,
+        mouth: mattes.mouth ? masks.get(MOUTH_MASK) : null,
+        plateBack: this.plates.back.tex,
+        plateHead: this.plates.head.tex,
+      };
     } else {
-      masks.clear(PERSON_MASK);
+      for (const id of PHOTO_MASKS) masks.clear(id);
     }
+    this.layersRev++;
     this.ctx?.invalidate('global');
     this.requestRender();
     this.emit('change');
   }
 
-  /** Builds what the lock needs from the matte in the store, as when a saved project opens. */
+  /** Builds the layers from the mattes in the store, as when a saved project opens. */
   async refreshLock(): Promise<void> {
     const { masks } = this;
-    const matte = masks?.get(PERSON_MASK) ? await masks.read(PERSON_MASK) : null;
-    if (matte) this.setPerson(matte);
+    if (!masks?.get(PERSON_MASK)) return;
+    const person = await masks.read(PERSON_MASK);
+    if (!person || !person.some((v) => v > 0)) return;
+    const head = masks.get(HEAD_MASK) ? await masks.read(HEAD_MASK) : null;
+    const mouth = masks.get(MOUTH_MASK) ? await masks.read(MOUTH_MASK) : null;
+    this.setLayers({ person, head: head ?? person, mouth: mouth?.some((v) => v > 0) ? mouth : null });
+  }
+
+  /** The plates as they stand, for the completion to work on. Null when the photo has no layers. */
+  plateData(): { w: number; h: number; span: number; back: Uint8Array; head: Uint8Array; personMatte: Uint8Array; headMatte: Uint8Array; rev: number } | null {
+    const p = this.plates;
+    return p ? { w: p.w, h: p.h, span: p.span, back: p.back.data, head: p.head.data, personMatte: p.mattes.person, headMatte: p.mattes.head, rev: this.layersRev } : null;
+  }
+
+  /** A plate changed: the completion finished a part of it. `rev` is what `plateData` gave, so a stale answer is dropped. */
+  setPlate(which: 'back' | 'head', data: Uint8Array, rev: number): void {
+    const p = this.plates;
+    if (!p || rev !== this.layersRev) return;
+    p[which].data = data;
+    this.glc.upload(p[which].tex, { x: 0, y: 0, w: p.w, h: p.h }, data);
+    this.ctx?.invalidate('global');
+    this.dropRoi();
+    this.requestRender();
   }
 
   private dropPlate(): void {
-    if (this.plate) this.glc.destroyTex(this.plate);
-    this.plate = null;
+    if (this.plates) {
+      this.glc.destroyTex(this.plates.back.tex);
+      this.glc.destroyTex(this.plates.head.tex);
+    }
+    this.plates = null;
     if (this.pipeline) this.pipeline.lock = null;
   }
 
@@ -367,7 +432,6 @@ export class Engine {
       if (free) doc.unlocked = true;
       else delete doc.unlocked;
     });
-    this.field?.setBrushOnBackground(free);
     this.ctx?.invalidate('global');
     this.requestRender();
   }
@@ -378,7 +442,6 @@ export class Engine {
   syncShape(): void {
     const { field, doc } = this;
     if (!field) return;
-    field.setBrushOnBackground(!!doc.unlocked);
     const shapes = (doc.shapes ?? []).filter((s) => Object.values(s.values).some((v) => v !== 0));
     if (doc.shapeAmount === undefined && !shapes.length) {
       field.setShape(null);
@@ -1416,7 +1479,7 @@ export class Engine {
     const healing = this.mode === 'heal' && !!this.stroke;
     const showOverlay = !!overlay && (healing || (this.showMask && this.mode === 'mask'));
     const hasField = doc.hasField && !!this.field;
-    const matte = this.showMatteLine ? masks.get(PERSON_MASK) : null;
+    const matte = this.showMatteLine ? masks.get(HEAD_MASK) : null;
     const before = (c: RenderContext) => (this.compareBase === 'unfiltered' ? c.slot('unfiltered') : c.source);
     const light = this.revealState();
     glc.run(

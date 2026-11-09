@@ -9,6 +9,8 @@ export async function skipIntro(page: Page): Promise<void> {
   await page.addInitScript(() => {
     localStorage.setItem('glowup.onboarded', 'true');
     localStorage.setItem('glowup.startPath', '"manual"');
+    // The completion of what warps uncover downloads a model and takes a while: only its own tests start it.
+    localStorage.setItem('glowup.fill', 'off');
   });
 }
 

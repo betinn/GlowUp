@@ -5,6 +5,8 @@ import { glowupDist } from './scripts/vite-dist-plugin.ts';
 export default defineConfig({
   plugins: [svelte(), glowupDist()],
   base: './',
+  // The worker of the inpainting model is a module, as the page that starts it asks.
+  worker: { format: 'es' },
   build: {
     target: 'es2022',
     sourcemap: false,

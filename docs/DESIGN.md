@@ -126,23 +126,36 @@ As outras ferramentas seguem recolhendo o painel no segundo toque.
 O menu que era Forma. Quatro ferramentas na fila: Rosto, Olhos, Nariz e boca, e Liquify. Na barra, o nome ocupa
 duas linhas, em 84 px no computador e em 44 px no celular.
 
-- **O fundo fica parado.** Tudo aqui lê a pessoa de um lado e o fundo de outro. Ao abrir a primeira ferramenta o
-  app separa os dois, e o painel avisa "Fundo travado". Cada pixel além de uma faixa fina em volta da pessoa sai
-  igual ao original. Quando a pessoa cresce, cobre o fundo. Quando encolhe, o que aparece é preenchido a partir do
-  fundo em volta. O app nunca sabe o que estava lá, e em lençol com dobras ou objeto reto isso se nota.
+- **Camadas.** A foto é lida em camadas: o fundo, o corpo, a cabeça e o interior da boca. Ao abrir a primeira
+  ferramenta o app separa tudo no aparelho, e o painel avisa "Fundo travado: só a cabeça se mexe". Os controles
+  movem a cabeça: cabelo, rosto, orelhas, óculos e brincos. Pescoço, ombros e fundo ficam onde estão, pixel por
+  pixel. A sombra do queixo no pescoço vai com a cabeça.
+- **O que aparece atrás.** Quando a cabeça cresce, cobre o que está atrás. Quando encolhe, aparece o que ela
+  escondia: pescoço onde escondia pescoço, fundo onde escondia fundo. Isso é completado por um modelo de
+  preenchimento, que continua a dobra do travesseiro ou o grão do chão. Um palpite liso entra na hora, para ninguém
+  esperar, e o completo chega depois.
+- **O cartão de preenchimento.** Enquanto o modelo trabalha, o painel mostra a porcentagem, o passo e quanto
+  falta, "cerca de 8 s" ou "cerca de 2 min", medido neste aparelho. Os controles funcionam durante. "Cancelar"
+  para e deixa o palpite liso, com um botão "Completar com mais qualidade". Se o modelo não baixou, "Tentar de
+  novo". A exportação espera o preenchimento acabar. A primeira vez baixa cerca de 29 MB, e o cartão diz.
+- **O que muda no fundo.** Junto da cabeça que se afastou, uns pixels de borda, e em volta do cabelo o chão onde
+  havia pontas soltas, até 10% do tamanho do rosto. Tudo o mais sai igual ao original.
 - **Sem separar.** O painel diz o motivo e o que acontece: o fundo perto do rosto mexe junto, e o tamanho da
   cabeça some. Se o modelo não baixou, há um botão para tentar de novo.
 - **Controles.** Cada um começa no zero e vai para os dois lados, menos a papada, que só diminui. Mexer é uma
   etapa do desfazer por gesto, e os números ficam no projeto. Um toque duplo volta ao zero.
 - **Rosto.** Em três partes: Contorno (linha da mandíbula, forma do maxilar, queixo, maçãs e têmporas), Altura
   (testa e comprimento) e Cabeça (tamanho e papada). No fim, uma chave desenha em linhas finas o que foi detectado:
-  o contorno do rosto, olhos, íris, sobrancelhas, lábios, o meio do rosto e a borda da pessoa. Essas linhas nunca
-  vão para a exportação.
+  o contorno do rosto, olhos, íris, sobrancelhas, lábios, o meio do rosto e a borda da cabeça, que é o que os
+  controles movem. Essas linhas nunca vão para a exportação.
 - **Papada.** O controle só aparece quando a foto mostra uma dobra embaixo do queixo. Sem dobra, uma frase diz por
   quê, e nada é adivinhado.
-- **Olhos.** Tamanho, ângulo, alongar, abrir e fechar, pupilas e altura das sobrancelhas.
+- **Olhos.** Tamanho, ângulo, alongar, abrir e fechar, pupilas e altura das sobrancelhas. Cada controle muda o
+  olho inteiro, com pálpebras e cílios, e a pele em volta absorve. Sobrancelha, bochecha e nariz não se mexem.
 - **Nariz e boca.** Largura, ponte, comprimento e ponta do nariz. Largura, volume, altura e cantos da boca. Tudo
-  começa no zero e nada aqui entra sozinho, em nenhum automático.
+  começa no zero e nada aqui entra sozinho, em nenhum automático. Nenhum controle do nariz mexe na boca.
+- **Dentes.** Largura, volume e cantos mexem nos lábios, que deslizam sobre os dentes. Os dentes não esticam. A
+  altura move a boca inteira, lábios e dentes juntos.
 - **Vários rostos.** Uma fileira de botões e um anel em cada rosto dizem qual está sendo mexido. Cada rosto guarda
   os próprios números.
 - **O interruptor.** O segundo toque em Rosto, Olhos ou Nariz e boca desliga aquela parte e guarda os números, e o

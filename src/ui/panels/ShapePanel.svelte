@@ -6,6 +6,7 @@
   import { SHAPE_SLIDERS, type ShapeSlider } from '../../core/face/reshape';
   import { toolById } from '../../tools/catalog';
   import { ensureLock, facePick, lockState } from '../facepick.svelte';
+  import FillCard from '../FillCard.svelte';
   import ProgressCard from '../ProgressCard.svelte';
   import { chinNote, chosenFace, placeOf, searchMoreFaces, shapePick, valueOf } from '../shapepick.svelte';
   import Slider from '../Slider.svelte';
@@ -73,7 +74,8 @@
     {/if}
 
     {#if lockState.state === 'on'}
-      <p class="note lock" role="status" data-testid="lock-note">Fundo travado: fora da pessoa nada se mexe.</p>
+      <p class="note lock" role="status" data-testid="lock-note">Fundo travado: só a cabeça se mexe. Pescoço, ombros e fundo ficam onde estão.</p>
+      <FillCard />
     {:else if lockState.state === 'finding'}
       <p class="note lock" role="status" data-testid="lock-note">Separando a pessoa do fundo…</p>
     {:else}

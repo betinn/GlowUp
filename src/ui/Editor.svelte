@@ -5,7 +5,8 @@
   import { Autosave, InvalidProjectError, loadOriginal, loadProject, unpack, validProject } from '../core/project';
   import { nextPaint } from '../core/progress';
   import { readFile, SourceImage } from '../core/source';
-  import { FILTER_MASK, PERSON_MASK, type LayerId } from '../core/doc';
+  import { FILTER_MASK, PHOTO_MASKS, type LayerId } from '../core/doc';
+  import { startFill } from './fill.svelte';
   import { syncFilter } from '../presets/apply';
   import { ensureDocTools } from '../tools/activate';
   import { GROUPS, TOOLS, toolById, type GroupId } from '../tools/catalog';
@@ -138,7 +139,7 @@
         const bytes = await unpack(blob);
         const store = e.masks!;
         // The mask of a tool that no longer exists stays out, so the next save drops it.
-        if (id !== FILTER_MASK && id !== PERSON_MASK && !e.doc.layers[id]) continue;
+        if (id !== FILTER_MASK && !PHOTO_MASKS.includes(id) && !e.doc.layers[id]) continue;
         if (bytes.length === store.w * store.h) store.write(id, bytes);
         // A mask made for another screen size is lost, and a filter with no mask would just vanish.
         else if (id === FILTER_MASK) e.doc.filter = { ...e.doc.filter, masked: false, reach: undefined };
@@ -157,6 +158,7 @@
       // Before this field, the automatic mode was written into the strokes, so there is no strength to move.
       if (record.shape === undefined) delete e.doc.shapeAmount;
       await e.refreshLock();
+      startFill(e, 'project');
       await syncFilter(e);
       e.ctx?.invalidate('healed');
       await firstFrame(e);

@@ -49,16 +49,29 @@ export function toolShader(pass: ToolPass): string {
 
 export interface FieldSource {
   tex: Tex;
-  /** The brush alone, while the background moves with it. */
+  /** The brush alone. */
   readonly brushTex?: Tex | null;
+  /** The share of the field that shapes the lips. */
+  readonly lipTex?: Tex | null;
+}
+
+/** The mattes of the photo and the plates behind them, in image UV, for warps in layers. */
+export interface Layers {
+  person: Tex;
+  head: Tex;
+  /** The opening of the mouths. Null when every mouth is closed. */
+  mouth: Tex | null;
+  /** The photo with nobody in it, and with no head in it. */
+  plateBack: Tex;
+  plateHead: Tex;
 }
 
 export class Pipeline {
   readonly tools = new Map<LayerId, ToolPass>();
   healer: Healer | null = null;
   field: FieldSource | null = null;
-  /** The person and the background behind, in image UV, while warps keep the background. */
-  lock: { matte: Tex; plate: Tex } | null = null;
+  /** Set while the photo has its mattes: warps then move each layer alone. */
+  lock: Layers | null = null;
   lut: Tex3D;
   lutMix = 0;
   /** What the current filter adds to the last stage, on the scales of the Ajustes panel. */
@@ -234,10 +247,16 @@ export class Pipeline {
         uRegion: ctx.regionUv,
         uTexel: [1 / ctx.w, 1 / ctx.h],
         uHasField: hasField,
-        uLocked: !!lock,
-        uMatte: lock?.matte ?? this.emptyField,
-        uPlate: lock?.plate ?? this.emptyField,
-        uBackField: (doc.unlocked && this.field?.brushTex) || this.emptyField,
+        uLayered: !!lock,
+        uPerson: lock?.person ?? this.emptyField,
+        uHead: lock?.head ?? this.emptyField,
+        uMouth: lock?.mouth ?? this.emptyField,
+        uPlateBack: lock?.plateBack ?? this.emptyField,
+        uPlateHead: lock?.plateHead ?? this.emptyField,
+        uBrushField: (lock && this.field?.brushTex) || this.emptyField,
+        uLipField: (lock?.mouth && this.field?.lipTex) || this.emptyField,
+        uBrushFree: !!doc.unlocked,
+        uHasLips: !!(lock?.mouth && this.field?.lipTex),
         uPixels: [doc.width, doc.height],
         uExposure: a.exposure / 100,
         uContrast: a.contrast / 100,

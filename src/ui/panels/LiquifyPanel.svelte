@@ -3,6 +3,7 @@
   import Icon from '../Icon.svelte';
   import Slider from '../Slider.svelte';
   import { ensureLock, hasWork, lockState, toolLimit } from '../facepick.svelte';
+  import FillCard from '../FillCard.svelte';
   import { bump, engine, ui } from '../state.svelte';
   import { previewShape, SHAPE_MIN, shapeAmount } from '../../tools/autoliquify';
   import Switch from '../Switch.svelte';
@@ -79,6 +80,10 @@
   />
   <BrushControls erasable={false} full={false} />
   <Switch label="Travar o fundo" checked={locked} testid="lock-toggle" onchange={setLock} />
+{/if}
+
+{#if lockState.state === 'on'}
+  <FillCard />
 {/if}
 
 {#if lockState.state === 'none' || lockState.state === 'failed'}

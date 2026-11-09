@@ -14,6 +14,11 @@ import { CHIN, type Face } from './scan';
 /** A displacement in the terms of `FieldScript`: where to read the photo from, for a point in image UV. */
 export interface ShapeField {
   offset(u: number, v: number): readonly [number, number];
+  /**
+   * The share of `offset` that shapes the lips. The lips slide over the inside of the mouth, which is read
+   * without this share, so teeth are never stretched. Absent when nothing shapes the lips.
+   */
+  over?(u: number, v: number): readonly [number, number];
   area: { u0: number; v0: number; u1: number; v1: number };
 }
 

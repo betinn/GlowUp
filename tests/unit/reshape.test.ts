@@ -293,14 +293,177 @@ describe('the field with the brush and the sliders', () => {
     expect(other.isEmpty()).toBe(false);
   });
 
-  it('has a texture for the brush only while the background moves with it', () => {
+  it('always has a texture for the brush alone, and one for the lips only while a slider shapes them', () => {
     const gl = fakeGl();
     const f = createField(gl, 512, 512);
-    expect(f.brushTex).toBeNull();
-    f.setBrushOnBackground(true);
-    expect(f.brushTex).not.toBeNull();
-    f.setBrushOnBackground(false);
-    expect(f.brushTex).toBeNull();
-    expect(gl.destroyTex).toHaveBeenCalledOnce();
+    expect(f.brushTex).toBeTruthy();
+    expect(f.lipTex).toBeNull();
+    f.setShape(source({ jawline: 50 }));
+    expect(f.lipTex).toBeNull();
+    f.setShape(source({ mouthWidth: 50 }));
+    expect(f.lipTex).not.toBeNull();
+    f.setShape(source({ jawline: 50 }));
+    expect(f.lipTex).toBeNull();
+  });
+
+  it('saves the share of the lips with the field, and brings both back', () => {
+    const f = createField(fakeGl(), 512, 512);
+    f.setShape(source({ lips: 80, head: 20 }));
+    const data = f.shapeData()!.slice();
+    expect(data.length).toBe(f.serialize().length * 2);
+    const other = createField(fakeGl(), 512, 512);
+    other.restoreShape(data);
+    expect(other.lipTex).not.toBeNull();
+    expect(other.lookup(0.5, 0.62)).toEqual(f.lookup(0.5, 0.62));
+    // A project saved before the lips had a share of their own still opens.
+    const old = createField(fakeGl(), 512, 512);
+    old.restoreShape(data.subarray(0, data.length / 2));
+    expect(old.lipTex).toBeNull();
+    expect(old.isEmpty()).toBe(false);
+  });
+});
+
+/**
+ * What people reported after trying the first version on their own photos. Each test holds one of those
+ * complaints down: a slider moves its own part, as one piece, and leaves the parts next to it alone.
+ */
+describe('each slider keeps to its own part', () => {
+  const moved = (offset: (u: number, v: number) => readonly [number, number], [u, v]: readonly [number, number]) => Math.hypot(...offset(u, v));
+  const STILL = 1e-9;
+  const both = (id: string, check: (offset: (u: number, v: number) => readonly [number, number], value: number) => void) => {
+    for (const value of [-100, 100]) check(field({ [id]: value }).offset, value);
+  };
+  const brows = FRONT.parts.brows!.flat();
+  const lips = FRONT.parts.outerLips;
+  const marks = FRONT.parts.marks!;
+
+  it('the size of the eyes moves the eyes, and no brow, cheek or nose', () => {
+    for (const id of ['eyeSize', 'eyeOpen', 'eyeLength', 'eyeAngle']) {
+      both(id, (offset) => {
+        // Something moves on the eye itself.
+        expect(moved(offset, [0.4 + 0.03, 0.42 + 0.012])).toBeGreaterThan(1e-4);
+        for (const p of brows) expect(moved(offset, p)).toBeLessThan(STILL);
+        for (const p of [...marks.cheekbones, marks.noseTip, marks.bridgeMiddle, marks.noseBase, [0.4, 0.52] as const, [0.5, 0.42] as const]) expect(moved(offset, p)).toBeLessThan(STILL);
+      });
+    }
+  });
+
+  it('a bigger eye is the whole eye bigger: every point of it reads from the same share of the way to its middle', () => {
+    const { offset } = field({ eyeSize: 100 });
+    const ratios = [[0.02, 0], [-0.03, 0.005], [0.01, -0.01], [0.04, 0.008]].map(([dx, dy]) => {
+      const [du, dv] = offset(0.4 + dx, 0.42 + dy);
+      return (du * dx + dv * dy) / (dx * dx + dy * dy);
+    });
+    for (const r of ratios) expect(r).toBeCloseTo(ratios[0], 6);
+    expect(ratios[0]).toBeLessThan(-0.1);
+  });
+
+  it('no slider of the nose moves the mouth', () => {
+    for (const id of ['noseLength', 'noseTip', 'noseWidth', 'noseBridge']) {
+      both(id, (offset) => {
+        for (const p of [...lips, ...FRONT.parts.innerLips, [0.5, 0.65] as const]) expect(moved(offset, p)).toBeLessThan(STILL);
+        // And the nose itself does move.
+        let largest = 0;
+        for (let v = 0.4; v < 0.6; v += 0.01) for (let u = 0.44; u < 0.56; u += 0.01) largest = Math.max(largest, moved(offset, [u, v]));
+        expect(largest).toBeGreaterThan(1e-3);
+      });
+    }
+  });
+
+  it('a shorter nose moves its end as one piece', () => {
+    const { offset } = field({ noseLength: -100 });
+    const a = offset(0.5, 0.56);
+    const b = offset(0.48, 0.555);
+    const c = offset(0.52, 0.565);
+    expect(a[1]).toBeGreaterThan(1e-3);
+    expect(b[1]).toBeCloseTo(a[1], 9);
+    expect(c[1]).toBeCloseTo(a[1], 9);
+    expect(Math.abs(a[0])).toBeLessThan(STILL);
+  });
+
+  it('the height of the mouth moves the whole mouth by the same amount, lips and teeth, and not the nose', () => {
+    both('mouthHeight', (offset, value) => {
+      // Where the mouth ends up: positive is up, and there the photo is read from below.
+      const cy = 0.65 - Math.sign(value) * 0.017;
+      const middle = offset(0.5, cy);
+      expect(Math.sign(middle[1])).toBe(Math.sign(value));
+      expect(Math.abs(middle[1])).toBeGreaterThan(0.012);
+      for (const [du, dv] of [[-0.06, 0], [0.06, 0], [0, -0.015], [0, 0.015], [-0.03, 0.01], [0.03, -0.01]]) {
+        const at = offset(0.5 + du, cy + dv);
+        expect(at[0]).toBeCloseTo(middle[0], 9);
+        expect(at[1]).toBeCloseTo(middle[1], 9);
+      }
+      for (const p of [marks.noseTip, marks.noseBase, ...marks.noseWings]) expect(moved(offset, p)).toBeLessThan(1e-4);
+    });
+    // Teeth go with the mouth: this slider has no share that slides over them.
+    expect(field({ mouthHeight: 100 }).over).toBeUndefined();
+  });
+
+  it('shaping the lips never stretches the teeth: the inside of the mouth is read without that share', () => {
+    const inside: (readonly [number, number])[] = [[0.5, 0.65], [0.48, 0.652], [0.52, 0.648], [0.47, 0.65], [0.53, 0.65], [0.455, 0.65], [0.545, 0.65]];
+    for (const id of ['mouthWidth', 'lips', 'smile']) {
+      both(id, (_offset, value) => {
+        const f = field({ [id]: value });
+        expect(f.over).toBeDefined();
+        for (const [u, v] of inside) {
+          const all = f.offset(u, v);
+          const over = f.over!(u, v);
+          expect(all[0] - over[0]).toBeCloseTo(0, 9);
+          expect(all[1] - over[1]).toBeCloseTo(0, 9);
+        }
+      });
+    }
+  });
+
+  it('with other sliders too, the inside of the mouth follows them and still not the lips', () => {
+    const f = field({ mouthWidth: 100, mouthHeight: 60 });
+    const height = field({ mouthHeight: 60 });
+    for (const [u, v] of [[0.5, 0.65], [0.47, 0.65], [0.53, 0.65]]) {
+      const all = f.offset(u, v);
+      const over = f.over!(u, v);
+      const alone = height.offset(u, v);
+      expect(all[0] - over[0]).toBeCloseTo(alone[0], 9);
+      expect(all[1] - over[1]).toBeCloseTo(alone[1], 9);
+    }
+  });
+
+  it('fuller lips grow away from the opening, which stays where it is', () => {
+    const { offset } = field({ lips: 100 });
+    // On the line where the lips meet the opening nothing moves, and the outer edge of each lip does.
+    expect(moved(offset, [0.5, 0.64])).toBeLessThan(1e-6);
+    expect(moved(offset, [0.5, 0.66])).toBeLessThan(1e-6);
+    const upper = offset(0.5, 0.632);
+    const lower = offset(0.5, 0.668);
+    // The upper lip reads from below and the lower one from above: each one grows outward.
+    expect(upper[1]).toBeGreaterThan(1e-4);
+    expect(lower[1]).toBeLessThan(-1e-4);
+  });
+
+  it('a brow goes up as one piece, and the eye under it stays', () => {
+    const { offset } = field({ brows: 100 });
+    const a = offset(0.4, 0.352);
+    expect(a[1]).toBeGreaterThan(1e-3);
+    for (const [u, v] of [[0.37, 0.352], [0.43, 0.352], [0.4, 0.348]]) expect(offset(u, v)[1]).toBeCloseTo(a[1], 9);
+    for (const p of FRONT.parts.eyes[0]) expect(moved(offset, p)).toBeLessThan(1e-4);
+  });
+
+  it('no slider folds the photo: a point further along is read from further along', () => {
+    for (const s of SHAPE_SLIDERS) {
+      if (s.id === 'doubleChin') continue;
+      for (const value of [s.min === 0 ? 50 : -100, 100]) {
+        const { offset } = field({ [s.id]: value });
+        const step = 0.002;
+        for (let v = 0.25; v < 0.8; v += 0.011) {
+          for (let u = 0.25; u < 0.75; u += 0.011) {
+            const here = offset(u, v);
+            const right = offset(u + step, v);
+            const down = offset(u, v + step);
+            // The source of the next point, minus the source of this one, along the way between them.
+            expect(step + right[0] - here[0], `${s.id} ${value} at ${u.toFixed(3)}, ${v.toFixed(3)} across`).toBeGreaterThan(0);
+            expect(step + down[1] - here[1], `${s.id} ${value} at ${u.toFixed(3)}, ${v.toFixed(3)} down`).toBeGreaterThan(0);
+          }
+        }
+      }
+    }
   });
 });

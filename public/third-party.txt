@@ -1,5 +1,6 @@
 Glowup inclui, sem alterações, os componentes abaixo. Eles rodam só no aparelho de quem usa, para
-achar rostos, cabelo e o contorno de uma pessoa quando quem usa pede. Não identificam ninguém.
+achar rostos, cabelo e o contorno de uma pessoa, e para completar o fundo atrás dela, quando quem usa pede.
+Não identificam ninguém.
 
 MediaPipe Tasks Vision (@mediapipe/tasks-vision 1.2.2): biblioteca e WebAssembly.
 Copyright The MediaPipe Authors. Licença Apache 2.0.
@@ -15,12 +16,41 @@ segmentação de cabelo. Copyright Google. Licença Apache 2.0, conforme o cart�
 pela Google.
 https://developers.google.com/edge/mediapipe/solutions/vision/image_segmenter
 
-MediaPipe Selfie Segmenter (selfie_segmenter.tflite, float16, versão mais recente em novembro de 2026):
-separa a pessoa do fundo. Copyright Google. Licença Apache 2.0, conforme o cartão de modelo publicado
-pela Google.
-https://storage.googleapis.com/mediapipe-assets/Model%20Card%20MediaPipe%20Selfie%20Segmentation.pdf
+MediaPipe Selfie Multiclass (selfie_multiclass.tflite, 256 x 256, float32, versão mais recente em
+abril de 2023): separa cabelo, pele do rosto, pele do corpo, roupa, acessórios e fundo. Copyright Google.
+Licença Apache 2.0, conforme o cartão de modelo publicado pela Google.
+https://storage.googleapis.com/mediapipe-assets/Model%20Card%20Multiclass%20Segmentation.pdf
 
-Texto da licença:
+ONNX Runtime Web (onnxruntime-web 1.31.1): biblioteca e WebAssembly que rodam o modelo de preenchimento.
+Copyright Microsoft Corporation. Licença MIT.
+https://github.com/microsoft/onnxruntime
+
+MI-GAN (migan_inpaint.onnx, pipeline v2 de 512 px): completa o que fica atrás de quem se mexe, quando um
+controle do menu Formato do rosto move a cabeça. Copyright 2024 Picsart AI Research (PAIR). Licença MIT, para
+o código e para os pesos, conforme os arquivos LICENSE e LICENSE-WEIGHTS do projeto.
+https://github.com/Picsart-AI-Research/MI-GAN
+
+Texto da licença MIT, de ONNX Runtime Web e de MI-GAN:
+
+   Permission is hereby granted, free of charge, to any person obtaining a copy
+   of this software and associated documentation files (the "Software"), to deal
+   in the Software without restriction, including without limitation the rights
+   to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+   copies of the Software, and to permit persons to whom the Software is
+   furnished to do so, subject to the following conditions:
+
+   The above copyright notice and this permission notice shall be included in all
+   copies or substantial portions of the Software.
+
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+   SOFTWARE.
+
+Texto da licença Apache 2.0, dos componentes MediaPipe:
 
 
                                  Apache License

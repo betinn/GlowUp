@@ -68,20 +68,21 @@ const AT_LIMIT = {
   length: 0.075,
   /** The head grows or shrinks by this share. */
   head: 0.09,
-  eyeSize: 0.26,
+  eyeSize: 0.22,
   /** In radians: about six degrees. */
   eyeAngle: 0.1,
   eyeLength: 0.22,
   eyeOpen: 0.26,
   pupil: 0.6,
-  brows: 0.22,
+  brows: 0.16,
   noseWidth: 0.2,
   noseBridge: 0.24,
   noseLength: 0.1,
   noseTip: 0.07,
   mouthWidth: 0.16,
   lips: 0.26,
-  mouthHeight: 0.09,
+  /** A share of `MOUTH_TRAVEL`: all of it at the end of the slider. */
+  mouthHeight: 1,
   smile: 0.11,
   /** How far the fold under the chin goes toward the chin, as a share of the way. */
   doubleChin: 0.55,
@@ -93,6 +94,11 @@ interface Piece {
   y: number;
   reach: number;
   add(x: number, y: number, out: [number, number]): void;
+  /**
+   * The piece shapes the lips. The lips then slide over the teeth, which stay as they are: the field keeps what
+   * these pieces add apart, so the inside of the mouth can be read without it.
+   */
+  overMouth?: boolean;
 }
 
 const smooth = (a: number, b: number, x: number) => {
@@ -118,25 +124,183 @@ const inside = (along: number, side: number, r1: number, r2: number) => (along /
 const bump = (d: number) => (1 - d) * (1 - d);
 
 /**
- * Grows or shrinks what is around a point, on two axes of its own. `grow` is the change at the middle, along
- * `axis` and across it. A negative one shrinks. Reading from closer to the middle is what makes it larger.
+ * Where a zone acts in full and where it stops. A point inside the inner ellipse moves by the whole amount, as
+ * one rigid part, and the move fades to nothing at the outer ellipse. The outer radii can differ on each side
+ * of each axis, because a nose ends at the lip and an eye ends at the brow.
  */
-function stretch(c: Vec, axis: Vec, r1: number, r2: number, grow1: number, grow2: number): Piece {
+export interface ZoneShape {
+  /** Radii of the inner ellipse, along the axis and across it. */
+  in1: number;
+  in2: number;
+  /** Radii of the outer ellipse: against the axis and along it, then against the other axis and along it. */
+  out1: readonly [number, number];
+  out2: readonly [number, number];
+}
+
+/** How much of a zone a point takes: 1 in the inner ellipse, 0 past the outer one, and smooth in between. */
+export function zoneWeight(p1: number, p2: number, z: ZoneShape): number {
+  const inner = Math.hypot(p1 / z.in1, p2 / z.in2);
+  if (inner <= 1) return 1;
+  const outer = Math.hypot(p1 / (p1 < 0 ? z.out1[0] : z.out1[1]), p2 / (p2 < 0 ? z.out2[0] : z.out2[1]));
+  if (outer >= 1) return 0;
+  const t = (inner - 1) / (inner - 1 + (1 - outer));
+  return 1 - t * t * (3 - 2 * t);
+}
+
+/**
+ * A part of the face that changes as one piece, and the skin around it that takes up the difference. `source`
+ * says, for a point of the part in its own axes, how far away to read it from, as if the whole plane changed.
+ * `second` is the other axis, when a quarter turn of the first could point either way on the face.
+ */
+function zone(c: Vec, axis: Vec, shape: ZoneShape, source: (p1: number, p2: number, out: [number, number]) => void, second?: Vec): Piece {
   const a = unit(axis);
-  const b = across(a);
+  const b = second ?? across(a);
+  const from: [number, number] = [0, 0];
   return {
     x: c[0],
     y: c[1],
-    reach: Math.max(r1, r2),
+    reach: Math.max(shape.in1, shape.in2, shape.out1[0], shape.out1[1], shape.out2[0], shape.out2[1]),
     add(x, y, out) {
-      const p: Vec = [x - c[0], y - c[1]];
-      const p1 = dot(p, a);
-      const p2 = dot(p, b);
-      const d = inside(p1, p2, r1, r2);
-      if (d >= 1) return;
-      const k = bump(d);
-      out[0] -= (grow1 * p1 * a[0] + grow2 * p2 * b[0]) * k;
-      out[1] -= (grow1 * p1 * a[1] + grow2 * p2 * b[1]) * k;
+      const px = x - c[0];
+      const py = y - c[1];
+      const p1 = px * a[0] + py * a[1];
+      const p2 = px * b[0] + py * b[1];
+      const k = zoneWeight(p1, p2, shape);
+      if (k <= 0) return;
+      source(p1, p2, from);
+      out[0] += (from[0] * a[0] + from[1] * b[0]) * k;
+      out[1] += (from[0] * a[1] + from[1] * b[1]) * k;
+    },
+  };
+}
+
+/**
+ * A zone that carries a part by `m1` and `m2` along its axes. The field says where to read from, so the part
+ * that moves as one piece sits where the part ends up, not where it was. `shape` is given around the part
+ * where it is now, with the outer radii at what the move must not pass, and they are kept where they are. On
+ * the side the part moves to, the skin is squeezed and needs room, even if that passes the limit a little.
+ */
+function carried(c: Vec, axis: Vec, shape: ZoneShape, m1: number, m2: number, second?: Vec, strict = false): Piece {
+  const a = unit(axis);
+  const b = second ?? across(a);
+  const at: Vec = [c[0] + a[0] * m1 + b[0] * m2, c[1] + a[1] * m1 + b[1] * m2];
+  const sides = (out: readonly [number, number], inner: number, m: number): [number, number] => [
+    Math.max(out[0] + m, strict ? 0 : inner + roomFor(Math.min(m, 0)), inner * 1.05),
+    Math.max(out[1] - m, strict ? 0 : inner + roomFor(Math.max(m, 0)), inner * 1.05),
+  ];
+  const placed: ZoneShape = { in1: shape.in1, in2: shape.in2, out1: sides(shape.out1, shape.in1, m1), out2: sides(shape.out2, shape.in2, m2) };
+  return zone(
+    at,
+    a,
+    placed,
+    (_p1, _p2, out) => {
+      out[0] = -m1;
+      out[1] = -m2;
+    },
+    b,
+  );
+}
+
+/** The same, and the outer radii are a limit that nothing passes. The caller keeps the move small enough for it. */
+const placed = (c: Vec, axis: Vec, shape: ZoneShape, m1: number, m2: number) => carried(c, axis, shape, m1, m2, undefined, true);
+
+/**
+ * A zone that grows a part by `s1` along its axis and `s2` across it, around the point `held` of the axis. The
+ * part that changes as one piece is the part at its new size, and past it the skin gets the room it needs.
+ */
+function resized(c: Vec, axis: Vec, shape: ZoneShape, s1: number, s2: number, held = 0, second?: Vec): Piece {
+  const reach1 = shape.in1 + Math.abs(held);
+  const in1 = shape.in1 + reach1 * (s1 - 1);
+  const in2 = shape.in2 * s2;
+  const side = (out: number, now: number, moved: number) => Math.max(out, now + roomFor(moved), now * 1.05);
+  const moved1 = reach1 * Math.abs(s1 - 1);
+  const moved2 = shape.in2 * Math.abs(s2 - 1);
+  const placed: ZoneShape = {
+    in1,
+    in2,
+    out1: [side(shape.out1[0], in1, moved1), side(shape.out1[1], in1, moved1)],
+    out2: [side(shape.out2[0], in2, moved2), side(shape.out2[1], in2, moved2)],
+  };
+  const k1 = 1 / s1 - 1;
+  const k2 = 1 / s2 - 1;
+  return zone(
+    c,
+    axis,
+    placed,
+    (p1, p2, out) => {
+      out[0] = (p1 - held) * k1;
+      out[1] = p2 * k2;
+    },
+    second,
+  );
+}
+
+/** The outer radii of a zone grown from its inner ones by the same room on every side. */
+const roomAround = (in1: number, in2: number, room: number): ZoneShape => ({
+  in1,
+  in2,
+  out1: [in1 + room, in1 + room],
+  out2: [in2 + room, in2 + room],
+});
+
+/** Room a zone needs past its inner ellipse so that the skin there is never folded, with some to spare. */
+const roomFor = (move: number) => Math.abs(move) * 1.7;
+
+/** Signed distance from a point to a closed outline: negative inside. */
+export function distanceToOutline(x: number, y: number, points: readonly Vec[]): number {
+  let best = Infinity;
+  let inside = false;
+  for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+    const [ax, ay] = points[j];
+    const [bx, by] = points[i];
+    if (ay <= y !== by <= y && x < ax + ((y - ay) / (by - ay)) * (bx - ax)) inside = !inside;
+    const ex = bx - ax;
+    const ey = by - ay;
+    const t = Math.min(1, Math.max(0, ((x - ax) * ex + (y - ay) * ey) / (ex * ex + ey * ey || 1)));
+    const d = Math.hypot(x - ax - ex * t, y - ay - ey * t);
+    if (d < best) best = d;
+  }
+  return inside ? -best : best;
+}
+
+/** What a piece must leave alone: 0 on a part of the face and up to `near` from it, 1 from `far` on. */
+type Keep = (x: number, y: number) => number;
+
+function keepOff(points: readonly Vec[], near: number, far: number): Keep {
+  let x0 = Infinity;
+  let y0 = Infinity;
+  let x1 = -Infinity;
+  let y1 = -Infinity;
+  for (const [x, y] of points) {
+    x0 = Math.min(x0, x);
+    y0 = Math.min(y0, y);
+    x1 = Math.max(x1, x);
+    y1 = Math.max(y1, y);
+  }
+  return (x, y) => {
+    if (x < x0 - far || x > x1 + far || y < y0 - far || y > y1 + far) return 1;
+    return smooth(near, far, distanceToOutline(x, y, points));
+  };
+}
+
+/** The piece, with nothing left of it on the parts of the face it has no business with. */
+function guarded(piece: Piece, keeps: readonly Keep[]): Piece {
+  if (!keeps.length) return piece;
+  const part: [number, number] = [0, 0];
+  return {
+    ...piece,
+    add(x, y, out) {
+      part[0] = 0;
+      part[1] = 0;
+      piece.add(x, y, part);
+      if (part[0] === 0 && part[1] === 0) return;
+      let k = 1;
+      for (const keep of keeps) {
+        k *= keep(x, y);
+        if (k <= 0) return;
+      }
+      out[0] += part[0] * k;
+      out[1] += part[1] * k;
     },
   };
 }
@@ -157,32 +321,6 @@ function shift(c: Vec, move: Vec, r1: number, behind: number, ahead = behind): P
       const k = bump(d);
       out[0] -= move[0] * k;
       out[1] -= move[1] * k;
-    },
-  };
-}
-
-/** Turns what is around a point by `angle`, from `axis` toward `to`. */
-function turn(c: Vec, axis: Vec, to: Vec, r1: number, r2: number, angle: number): Piece {
-  const a = unit(axis);
-  const b = unit(sub(to, [a[0] * dot(to, a), a[1] * dot(to, a)]));
-  const cos = Math.cos(angle);
-  const sin = Math.sin(angle);
-  return {
-    x: c[0],
-    y: c[1],
-    reach: Math.max(r1, r2),
-    add(x, y, out) {
-      const p: Vec = [x - c[0], y - c[1]];
-      const p1 = dot(p, a);
-      const p2 = dot(p, b);
-      const d = inside(p1, p2, r1, r2);
-      if (d >= 1) return;
-      const k = bump(d);
-      // Reading from where the point came from: the turn backward.
-      const q1 = p1 * cos + p2 * sin - p1;
-      const q2 = -p1 * sin + p2 * cos - p2;
-      out[0] += (q1 * a[0] + q2 * b[0]) * k;
-      out[1] += (q1 * a[1] + q2 * b[1]) * k;
     },
   };
 }
@@ -373,7 +511,22 @@ function heightPieces({ f, face, value }: Reading): Piece[] {
   return pieces;
 }
 
-function nosePieces({ face, flat, value }: Reading): Piece[] {
+/** What the sliders of one part must not move: the parts next to it, each with room that grows with the face. */
+function guards({ face, flat, f }: Reading) {
+  const room = f.halfWidth;
+  const of = (points: readonly Point[] | undefined, near: number, far: number): Keep | null =>
+    points && points.length >= 3 ? keepOff(points.map(flat), room * near, room * far) : null;
+  const all = (list: readonly (Keep | null)[]): Keep[] => list.filter((keep): keep is Keep => !!keep);
+  const { parts } = face;
+  return {
+    mouth: all([of(parts.outerLips, 0.02, 0.16)]),
+    brows: (parts.brows ?? []).map((brow) => of(brow, 0.01, 0.1)),
+    nose: all((parts.nostrils ?? []).map((nostril) => of(nostril, 0.02, 0.12))),
+  };
+}
+
+function nosePieces(r: Reading): Piece[] {
+  const { face, flat, value } = r;
   const { marks } = face.parts;
   const noseWidth = value('noseWidth');
   const noseBridge = value('noseBridge');
@@ -389,32 +542,98 @@ function nosePieces({ face, flat, value }: Reading): Piece[] {
   const sideways = across(axis);
   const long = Math.hypot(base[0] - bridge[0], base[1] - bridge[1]);
   const wide = Math.hypot(wings[1][0] - wings[0][0], wings[1][1] - wings[0][1]) / 2;
-  if (noseWidth) pieces.push(stretch(middle(wings[0], wings[1]), sideways, wide * 2.1, long * 0.62, noseWidth, 0));
-  if (noseBridge) pieces.push(stretch(flat(marks.bridgeMiddle), sideways, wide * 1.35, long * 0.62, noseBridge, 0));
-  if (noseLength) pieces.push(shift(tip, scaled(axis, noseLength * long), wide * 1.7, long * 1.05, long * 0.5));
-  if (noseTip) pieces.push(shift(tip, scaled(axis, -noseTip * long), wide * 1.05, long * 0.42, long * 0.42));
+  // The nose ends where the lip starts: below it, a zone has the skin above the lip to work with and no more.
+  const lipTop = face.parts.outerLips.length >= 16 ? flat(face.parts.outerLips[15]) : null;
+  const toLip = lipTop ? Math.max(long * 0.08, dot(sub(lipTop, base), axis) * 0.85) : long * 0.3;
+  const keeps = guards(r).mouth;
+  const low = middle(wings[0], wings[1]);
+  if (noseWidth) {
+    const in1 = wide * 1.12;
+    const side = in1 + wide * 0.9;
+    const shape: ZoneShape = { in1, in2: long * 0.3, out1: [side, side], out2: [long * 0.7, long * 0.12 + toLip] };
+    pieces.push(guarded(resized(low, sideways, shape, 1 + noseWidth, 1), keeps));
+  }
+  if (noseBridge) {
+    const in1 = wide * 0.6;
+    const side = in1 + wide * 0.8;
+    pieces.push(resized(flat(marks.bridgeMiddle), sideways, { in1, in2: long * 0.28, out1: [side, side], out2: [long * 0.62, long * 0.62] }, 1 + noseBridge, 1));
+  }
+  // Length and tip move the end of the nose along its own axis: the wings and the nostrils go as one piece.
+  const end = (amount: number, inAcross: number, up: number) => {
+    const move = amount * long;
+    const shape: ZoneShape = { in1: long * 0.16, in2: inAcross, out1: [long * 0.16 + up, long * 0.06 + toLip], out2: [inAcross + wide * 0.8, inAcross + wide * 0.8] };
+    const c: Vec = [low[0] + (tip[0] - low[0]) * 0.5, low[1] + (tip[1] - low[1]) * 0.5];
+    return guarded(carried(c, axis, shape, move, 0), keeps);
+  };
+  if (noseLength) pieces.push(end(noseLength, wide * 1.1, long * 0.85));
+  if (noseTip) pieces.push(end(-noseTip, wide * 0.55, long * 0.4));
   return pieces;
 }
 
-function eyePieces({ face, flat, value, up }: Reading): Piece[] {
+/** An eye in its own axes: the middle between the corners, the axis from the inner corner out, and how tall it is. */
+function eyeFrame(list: readonly Vec[]) {
+  const outer = list[0];
+  const inner = list[8];
+  const c = middle(outer, inner);
+  const axis = unit(sub(outer, inner));
+  const b = across(axis);
+  const width = Math.hypot(outer[0] - inner[0], outer[1] - inner[1]);
+  let tall = 0;
+  for (const p of list) tall = Math.max(tall, Math.abs(dot(sub(p, c), b)));
+  // A closed eye still has lids and lashes around the line.
+  return { c, axis, b, width, half: width / 2, tall: Math.max(tall, width * 0.14) };
+}
+
+function eyePieces(r: Reading): Piece[] {
+  const { face, flat, value, up } = r;
   const pieces: Piece[] = [];
   const eyeSize = value('eyeSize');
   const eyeAngle = value('eyeAngle');
   const eyeLength = value('eyeLength');
   const eyeOpen = value('eyeOpen');
+  const keep = guards(r);
   if (eyeSize || eyeAngle || eyeLength || eyeOpen) {
-    for (const list of face.parts.eyes) {
+    for (const [i, list] of face.parts.eyes.entries()) {
       if (list.length < 9) continue;
-      const eye = list.map(flat);
-      const outer = eye[0];
-      const inner = eye[8];
-      const c = middle(outer, inner);
-      const axis = unit(sub(outer, inner));
-      const width = Math.hypot(outer[0] - inner[0], outer[1] - inner[1]);
-      if (eyeSize) pieces.push(stretch(c, axis, width * 1.5, width * 1.35, eyeSize, eyeSize));
-      if (eyeAngle) pieces.push(turn(c, axis, up, width * 1.25, width * 1.1, eyeAngle));
-      if (eyeLength) pieces.push(stretch([c[0] + axis[0] * width * 0.2, c[1] + axis[1] * width * 0.2], axis, width * 1.35, width * 0.75, eyeLength, 0));
-      if (eyeOpen) pieces.push(stretch(c, axis, width * 0.95, width * 0.85, 0, eyeOpen));
+      const { c, axis, b, width, half, tall } = eyeFrame(list.map(flat));
+      // The eye itself, with its lids and lashes: what changes as one piece.
+      const in1 = half * 1.14;
+      const in2 = tall * 1.35 + width * 0.03;
+      // Toward the brow the skin of the lid takes up the change, and it stops short of the brow.
+      const brow = face.parts.brows?.[i]?.map(flat);
+      let toBrow = in2 + width * 0.3;
+      if (brow?.length) {
+        let nearest = Infinity;
+        for (const p of brow) nearest = Math.min(nearest, Math.abs(dot(sub(p, c), b)));
+        toBrow = Math.max(in2 * 1.25, nearest * 0.9);
+      }
+      // `b` points to one side of the eye. Which side the brow is on depends on the eye.
+      const browSide = dot(b, up) > 0;
+      const cheek = in2 + width * 0.3;
+      const shape: ZoneShape = { in1, in2, out1: [in1 + width * 0.2, in1 + width * 0.26], out2: browSide ? [cheek, toBrow] : [toBrow, cheek] };
+      const browKeep = keep.brows[i];
+      const guard = [...(browKeep ? [browKeep] : []), ...keep.nose];
+      if (eyeSize) pieces.push(guarded(resized(c, axis, shape, 1 + eyeSize, 1 + eyeSize), guard));
+      if (eyeAngle) {
+        // Positive lifts the outer corner. Reading from where the point came from: the turn backward.
+        const turn = (browSide ? 1 : -1) * eyeAngle;
+        const cos = Math.cos(turn);
+        const sin = Math.sin(turn);
+        pieces.push(
+          guarded(
+            zone(c, axis, shape, (p1, p2, out) => {
+              out[0] = p1 * cos + p2 * sin - p1;
+              out[1] = -p1 * sin + p2 * cos - p2;
+            }),
+            guard,
+          ),
+        );
+      }
+      if (eyeLength) {
+        // The inner corner holds and the outer one goes.
+        pieces.push(guarded(resized(c, axis, shape, 1 + eyeLength, 1, -half * 0.7), guard));
+      }
+      if (eyeOpen) pieces.push(guarded(resized(c, axis, shape, 1, 1 + eyeOpen), guard));
     }
   }
   const pupils = value('pupil');
@@ -430,37 +649,168 @@ function eyePieces({ face, flat, value, up }: Reading): Piece[] {
   if (brows && face.parts.brows) {
     for (const [i, list] of face.parts.brows.entries()) {
       const eyeList = face.parts.eyes[i];
-      if (!list.length || !eyeList?.length) continue;
+      if (list.length < 10 || !eyeList?.length) continue;
       const brow = list.map(flat);
       const c = mean(brow);
-      const wide = Math.hypot(brow[0][0] - brow[3][0], brow[0][1] - brow[3][1]);
+      // The two ends of the brow, and how thick it is.
+      const axis = unit(sub(brow[4], brow[0]));
+      const b = across(axis);
+      const half = Math.hypot(brow[4][0] - brow[0][0], brow[4][1] - brow[0][1]) / 2;
+      let thick = 0;
+      for (const p of brow) thick = Math.max(thick, Math.abs(dot(sub(p, c), b)));
       const eye = eyeList.map(flat);
       const gap = Math.hypot(c[0] - (eye[0][0] + eye[8][0]) / 2, c[1] - (eye[0][1] + eye[8][1]) / 2);
-      pieces.push(shift(c, scaled(up, brows * gap), wide, gap * 0.7, gap * 1.1));
+      const move = scaled(up, brows * gap);
+      const in1 = half * 1.15;
+      const in2 = thick * 1.45;
+      // Above the brow the forehead has room. Below it the move ends at the lashes, so the eye stays where it
+      // is, and the whole lid shares the change: a guard around the eye would squeeze it all into the crease.
+      const above = in2 + gap * 0.95;
+      let lashes = Infinity;
+      for (const p of eye) lashes = Math.min(lashes, Math.abs(dot(sub(p, c), b)));
+      const below = Math.max(in2 * 1.2, lashes * 0.96);
+      const browSide = dot(b, up) > 0;
+      const shape: ZoneShape = { in1, in2, out1: [in1 + half * 0.5, in1 + half * 0.5], out2: browSide ? [below, above] : [above, below] };
+      pieces.push(placed(c, axis, shape, dot(move, axis), dot(move, b)));
     }
   }
   return pieces;
 }
 
-function mouthPieces({ f, face, flat, value, up }: Reading): Piece[] {
-  const { outerLips } = face.parts;
+/** How far the mouth goes up or down at the end of its slider, as a share of the skin between nose and lip. */
+const MOUTH_TRAVEL = 0.34;
+/** Samples of the lip lines across the mouth. */
+const LIP_STEPS = 48;
+
+/** The height of a line of lip at each step across the mouth, in the axes of the mouth. */
+function lipLine(points: readonly Vec[], c: Vec, a: Vec, b: Vec, wide: number): Float32Array {
+  const flatPoints = points.map((p) => [dot(sub(p, c), a), dot(sub(p, c), b)] as const).sort((p, q) => p[0] - q[0]);
+  const out = new Float32Array(LIP_STEPS + 1);
+  let at = 0;
+  for (let i = 0; i <= LIP_STEPS; i++) {
+    const x = (i / LIP_STEPS) * 2 * wide - wide;
+    while (at + 2 < flatPoints.length && flatPoints[at + 1][0] < x) at++;
+    const [x0, y0] = flatPoints[at];
+    const [x1, y1] = flatPoints[Math.min(flatPoints.length - 1, at + 1)];
+    const t = x1 === x0 ? 0 : Math.min(1, Math.max(0, (x - x0) / (x1 - x0)));
+    out[i] = y0 + (y1 - y0) * t;
+  }
+  return out;
+}
+
+const lineAt = (line: Float32Array, x: number, wide: number) => {
+  const at = Math.min(LIP_STEPS, Math.max(0, ((x + wide) / (2 * wide)) * LIP_STEPS));
+  const low = Math.floor(at);
+  return line[low] + (line[Math.min(LIP_STEPS, low + 1)] - line[low]) * (at - low);
+};
+
+interface LipLines {
+  upOut: Float32Array;
+  upIn: Float32Array;
+  lowIn: Float32Array;
+  lowOut: Float32Array;
+}
+
+/**
+ * Fuller or thinner lips. Each lip grows from the line where it meets the opening of the mouth, which stays
+ * where it is, so nothing inside the mouth moves. The skin past the lip takes up the difference. `b` points
+ * down the face.
+ */
+function lipVolume(c: Vec, a: Vec, b: Vec, wide: number, lines: LipLines, grow: number, roomUp: number, roomDown: number): Piece {
+  let tallest = 0;
+  for (let i = 0; i <= LIP_STEPS; i++) tallest = Math.max(tallest, -lines.upOut[i], lines.lowOut[i]);
+  const reach = Math.max(wide, tallest * (1 + Math.abs(grow)) + Math.max(roomUp, roomDown)) * 1.05;
+  return {
+    x: c[0],
+    y: c[1],
+    reach,
+    overMouth: true,
+    add(x, y, out) {
+      const px = x - c[0];
+      const py = y - c[1];
+      const p1 = px * a[0] + py * a[1];
+      if (Math.abs(p1) >= wide) return;
+      const p2 = px * b[0] + py * b[1];
+      const inUp = lineAt(lines.upIn, p1, wide);
+      const inLow = lineAt(lines.lowIn, p1, wide);
+      const upper = p2 < (inUp + inLow) / 2;
+      // Distance from the opening, and the thickness of the lip on this side, at this step across the mouth.
+      const t = upper ? inUp - p2 : p2 - inLow;
+      if (t <= 0) return;
+      const thick = Math.max(0, upper ? inUp - lineAt(lines.upOut, p1, wide) : lineAt(lines.lowOut, p1, wide) - inLow);
+      if (thick <= 0) return;
+      const edge = thick * (1 + grow);
+      const room = Math.max(upper ? roomUp : roomDown, roomFor(thick * grow));
+      let move: number;
+      if (t <= edge) move = (t * grow) / (1 + grow);
+      else if (t < edge + room) move = thick * grow * (1 - smooth(0, 1, (t - edge) / room));
+      else return;
+      // Reading from nearer the opening is what makes a lip larger: an upper lip reads from below.
+      const k = upper ? move : -move;
+      out[0] += b[0] * k;
+      out[1] += b[1] * k;
+    },
+  };
+}
+
+function mouthPieces(r: Reading): Piece[] {
+  const { face, flat, value, up } = r;
+  const { outerLips, innerLips } = face.parts;
   const mouthWidth = value('mouthWidth');
   const lips = value('lips');
   const mouthHeight = value('mouthHeight');
   const smile = value('smile');
-  if (!(mouthWidth || lips || mouthHeight || smile) || outerLips.length < 16) return [];
+  if (!(mouthWidth || lips || mouthHeight || smile) || outerLips.length < 20) return [];
   const pieces: Piece[] = [];
   const lip = outerLips.map(flat);
   const left = lip[0];
   const right = lip[10];
   const c = middle(left, right);
   const axis = unit(sub(right, left));
+  // Down the face, whichever corner the list starts at.
+  const turned = across(axis);
+  const b: Vec = dot(turned, up) < 0 ? turned : [-turned[0], -turned[1]];
   const wide = Math.hypot(right[0] - left[0], right[1] - left[1]) / 2;
-  const tall = Math.hypot(lip[15][0] - lip[5][0], lip[15][1] - lip[5][1]) / 2;
-  if (mouthWidth) pieces.push(stretch(c, axis, wide * 1.7, Math.max(tall * 2.4, wide * 0.8), mouthWidth, 0));
-  if (lips) pieces.push(stretch(c, axis, wide * 1.2, tall * 2.5, 0, lips));
-  if (mouthHeight) pieces.push(shift(c, scaled(up, mouthHeight * f.length * 0.5), wide * 1.5, tall * 3.2, tall * 3.2));
-  if (smile) for (const corner of [left, right]) pieces.push(shift(corner, scaled(up, smile * wide), wide * 0.6, wide * 0.6));
+  const tall = Math.max(Math.abs(dot(sub(lip[15], c), b)), Math.abs(dot(sub(lip[5], c), b)), wide * 0.12);
+  const { marks } = face.parts;
+  // The skin between the nose and the lip, and between the lip and the chin: what a mouth can move into.
+  const toNose = marks ? Math.max(wide * 0.2, Math.abs(dot(sub(flat(marks.noseBase), c), b)) - tall) : wide * 0.6;
+  const toChin = Math.max(wide * 0.3, Math.abs(dot(sub(flat(face.outline[CHIN]), c), b)) - tall);
+  const keep = guards(r).nose;
+  const upRoom = toNose * 0.95;
+  const downRoom = toChin * 0.8;
+  // The zones here have `b` as their second axis: the side against it is toward the nose.
+  if (mouthHeight) {
+    // The whole mouth goes as one piece, lips and teeth, and the skin above and below takes up the difference.
+    const move = mouthHeight * MOUTH_TRAVEL * toNose;
+    const in1 = wide * 1.12;
+    const in2 = tall * 1.12;
+    const shape: ZoneShape = { in1, in2, out1: [in1 + wide * 0.7, in1 + wide * 0.7], out2: [in2 + upRoom, in2 + downRoom] };
+    pieces.push(guarded(carried(c, axis, shape, 0, -move, b), keep));
+  }
+  if (mouthWidth) {
+    const in1 = wide * 1.06;
+    const in2 = tall * 1.15;
+    const side = in1 + wide * 0.7;
+    const shape: ZoneShape = { in1, in2, out1: [side, side], out2: [in2 + upRoom * 0.8, in2 + Math.min(downRoom, wide * 0.7)] };
+    pieces.push({ ...guarded(resized(c, axis, shape, 1 + mouthWidth, 1, 0, b), keep), overMouth: true });
+  }
+  if (lips && innerLips.length >= 20) {
+    const inner = innerLips.map(flat);
+    const lines: LipLines = {
+      upOut: lipLine([lip[10], ...lip.slice(11), lip[0]], c, axis, b, wide),
+      upIn: lipLine([inner[10], ...inner.slice(11), inner[0]], c, axis, b, wide),
+      lowIn: lipLine(inner.slice(0, 11), c, axis, b, wide),
+      lowOut: lipLine(lip.slice(0, 11), c, axis, b, wide),
+    };
+    pieces.push(guarded(lipVolume(c, axis, b, wide, lines, lips, upRoom * 0.85, downRoom * 0.7), keep));
+  }
+  if (smile) {
+    const move = smile * wide;
+    const in1 = wide * 0.16;
+    const shape = roomAround(in1, in1, wide * 0.42);
+    for (const corner of [left, right]) pieces.push({ ...carried(corner, axis, shape, 0, -move, b), overMouth: true });
+  }
   return pieces;
 }
 
@@ -492,23 +842,33 @@ function fieldOf(pieces: readonly Piece[], kx: number, ky: number): ShapeField {
   }
   const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
   const out: [number, number] = [0, 0];
+  const lips = pieces.filter((p) => p.overMouth);
+  const sum = (list: readonly Piece[], x: number, y: number) => {
+    out[0] = 0;
+    out[1] = 0;
+    for (const p of list) {
+      if (Math.abs(x - p.x) > p.reach || Math.abs(y - p.y) > p.reach) continue;
+      p.add(x, y, out);
+    }
+  };
   return {
     area: { u0: clamp01(area.u0), v0: clamp01(area.v0), u1: clamp01(area.u1), v1: clamp01(area.v1) },
     offset(u, v) {
       const x = u * kx;
       const y = v * ky;
-      out[0] = 0;
-      out[1] = 0;
-      for (const p of pieces) {
-        if (Math.abs(x - p.x) > p.reach || Math.abs(y - p.y) > p.reach) continue;
-        p.add(x, y, out);
-      }
+      sum(pieces, x, y);
       if (out[0] === 0 && out[1] === 0) return [0, 0];
       // Toward an edge the read stops short of it, so what touches the edge stretches and leaves no streaks.
       const mx = out[0] < 0 ? Math.max(out[0], -x * EDGE_ROOM) : Math.min(out[0], (kx - x) * EDGE_ROOM);
       const my = out[1] < 0 ? Math.max(out[1], -y * EDGE_ROOM) : Math.min(out[1], (ky - y) * EDGE_ROOM);
       return [mx / kx, my / ky];
     },
+    over: lips.length
+      ? (u, v) => {
+          sum(lips, u * kx, v * ky);
+          return [out[0] / kx, out[1] / ky];
+        }
+      : undefined,
   };
 }
 

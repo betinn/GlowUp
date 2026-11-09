@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount, tick } from 'svelte';
   import { canEncode, exportImage, type ExportFormat } from '../core/export';
+  import { fillSettled } from './fill.svelte';
   import { outputSize } from '../core/geometry';
   import Icon from './Icon.svelte';
   import ProgressCard from './ProgressCard.svelte';
@@ -92,8 +93,10 @@
     await tick();
     const c = preview?.getContext('2d') ?? null;
     if (c) seedPreview(c);
-    const started = performance.now();
     try {
+      // A completion still running would leave its quick guess in the file.
+      await fillSettled();
+      const started = performance.now();
       const blob = await exportImage(
         e,
         { format, quality: quality / 100 },

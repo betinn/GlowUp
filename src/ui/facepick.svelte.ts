@@ -16,7 +16,9 @@ import { CHIN, type Face } from '../core/face/scan';
 import { faceSpan, skinArea, spotGuard } from '../core/face/skin';
 import type { HealOp } from '../core/doc';
 import { nextPaint, type Stage } from '../core/progress';
-import { finishMatte, personConfidence } from '../core/face/person';
+import { buildMouthMask } from '../core/face/makeup';
+import { forgetFill, startFill } from './fill.svelte';
+import { finishMattes, personConfidence } from '../core/face/person';
 import { autoAction, type AutoAction, type AutoFound, type AutoWords } from '../tools/auto';
 import { toolById } from '../tools/catalog';
 import { reducedMotion } from './motion';
@@ -46,6 +48,7 @@ const WHOLE_PHOTO_FACE = 0.3;
 
 const SCAN: Stage = { id: 'scan', label: 'Procurando rostos', weight: 32 };
 const HAIR: Stage = { id: 'hair', label: 'Achando os fios', weight: 30 };
+const PERSON_LOAD: Stage = { id: 'personload', label: 'Baixando o separador de pessoa e fundo', weight: 40 };
 const PERSON: Stage = { id: 'person', label: 'Separando a pessoa do fundo', weight: 24 };
 
 /** The steps of a search. The downloads happen once, and each segmenter only for the tools that need it. */
@@ -61,13 +64,16 @@ function stagesFor(hair: boolean, person = false): Stage[] {
   }
   list.push(SCAN);
   if (hair) list.push(HAIR);
+  if (person && !personStarted) list.push(PERSON_LOAD);
   if (person) list.push(PERSON);
   return list;
 }
 
 /** What the first search still has to download, in the words of the progress card. */
 function downloadNote(hair: boolean, person = false): string {
-  const size = !detectorStarted ? (hair || person ? 'cerca de 7 MB' : 'cerca de 6 MB') : (hair || person) && !hairStarted ? 'cerca de 1 MB' : '';
+  // Sizes on the wire, with brotli: detector 6 MB, hair 0.7 MB, person and background 15 MB.
+  const personSize = person && !personStarted ? (hairStarted ? 'cerca de 15 MB' : 'cerca de 16 MB') : '';
+  const size = !detectorStarted ? (person ? 'cerca de 22 MB' : hair ? 'cerca de 7 MB' : 'cerca de 6 MB') : personSize || (hair && !hairStarted ? 'cerca de 1 MB' : '');
   return size ? `Só na primeira vez, ${size}. A foto não sai do seu aparelho.` : '';
 }
 
@@ -187,6 +193,7 @@ export type Fill =
 let regionFill: Fill | null = null;
 let detectorStarted = false;
 let hairStarted = false;
+let personStarted = false;
 
 /** The hair found on a photo, for one mask size and one list of faces. The five hair tools share it. */
 interface HairFound {
@@ -278,36 +285,45 @@ export async function findLock(e: Engine, faces: readonly Face[], task: Task | n
   const known = locks.get(source);
   if (known || e.locking) {
     lockState.state = known ?? 'on';
+    if (e.locking) startFill(e, 'tool');
     return true;
   }
   lockState.state = 'finding';
-  task?.stage('person');
+  // A task made before the model came knows the step of its download.
+  const loads = !personStarted;
+  if (loads) task?.stage('personload');
   try {
-    const { loadDetector, segmentHair, segmentPerson } = await import('../core/face/detector');
+    const { loadDetector, segmentHair, segmentParts } = await import('../core/face/detector');
     await loadDetector(
-      () => undefined,
+      (fraction) => {
+        if (loads) task?.report(fraction);
+      },
       () => undefined,
       true,
       true,
     );
     hairStarted = true;
+    personStarted = true;
     if (stopped()) return false;
+    task?.stage('person');
     const seen = await personConfidence(
       { w: source.w, h: source.h },
       { w: masks.w, h: masks.h },
       faces,
-      { person: (area) => segmentPerson(source, area), hair: (area) => segmentHair(source, area) },
+      { parts: (area) => segmentParts(source, area), hair: (area) => segmentHair(source, area) },
       nextPaint,
       (fraction) => task?.report(fraction),
       stopped,
     );
     if (!seen) return false;
     await nextPaint();
-    const matte = finishMatte(seen, faces, maskTarget(masks, source));
+    const target = maskTarget(masks, source);
+    const mattes = finishMattes(seen, faces, target);
     if (stopped()) return false;
-    e.setPerson(matte);
-    locks.set(source, matte ? 'on' : 'none');
-    lockState.state = matte ? 'on' : 'none';
+    e.setLayers(mattes ? { ...mattes, mouth: buildMouthMask(faces, target) } : null);
+    locks.set(source, mattes ? 'on' : 'none');
+    lockState.state = mattes ? 'on' : 'none';
+    if (mattes) startFill(e, 'tool');
     return true;
   } catch (err) {
     console.error(err);
@@ -339,6 +355,7 @@ export async function ensureLock(e: Engine): Promise<void> {
 /** Forgets the state of the lock, for the next photo. */
 export function resetLockState(e: Engine): void {
   lockState.state = e.locking ? 'on' : 'idle';
+  forgetFill();
 }
 
 /** The photo as the mask grid sees it. */

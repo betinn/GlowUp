@@ -12,8 +12,9 @@ import { nextPaint } from '../progress';
 import type { SourceImage } from '../source';
 import modelUrl from './face_landmarker.task?url';
 import hairModelUrl from './hair_segmenter.tflite?url';
-import personModelUrl from './selfie_segmenter.tflite?url';
+import personModelUrl from './selfie_multiclass.tflite?url';
 import type { HairCut } from './hair';
+import type { PartsCut } from './person';
 import type { Area } from './mask';
 import { addFace, byPosition, keepScanning, readFace, SCAN_LEVELS, tileGrid, type Face } from './scan';
 
@@ -21,7 +22,7 @@ import { addFace, byPosition, keepScanning, readFace, SCAN_LEVELS, tileGrid, typ
 export const WASM_BYTES = 14_603_354;
 export const MODEL_BYTES = 3_758_596;
 export const HAIR_MODEL_BYTES = 781_618;
-export const PERSON_MODEL_BYTES = 249_537;
+export const PERSON_MODEL_BYTES = 16_371_837;
 
 /** Most faces read from one tile. */
 const FACES_PER_TILE = 16;
@@ -155,10 +156,10 @@ async function start(hair: boolean, person: boolean): Promise<void> {
 }
 
 /**
- * How sure a segmenter is that each pixel of an area of the photo is of its last class. The area goes into
- * the square input whole, scaled to fit and centered, so a tall crop is not squeezed.
+ * How sure a segmenter is that each pixel of an area of the photo is of each of its classes. The area goes
+ * into the square input whole, scaled to fit and centered, so a tall crop is not squeezed.
  */
-function segmentArea(model: ImageSegmenter, input: number, source: SourceImage, area: Area): HairCut {
+function segmentClasses(model: ImageSegmenter, input: number, source: SourceImage, area: Area): { data: Float32Array[]; w: number; h: number } {
   const k = input / Math.max(area.w, area.h, 1);
   const dw = Math.max(1, Math.round(area.w * k));
   const dh = Math.max(1, Math.round(area.h * k));
@@ -174,30 +175,41 @@ function segmentArea(model: ImageSegmenter, input: number, source: SourceImage, 
   const result = model.segment(canvas);
   try {
     const masks = result.confidenceMasks ?? [];
-    // Both models see two classes, and what they look for is the last one.
-    const mask = masks[masks.length - 1];
-    if (!mask) return { data: new Float32Array(0), w: 0, h: 0 };
-    const full = mask.getAsFloat32Array();
-    const sx = mask.width / input;
-    const sy = mask.height / input;
+    const first = masks[0];
+    if (!first) return { data: [], w: 0, h: 0 };
+    const sx = first.width / input;
+    const sy = first.height / input;
     const x0 = Math.floor(ox * sx);
     const y0 = Math.floor(oy * sy);
-    const w = Math.max(1, Math.min(mask.width - x0, Math.round(dw * sx)));
-    const h = Math.max(1, Math.min(mask.height - y0, Math.round(dh * sy)));
-    const data = new Float32Array(w * h);
-    for (let y = 0; y < h; y++) {
-      const from = (y + y0) * mask.width + x0;
-      data.set(full.subarray(from, from + w), y * w);
-    }
+    const w = Math.max(1, Math.min(first.width - x0, Math.round(dw * sx)));
+    const h = Math.max(1, Math.min(first.height - y0, Math.round(dh * sy)));
+    const data = masks.map((mask) => {
+      const full = mask.getAsFloat32Array();
+      const cut = new Float32Array(w * h);
+      for (let y = 0; y < h; y++) {
+        const from = (y + y0) * mask.width + x0;
+        cut.set(full.subarray(from, from + w), y * w);
+      }
+      return cut;
+    });
     return { data, w, h };
   } finally {
     result.close();
   }
 }
 
-export const segmentHair = (source: SourceImage, area: Area): HairCut => segmentArea(segmenter!, HAIR_INPUT, source, area);
+/** The hair segmenter sees two classes, and hair is the last one. */
+export function segmentHair(source: SourceImage, area: Area): HairCut {
+  const { data, w, h } = segmentClasses(segmenter!, HAIR_INPUT, source, area);
+  return { data: data[data.length - 1] ?? new Float32Array(0), w, h };
+}
 
-export const segmentPerson = (source: SourceImage, area: Area): HairCut => segmentArea(personSegmenter!, PERSON_INPUT, source, area);
+/** The classes of the person segmenter, in the order of the model: background, hair, body skin, face skin, clothes, others. */
+export function segmentParts(source: SourceImage, area: Area): PartsCut {
+  const { data, w, h } = segmentClasses(personSegmenter!, PERSON_INPUT, source, area);
+  const none = new Float32Array(w * h);
+  return { w, h, back: data[0] ?? none, hair: data[1] ?? none, body: data[2] ?? none, face: data[3] ?? none, clothes: data[4] ?? none, other: data[5] ?? none };
+}
 
 /** One search over one photo. It can stop after a level and go on later. */
 export class FaceScan {
