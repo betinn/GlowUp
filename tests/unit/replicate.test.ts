@@ -220,7 +220,7 @@ describe('replication', () => {
     expect(report.localEffect).toBe(false);
     // The file it writes is a filter like any other, and the app reads the same colors from it.
     const rebuilt = buildLut(out as FilterData, 17);
-    expect(rebuilt.length).toBe(17 ** 3 * 4);
+    expect(rebuilt).toHaveLength(17 ** 3 * 4);
     expect('table' in out.lut).toBe(true);
     expect(out.suggest).toBe(false);
   });

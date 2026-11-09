@@ -22,7 +22,7 @@ const smaller = (img, side) => {
 };
 
 function bilinear(l, x, y) {
-  if (x < 0 || y < 0 || x > l.w - 1 || y > l.h - 1) return NaN;
+  if (x < 0 || y < 0 || x > l.w - 1 || y > l.h - 1) return Number.NaN;
   const ix = Math.min(Math.floor(x), l.w - 2);
   const iy = Math.min(Math.floor(y), l.h - 2);
   const fx = x - ix;

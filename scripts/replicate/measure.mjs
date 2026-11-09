@@ -77,9 +77,8 @@ export function measureVignette(input, output, shape) {
     // Only the outer part of the frame counts, so light on a face in the middle does not pass for a vignette.
     if (shape[i] < VIGNETTE_FROM) continue;
     const key = (Math.floor(input[i * 3] * 24) * 25 + Math.floor(input[i * 3 + 1] * 24)) * 25 + Math.floor(input[i * 3 + 2] * 24);
-    let cell = cells.get(key);
-    if (!cell) cells.set(key, (cell = []));
-    cell.push(i);
+    if (!cells.has(key)) cells.set(key, []);
+    cells.get(key).push(i);
   }
   let darkTop = 0;
   let darkBottom = 0;
@@ -323,7 +322,7 @@ export function findLocalDetail(aligned, after, grainSigma, predictAt) {
   const block = Math.max(8, Math.round(Math.max(w, h) / 48));
   const bw = Math.floor(w / block);
   const bh = Math.floor(h / block);
-  const ratio = new Float32Array(bw * bh).fill(NaN);
+  const ratio = new Float32Array(bw * bh).fill(Number.NaN);
   const ratios = [];
   for (let by = 0; by < bh; by++) {
     for (let bx = 0; bx < bw; bx++) {

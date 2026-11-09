@@ -91,7 +91,7 @@ function reframe(img, { keep = 0.92, scale = 0.8, tilt = 0.3 } = {}) {
 
 const faceMask = (u, v) => {
   const d = Math.hypot((u - 0.5) / 0.3, (v - 0.45) / 0.27);
-  return d < 0.8 ? 1 : d > 1.2 ? 0 : (1.2 - d) / 0.4;
+  return Math.min(1, Math.max(0, (1.2 - d) / 0.4));
 };
 
 /** Light on the middle of the photo only, about where the face is. */
@@ -167,8 +167,8 @@ async function run(label, filter, trainAt, { reshape = (a) => a, quality = 0.95,
   console.log(JSON.stringify(row), `${Math.round(performance.now() - started)} ms`);
 }
 
-const SAMPLE = ['cinema-tarde', 'grao-quente', 'prata', 'mel', 'neblina', 'cruzado'];
-const sampled = filters.filter((f) => SAMPLE.includes(f.id));
+const SAMPLE = new Set(['cinema-tarde', 'grao-quente', 'prata', 'mel', 'neblina', 'cruzado']);
+const sampled = filters.filter((f) => SAMPLE.has(f.id));
 for (const [i, filter] of filters.entries()) await run('direto', filter, i % photos.length);
 for (const [i, filter] of sampled.entries()) await run('recorte', filter, i % photos.length, { reshape: (a) => reframe(a), quality: 0.85 });
 for (const [i, filter] of sampled.entries()) await run('luz local', filter, i % photos.length, { effect: (a) => faceLight(a) });

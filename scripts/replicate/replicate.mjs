@@ -238,6 +238,7 @@ function roundedLocal({ found, area, box, tooSmall }) {
 
 const pct = (v) => `${Math.round(v * 100)}%`;
 const where = (box) => (box ? `de ${pct(box.left)} a ${pct(box.right)} na largura, de ${pct(box.top)} a ${pct(box.bottom)} na altura` : '');
+const patchWords = (patch) => (patch.found ? `sim, em ${pct(patch.area)} da foto, ${where(patch.box)}` : 'não');
 
 /** The report as text for people, in Portuguese like the rest of the docs. */
 export function reportMarkdown(r) {
@@ -255,7 +256,8 @@ export function reportMarkdown(r) {
   if (!r.holdouts.length) lines.push('', 'Sem par separado: a tabela só foi conferida nas próprias fotos do ajuste, então o erro acima é otimista.');
   lines.push('', '## Efeitos locais', '');
   for (const p of r.pairs) {
-    lines.push(`- **${p.name}.** Cor: ${p.localColor.found ? `sim, em ${pct(p.localColor.area)} da foto, ${where(p.localColor.box)}` : 'não'}. Textura: ${p.localDetail.tooSmall ? 'foto pequena demais para medir' : p.localDetail.found ? `sim, em ${pct(p.localDetail.area)} da foto, ${where(p.localDetail.box)}` : 'não'}.`);
+    const texture = p.localDetail.tooSmall ? 'foto pequena demais para medir' : patchWords(p.localDetail);
+    lines.push(`- **${p.name}.** Cor: ${patchWords(p.localColor)}. Textura: ${texture}.`);
   }
   lines.push('', 'Cor quer dizer luz ou tom mudando só numa parte, como um rosto iluminado à parte. Textura quer dizer detalhe sumindo só numa parte, como pele alisada. O filtro gerado não reproduz nada disso, e a tabela fica um pouco puxada por essas áreas.');
   lines.push('', '## Curva de tom', '', '| Entra | Sai | R | G | B | Amostras |', '| --- | --- | --- | --- | --- | --- |');

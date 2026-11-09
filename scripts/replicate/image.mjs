@@ -20,7 +20,7 @@ export function lumaOf(img) {
 
 function pageDecode([b64, maxSide]) {
   return (async () => {
-    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    const bytes = Uint8Array.from(atob(b64), (c) => c.codePointAt(0));
     const bitmap = await createImageBitmap(new Blob([bytes]));
     const k = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
     const w = Math.round(bitmap.width * k);
@@ -31,7 +31,7 @@ function pageDecode([b64, maxSide]) {
     g.drawImage(bitmap, 0, 0, w, h);
     const { data } = g.getImageData(0, 0, w, h);
     let text = '';
-    for (let i = 0; i < data.length; i += 32768) text += String.fromCharCode.apply(null, data.subarray(i, i + 32768));
+    for (let i = 0; i < data.length; i += 32768) text += String.fromCodePoint(...data.subarray(i, i + 32768));
     return { w, h, data: btoa(text) };
   })();
 }
@@ -63,22 +63,22 @@ export async function openDecoder() {
   return {
     read: async (path) => fromRgba(await page.evaluate(pageDecode, [readFileSync(path).toString('base64'), MAX_SIDE])),
     /** The image as it comes back from a JPEG of this quality. Used to make test pairs lifelike. */
-    jpeg: async (img, quality) =>
-      fromRgba(
-        await page.evaluate(
-          async ([b64, w, h, q, decode]) => {
-            const bytes = Uint8ClampedArray.from(atob(b64), (c) => c.charCodeAt(0));
-            const canvas = new OffscreenCanvas(w, h);
-            canvas.getContext('2d').putImageData(new ImageData(bytes, w, h), 0, 0);
-            const blob = await canvas.convertToBlob({ type: 'image/jpeg', quality: q });
-            const raw = new Uint8Array(await blob.arrayBuffer());
-            let text = '';
-            for (let i = 0; i < raw.length; i += 32768) text += String.fromCharCode.apply(null, raw.subarray(i, i + 32768));
-            return new Function(`return (${decode})`)()([btoa(text), Math.max(w, h)]);
-          },
-          [toRgbaBase64(img), img.w, img.h, quality, pageDecode.toString()],
-        ),
-      ),
+    jpeg: async (img, quality) => {
+      const file = await page.evaluate(
+        async ([b64, w, h, q]) => {
+          const bytes = Uint8ClampedArray.from(atob(b64), (c) => c.codePointAt(0));
+          const canvas = new OffscreenCanvas(w, h);
+          canvas.getContext('2d').putImageData(new ImageData(bytes, w, h), 0, 0);
+          const blob = await canvas.convertToBlob({ type: 'image/jpeg', quality: q });
+          const raw = new Uint8Array(await blob.arrayBuffer());
+          let text = '';
+          for (let i = 0; i < raw.length; i += 32768) text += String.fromCodePoint(...raw.subarray(i, i + 32768));
+          return btoa(text);
+        },
+        [toRgbaBase64(img), img.w, img.h, quality],
+      );
+      return fromRgba(await page.evaluate(pageDecode, [file, Math.max(img.w, img.h)]));
+    },
     close: () => browser.close(),
   };
 }

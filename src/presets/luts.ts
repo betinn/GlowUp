@@ -107,7 +107,7 @@ export function curveFn(points: Curve): (x: number) => number {
 }
 
 const hexColor = (hex: string): RGB => {
-  const v = parseInt(hex.slice(1), 16);
+  const v = Number.parseInt(hex.slice(1), 16);
   return [((v >> 16) & 255) / 255, ((v >> 8) & 255) / 255, (v & 255) / 255];
 };
 
@@ -213,7 +213,7 @@ function adjustFn(a: FilterAdjust): ColorOp {
 
 /** Reads a measured table back, for lookups between its nodes. */
 function tableFn({ size, table }: TableData): ColorOp {
-  const bytes = Uint8Array.from(atob(table), (ch) => ch.charCodeAt(0));
+  const bytes = Uint8Array.from(atob(table), (ch) => ch.codePointAt(0)!);
   const view = new DataView(bytes.buffer);
   const at = (i: number) => view.getUint16(i * 2, true) / 65535;
   const last = size - 1;

@@ -98,7 +98,7 @@ function addSmooth(p, out, size, k) {
     for (let b = 0, n = 0; b < size; b++) {
       for (let g = 0; g < size; g++) {
         for (let r = 0; r < size; r++, n++) {
-          const at = axis === 0 ? r : axis === 1 ? g : b;
+          const at = [r, g, b][axis];
           if (at === 0 || at === size - 1) continue;
           const d = k * (p[n - s] - 2 * p[n] + p[n + s]);
           out[n - s] += d;
@@ -118,7 +118,7 @@ function smoothDiagonal(size, k) {
     for (let b = 0, n = 0; b < size; b++) {
       for (let g = 0; g < size; g++) {
         for (let r = 0; r < size; r++, n++) {
-          const at = axis === 0 ? r : axis === 1 ? g : b;
+          const at = [r, g, b][axis];
           if (at === 0 || at === size - 1) continue;
           diag[n - s] += k;
           diag[n] += 4 * k;
