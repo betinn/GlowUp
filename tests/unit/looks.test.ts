@@ -16,8 +16,8 @@ const wearing = (index: number): EditDoc => {
 };
 
 describe('the paths', () => {
-  it('offers Glow na Hora and Do Meu Jeito, each with its own id', () => {
-    expect(PATHS.map((p) => p.label)).toEqual(['Glow na Hora', 'Do Meu Jeito']);
+  it('offers Glow na Hora, Do Meu Jeito and Filtros, each with its own id', () => {
+    expect(PATHS.map((p) => p.label)).toEqual(['Glow na Hora', 'Do Meu Jeito', 'Filtros']);
     expect(new Set(PATHS.map((p) => p.id)).size).toBe(PATHS.length);
   });
 

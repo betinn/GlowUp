@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import { DEV_ORIGIN } from '../../playwright.config';
-import { chooseMode, expectNoErrors, imageRect, meanDiff, openEditor, paint, setSlider, settle, showSettled } from './helpers';
+import { chooseMode, expectNoErrors, imageRect, meanDiff, openEditor, paint, setSlider, settle, showSettled, skipIntro } from './helpers';
 
 /** The dev server serves each module by address, so a test can read the document itself. */
 test.use({ baseURL: DEV_ORIGIN });
@@ -47,7 +47,7 @@ const undo = async (page: Page) => {
 
 /** The fixture portrait, one stop and a half too dark. */
 async function openDark(page: Page): Promise<void> {
-  await page.addInitScript(() => localStorage.setItem('glowup.onboarded', 'true'));
+  await skipIntro(page);
   await page.goto('/');
   const base64 = readFileSync('tests/fixtures/portrait.png').toString('base64');
   const dark = await page.evaluate(async (png) => {

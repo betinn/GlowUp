@@ -61,7 +61,7 @@ const switchPath = async (page: Page, id: string) => {
 test.describe('tela de escolha', () => {
   test('a foto abre na escolha, e cada caminho traz o seu menu', async ({ page }) => {
     await openToChoice(page);
-    await expect(page.locator('[data-path]')).toHaveCount(2);
+    await expect(page.locator('[data-path]')).toHaveCount(3);
     await expect(page.locator('[data-group]')).toHaveCount(0);
 
     await page.locator('[data-path=manual]').click();
@@ -70,7 +70,7 @@ test.describe('tela de escolha', () => {
     await expect(page.getByTestId('path-switch')).toContainText('Do Meu Jeito');
     await expect(page.locator('[data-look]')).toHaveCount(0);
     // The tool of recipes is gone with the look menu in its place.
-    await page.locator('[data-group=looks]').click();
+    await page.locator('[data-group=filters]').click();
     await expect(page.locator('[data-tool=presets]')).toHaveCount(0);
 
     // A question that can go unanswered: Escape leaves everything as it was.
@@ -83,6 +83,19 @@ test.describe('tela de escolha', () => {
     await expect(page.getByTestId('path-switch')).toContainText('Glow na Hora');
     await expect(page.locator('[data-group]')).toHaveCount(0);
     await expect(page.locator('[data-look]')).not.toHaveCount(0);
+  });
+
+  test('o caminho Filtros mostra só os filtros, e o filtro segue em Do Meu Jeito', async ({ page }) => {
+    await openToChoice(page);
+    await page.locator('[data-path=filters]').click();
+    await page.getByTestId('filters-menu').waitFor();
+    await expect(page.locator('[data-group]')).toHaveCount(0);
+    await page.locator('[data-filter=prata]').click();
+    await settle(page, 400);
+    expect((await docState(page)).filter).toBe('prata');
+    await switchPath(page, 'manual');
+    await expect(page.locator('[data-group=filters]')).toBeVisible();
+    expect((await docState(page)).filter).toBe('prata');
   });
 
   test('voltar da escolha leva para o início', async ({ page }) => {

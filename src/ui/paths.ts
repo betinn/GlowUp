@@ -36,6 +36,13 @@ export const PATHS: EditPath[] = [
     icon: 'brush',
     paints: true,
   },
+  {
+    id: 'filters',
+    label: 'Filtros',
+    note: 'Cor e clima na foto toda, sem mexer no rosto.',
+    icon: 'filters',
+    menu: () => import('./FiltersMenu.svelte'),
+  },
 ];
 
 export const pathById = (id: string | null) => PATHS.find((p) => p.id === id);
