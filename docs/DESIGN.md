@@ -441,9 +441,11 @@ do retoque.
 - **Caretas.** Um controle por efeito, de 0 a 100, no rosto escolhido. Olhão aumenta os olhos. Cabeção aumenta a
   cabeça com o cabelo, e corpo e fundo ficam: ele pede a separação da pessoa quando sai do zero, e sem ela a cabeça
   cresce com o que está em volta, e o painel diz isso.
-- **Adesivos.** Uma grade com a arte de cada um. Um toque põe o adesivo no rosto escolhido, no lugar dele. Arrastar
-  move. Dois dedos, a alça do canto ou a rodinha do mouse giram e mudam o tamanho. O "x" na moldura tira. A moldura
-  só aparece na tela.
+- **Adesivos.** Uma grade em quatro abas (Óculos, Cabeça, Rosto, Em volta), com a arte de cada um. Um toque põe o
+  adesivo no rosto escolhido, no lugar dele. Arrastar move. Dois dedos, a alça do canto ou a rodinha do mouse giram e
+  mudam o tamanho. O "x" na moldura tira. A moldura só aparece na tela.
+- **Vários adesivos.** O último posto fica por cima. A fila "Na foto" do menu mostra todos, de baixo para cima: um
+  toque escolhe, mesmo um que está escondido debaixo de outro, e "Trazer para frente" põe o escolhido por cima.
 - **Segue o rosto.** O adesivo guarda o lugar na foto como foi aberta, e as deformações, de brincadeira e de
   verdade, levam ele para onde o rosto foi. Óculos num Cabeção crescem com a cabeça.
 - **Desfazer.** Cada gesto é uma etapa: soltar um controle, pôr, arrastar, girar ou tirar um adesivo. "Zerar
@@ -497,24 +499,39 @@ Um arquivo em `src/core/fun/stickers/`, com arte feita no projeto, e uma linha e
 ```ts
 import type { StickerDef } from '../types';
 
-export const bigode: StickerDef = {
-  id: 'bigode', // vai para o projeto salvo: nunca muda
-  label: 'Bigode',
-  svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 60">…</svg>`,
-  aspect: 60 / 200,
-  anchor(read) {
-    const mouth = read.face.parts.outerLips;
-    if (!mouth.length) return null;
-    const [x, y] = read.flat(mouth[15]);
-    return { x, y: y - read.frame.length * 0.04, size: read.frame.halfWidth * 1.2, angle: 0 };
-  },
+import { onHead } from './spots';
+
+const W = 240;
+const H = 160;
+
+export const coroa: StickerDef = {
+  id: 'coroa', // vai para o projeto salvo: nunca muda
+  label: 'Coroa',
+  group: 'cabeca', // a aba da grade
+  svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}">…</svg>`,
+  aspect: H / W,
+  // 66% da largura da cabeça, com o meio da base da arte (0.5, 146/160) um pouco abaixo do topo do crânio.
+  anchor: (read) => onHead(read, 0.66, H / W, 0.5, 146 / H, 0.1),
 };
 ```
 
-- `svg` é um documento SVG inteiro, com `viewBox`, sem texto, fonte, imagem, script ou endereço de fora. Nunca arte
-  de terceiros. O teste do registro confere isso e que `aspect` é a altura sobre a largura do `viewBox`.
+- `svg` é um documento SVG inteiro, com `viewBox`, sem texto, fonte, imagem, script, estilo ou endereço de fora. Um
+  `url(#…)` só pode nomear um gradiente do mesmo arquivo. Nunca arte de terceiros, marca, personagem ou emoji de um
+  conjunto pronto. O teste do registro confere isso e que `aspect` é a altura sobre a largura do `viewBox`.
+- `group` é a aba: `oculos`, `cabeca`, `rosto` ou `volta`. Os nomes e a ordem das abas ficam em `STICKER_GROUPS`.
 - `anchor(read)` diz onde ele entra num rosto: o meio, a largura e o giro em radianos, nas medidas do rosto. Null
   quando falta o que ele precisa, e ele vai para o meio do rosto.
+- `stickers/spots.ts` tem os lugares prontos. Cada um prende um ponto da arte, em frações da largura e da altura, a
+  um ponto do rosto, girado como a linha dos olhos:
+  - `onEyes(read, span, aspect, fy)`: óculos, com as lentes a `span` larguras da arte uma da outra.
+  - `onHead(read, share, aspect, fx, fy, sink)`: chapéus e orelhas, a `share` da largura da cabeça, com o ponto
+    `fx, fy` a `sink` comprimentos do rosto abaixo do topo do crânio. O topo do crânio fica 0,3 comprimento acima do
+    começo do contorno do detector, sobre o meio do contorno de lado a lado, que fica sobre o crânio mesmo com a
+    cabeça virada. Cabelo alto não entra na conta.
+  - `aroundHead(read, radius, aspect, fx, fy)`: arte em anel em volta da cabeça.
+  - `overLip`, `noseOf`, `cheeksOf`, `lowerLidOf` e `pin` para o resto.
+- `stickers/shapes.ts` tem coração, estrela, brilho, o anel em volta da cabeça e `twice`, que espelha um lado.
+- `tests/unit/stickers.test.ts` confere cada adesivo num rosto inteiro, inclinado, maior e numa foto larga.
 - A arte é desenhada na hora no tamanho que tem na tela ou no arquivo, em potências de 2 de 64 a 4096 pixels, então
   fica nítida na exportação em resolução total.
 
