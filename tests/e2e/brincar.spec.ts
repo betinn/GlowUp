@@ -68,7 +68,8 @@ test.describe('o caminho Brincar', () => {
     await expect(page.locator('[data-fun=on]')).toHaveCount(1, { timeout: 90_000 });
     await expect(page.getByRole('slider', { name: 'Olhão' })).toBeVisible();
     await expect(page.getByRole('slider', { name: 'Cabeção' })).toBeVisible();
-    await expect(page.getByTestId('sticker')).toHaveCount(1);
+    // The first tab of the grid of stickers, the glasses.
+    await expect(page.locator('[data-testid=sticker][data-kind=oculos-redondos]')).toHaveCount(1);
     // No tool, group or slider of the realistic retouching.
     await expect(page.locator('[data-group]')).toHaveCount(0);
     await expect(page.getByRole('slider', { name: 'Tamanho da cabeça' })).toHaveCount(0);

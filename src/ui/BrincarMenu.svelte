@@ -7,12 +7,12 @@
   import { onDestroy, onMount } from 'svelte';
   import { FUN_COMBOS } from '../core/fun/combos';
   import { FUN_EFFECTS } from '../core/fun/effects/index';
-  import { STICKERS } from '../core/fun/stickers/index';
-  import type { FunEffect } from '../core/fun/types';
+  import { STICKER_GROUPS, STICKERS, stickerById } from '../core/fun/stickers/index';
+  import type { FunEffect, StickerGroup } from '../core/fun/types';
   import { selectTool } from './actions';
   import { lockState } from './facepick.svelte';
   import FillCard from './FillCard.svelte';
-  import { applyCombo, closeFun, funComboOn, funHeld, funPick, funValueOf, openFun, putSticker, removeSelected, resetFun, setFunValue } from './funpick.svelte';
+  import { applyCombo, closeFun, funComboOn, funHeld, funPick, funValueOf, openFun, putSticker, raiseSelected, removeSelected, resetFun, setFunValue } from './funpick.svelte';
   import Icon from './Icon.svelte';
   import ProgressCard from './ProgressCard.svelte';
   import Slider from './Slider.svelte';
@@ -28,6 +28,18 @@
   const layeredOn = $derived((ui.rev, FUN_EFFECTS.some((f) => f.layered && funValueOf(e, f.id) > 0)));
   const comboOn = $derived((ui.rev, funPick.chosen, funComboOn(e)?.id ?? null));
   const selected = $derived((ui.rev, funPick.selected !== null && !!e.doc.fun?.stickers?.some((s) => s.id === funPick.selected)));
+
+  /** The tab of the grid of stickers. */
+  let group = $state<StickerGroup>('oculos');
+  const shelf = $derived(STICKERS.filter((s) => s.group === group));
+  /** The stickers on the photo, from the one under all to the one on top. */
+  const placed = $derived((ui.rev, [...(e.doc.fun?.stickers ?? [])]));
+  const onTop = $derived(placed.length > 0 && placed[placed.length - 1].id === funPick.selected);
+
+  function choose(id: number) {
+    funPick.selected = id;
+    bump();
+  }
 
   onMount(() => {
     // A tool of another path closes: Brincar has none.
@@ -106,17 +118,41 @@
 
   {#if funPick.state !== 'searching' && funPick.state !== 'idle'}
     <h3>Adesivos</h3>
-    <div class="grid" role="group" aria-label="Adesivos">
-      {#each STICKERS as sticker (sticker.id)}
+    <div class="tabs" role="tablist" aria-label="Tipos de adesivo">
+      {#each STICKER_GROUPS as g (g.id)}
+        <button type="button" role="tab" aria-selected={group === g.id} class:on={group === g.id} data-testid="sticker-group" data-tab={g.id}
+          onclick={() => (group = g.id)}>{g.label}</button>
+      {/each}
+    </div>
+    <div class="grid" role="tabpanel" aria-label="Adesivos">
+      {#each shelf as sticker (sticker.id)}
         <button type="button" class="sticker" data-testid="sticker" data-kind={sticker.id} aria-label="Pôr {sticker.label}" title={sticker.label}
           onclick={() => putSticker(e, sticker)}>
           <img src={thumbs.get(sticker.id)} alt="" draggable="false" />
         </button>
       {/each}
     </div>
+    {#if ready && funPick.faces.length > 1}
+      <p class="note">Vai para o rosto escolhido lá em cima.</p>
+    {/if}
+    {#if placed.length}
+      <h3>Na foto <span class="hint">· o último fica por cima</span></h3>
+      <div class="placed" role="listbox" aria-label="Adesivos na foto, de baixo para cima">
+        {#each placed as s (s.id)}
+          {@const def = stickerById(s.kind)}
+          <button type="button" role="option" aria-selected={funPick.selected === s.id} class:on={funPick.selected === s.id} data-testid="placed" data-sticker={s.id}
+            aria-label={def?.label ?? 'Adesivo'} title={def?.label} onclick={() => choose(s.id)}>
+            {#if thumbs.get(s.kind)}<img src={thumbs.get(s.kind)} alt="" draggable="false" />{/if}
+          </button>
+        {/each}
+      </div>
+    {/if}
     {#if selected}
       <p class="note">Arraste o adesivo na foto. Dois dedos, a alça do canto ou a rodinha do mouse giram e mudam o tamanho.</p>
-      <button type="button" class="btn" data-testid="sticker-remove" onclick={() => removeSelected(e)}><Icon name="trash" size={18} /> Tirar adesivo</button>
+      <div class="actions">
+        <button type="button" class="btn" data-testid="sticker-raise" disabled={onTop} onclick={() => raiseSelected(e)}><Icon name="front" size={18} /> Trazer para frente</button>
+        <button type="button" class="btn" data-testid="sticker-remove" onclick={() => removeSelected(e)}><Icon name="trash" size={18} /> Tirar adesivo</button>
+      </div>
     {/if}
   {/if}
 
@@ -173,6 +209,9 @@
     display: grid;
     place-items: center;
     aspect-ratio: 1;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
     padding: 8px;
     border-radius: 14px;
     background: var(--paper-2);
@@ -186,7 +225,72 @@
   .sticker img {
     width: 100%;
     height: 100%;
+    min-height: 0;
     object-fit: contain;
+  }
+
+  .tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 2px;
+  }
+
+  .tabs button {
+    min-height: 34px;
+    padding: 0 12px;
+    border-radius: 999px;
+    font-size: 13px;
+    color: var(--paper-2);
+    background: var(--ink-3);
+  }
+
+  .tabs button.on {
+    color: var(--ink);
+    background: var(--paper);
+  }
+
+  .hint {
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+
+  .placed {
+    display: flex;
+    gap: 6px;
+    min-height: 58px;
+    overflow-x: auto;
+    padding: 3px 3px 6px;
+  }
+
+  .placed button {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 48px;
+    height: 48px;
+    padding: 5px;
+    border-radius: 10px;
+    background: var(--paper-2);
+    outline: 2px solid transparent;
+    outline-offset: 1px;
+  }
+
+  .placed button.on {
+    outline-color: var(--safe);
+  }
+
+  .placed img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
   }
 
   .btn {

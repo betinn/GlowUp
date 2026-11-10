@@ -170,6 +170,13 @@ export function removeSelected(e: Engine): void {
   bump();
 }
 
+/** Puts the chosen sticker over all the others. */
+export function raiseSelected(e: Engine): void {
+  if (funPick.selected === null) return;
+  e.raiseSticker(funPick.selected);
+  bump();
+}
+
 /** Brincar has something on the photo. */
 export const funHeld = (e: Engine) => !!(e.doc.fun?.faces?.length || e.doc.fun?.stickers?.length);
 
