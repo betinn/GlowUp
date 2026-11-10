@@ -153,6 +153,24 @@ test.describe('limite do pincel', () => {
     expect(seen.requests.filter((u) => !onSite(u, baseURL!))).toEqual([]);
   });
 
+  test('o detector não tenta contar a ninguém que foi usado', async ({ page }) => {
+    // MediaPipe counts how its tasks are used and tries to post the counts once a minute. The clock of the
+    // page jumps past two of those minutes, with the landmarker and a segmenter running.
+    await page.clock.install();
+    await page.addInitScript(() => {
+      const blocked: string[] = [];
+      (window as unknown as { blocked: string[] }).blocked = blocked;
+      document.addEventListener('securitypolicyviolation', (e) => blocked.push(e.blockedURI));
+    });
+    await openEditor(page);
+    await pickTool(page, 'eyes', 'eyecolor');
+    await pickTool(page, 'hair', 'haircolor', { auto: true });
+    await page.clock.fastForward(130_000);
+    await settle(page, 800);
+    // The policy of the site would stop it, but nothing even tries.
+    expect(await page.evaluate(() => (window as unknown as { blocked: string[] }).blocked)).toEqual([]);
+  });
+
   test('abrir a ferramenta baixa o detector, avisa, e o traço fica na íris', async ({ page }) => {
     // The model takes a moment, so the wait can be seen and tried.
     await page.route(/\.task$/, async (route) => {

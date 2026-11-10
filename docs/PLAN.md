@@ -78,6 +78,7 @@
 
 - [x] Detector MediaPipe no próprio site, baixado só no primeiro pedido
 - [x] CSP com `'wasm-unsafe-eval'` e `application/wasm` nos exemplos de deploy
+- [x] Contador de uso do MediaPipe desligado: nem a tentativa de envio acontece
 - [x] Busca em tiles para rostos pequenos, com anéis e escolha por toque
 - [x] Máscara do rosto com borda suave, refino de contorno e desvanecer no pescoço
 - [x] Pincel, borracha e borda sobre a máscara, e pintura à mão quando não há rosto
