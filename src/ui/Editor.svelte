@@ -198,6 +198,7 @@
       },
       view: bump,
       busy: (label) => (ui.busy = label),
+      shaping: (pending) => (ui.shaping = pending),
       error: (message) => toast(message),
       outside: () => toast(strokeOutside()),
     };
@@ -536,6 +537,13 @@
 
   {#if ready && ui.choosingPath}
     <PathChoice />
+  {/if}
+
+  {#if ui.shaping && ready}
+    <!-- Only while the finished field is on its way. It shows a moment late, so a quick one never blinks. -->
+    <div class="shaping" role="status" aria-label="Terminando o ajuste do rosto" data-testid="shape-pending" in:reveal={{ duration: 160, delay: 140, y: 4 }}>
+      <span class="filament"></span>
+    </div>
   {/if}
 
   {#if ui.busy}
@@ -911,6 +919,24 @@
     pointer-events: none;
     font-size: 18px;
     white-space: nowrap;
+  }
+
+  /* A thread of light over the top of the photo: the slider is free, the photo is catching up. */
+  .shaping {
+    position: absolute;
+    left: 50%;
+    top: calc(var(--bar-h) + var(--safe-top) + 14px);
+    translate: -50% 0;
+    z-index: 6;
+    width: 96px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgb(11 11 12 / 0.62);
+    pointer-events: none;
+  }
+
+  .shaping .filament {
+    margin-top: 0;
   }
 
   .filament {

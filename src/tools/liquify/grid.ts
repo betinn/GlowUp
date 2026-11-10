@@ -30,6 +30,10 @@ export class DisplacementGrid {
   private readonly cols: number;
   /** Rectangle changed since the last `takeDirty`. */
   private dirty: { x0: number; y0: number; x1: number; y1: number } | null = null;
+  /** Whether every cell is still, as last counted. Null once a write may have changed it. */
+  private still: boolean | null = true;
+  /** Whether every number is exactly zero, as last counted. Null once a write may have changed it. */
+  private zero: boolean | null = true;
 
   constructor(
     readonly w: number,
@@ -185,7 +189,14 @@ export class DisplacementGrid {
     return true;
   }
 
+  /** Says that `data` was written from outside, so what was counted of it no longer holds. */
+  changed(): void {
+    this.still = null;
+    this.zero = null;
+  }
+
   private markDirty(x0: number, y0: number, x1: number, y1: number): void {
+    this.changed();
     const d = this.dirty;
     if (!d) {
       this.dirty = { x0, y0, x1, y1 };
@@ -227,11 +238,30 @@ export class DisplacementGrid {
     });
   }
 
+  /** Every cell still. Counted once after a change, since the interface asks it often. */
   isEmpty(): boolean {
+    if (this.still !== null) return this.still;
+    this.still = true;
     for (let i = 0; i < this.data.length; i++) {
-      if (Math.abs(this.data[i]) > 1e-6) return false;
+      if (Math.abs(this.data[i]) > 1e-6) {
+        this.still = false;
+        break;
+      }
     }
-    return true;
+    return this.still;
+  }
+
+  /** Every number exactly zero, which `isEmpty` does not ask. Counted once after a change. */
+  isZero(): boolean {
+    if (this.zero !== null) return this.zero;
+    this.zero = true;
+    for (let i = 0; i < this.data.length; i++) {
+      if (this.data[i] !== 0) {
+        this.zero = false;
+        break;
+      }
+    }
+    return this.zero;
   }
 
   /** Largest displacement, in UV. */

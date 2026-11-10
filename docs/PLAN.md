@@ -185,6 +185,10 @@
 - [x] Limites medidos nas seis fotos: mandíbula 9%, maxilar 10%, queixo e comprimento 6%, e o lado largo de um rosto virado contido
 - [x] Preenchimento a partir de fundo limpo: sombra de contato e pontas de barba saem com a pessoa, e a faixa nova encontra a foto sem degrau de tom
 - [x] Conferido nas seis fotos reais: mandíbula em -100, -50, +50 e +100 e queixo em -100, com linhas finas
+- [x] Arrastar um controle não trava, nem a 6x de lentidão: rascunho na hora, resultado completo igual ao de antes, fio de luz enquanto ele não chega
+- [x] O preenchimento em segundo plano cede a vez à página entre os passos pesados
+- [ ] Separar a pessoa do fundo fora da página: ao abrir o menu, o MediaPipe e a primeira placa ainda prendem a página por 0,2 a 0,5 s de cada vez, cerca de 2 s no total
+- [ ] Desfazer e refazer dos controles também pelos workers: hoje o campo é refeito na hora, 0,1 a 0,25 s num computador rápido
 - [ ] Placa na resolução da foto: hoje ela tem a da prévia, e numa foto de 12 MP o que aparece atrás sai mais suave
 - [ ] Retoques de pele chegarem à placa: o pescoço que aparece vem da foto sem Suavizar nem Tom de pele
 
@@ -298,6 +302,27 @@ onde uma gola não deixa a pele acompanhar: é o degrau que sobra.
 | Retrato com parede clara, gola logo abaixo | 512 px | 15,1 px | 6,0 px | 9,7 px |
 | Selfie de óculos, corrente grossa | 476 px | 14,3 px | 7,1 px | 0 |
 | Retrato com fundo claro, blusa preta | 341 px | 10,7 px | 2,5 px | 0 |
+
+Arrastar um controle, no Chrome instalado, com o mouse de verdade a 60 movimentos por segundo durante 2,4 s, ida e
+volta. A lentidão de 4x e 6x é a do DevTools, no lugar de um celular fraco: ela vale para a página e não para os
+workers, e num celular os workers também andam devagar. "Até o controle" é do evento do mouse até o quadro seguinte
+da página, que é quando o controle se move. A tarefa mais longa é a maior da página durante o arrasto. Antes, nas
+duas fotos medidas na versão anterior. Depois, nas seis fotos reais, o pior caso entre elas.
+
+| Controle | Lentidão | Tarefa mais longa, antes | Até o controle, antes (mediana / pior) | Tarefa mais longa, depois | Até o controle, depois (mediana / pior) |
+| --- | --- | --- | --- | --- | --- |
+| Linha da mandíbula | 1x | 140 ms | 104 / 138 ms | 123 ms, uma só | 1 / 15 ms |
+| Linha da mandíbula | 4x | 858 ms | 508 / 853 ms | 105 ms, uma só | 2 / 23 ms |
+| Linha da mandíbula | 6x | 3.034 ms | 898 / 3.023 ms | 102 ms, uma só | 3 / 29 ms |
+| Queixo | 1x | 0 | 20 / 28 ms | 0 | 1 / 8 ms |
+| Queixo | 4x | 313 ms | 139 / 309 ms | 0 | 4 / 9 ms |
+| Queixo | 6x | 356 ms | 265 / 349 ms | 0 | 7 / 23 ms |
+
+Antes, quase todo movimento era uma tarefa longa: 141 a 148 por arrasto. Depois sobra uma, no primeiro arrasto de
+cada foto, que é o primeiro quadro com o campo na GPU, e o Queixo logo em seguida não tem nenhuma. O campo final,
+depois de soltar, foi comparado com o que a página faz sozinha em todas as fotos e em todas as lentidões: zero
+células diferentes. Com o preenchimento rodando e um controle arrastado sem parar, o preenchimento não passou de
+67 ms por tarefa, e o controle de 4 ms até o quadro.
 
 Download e tempo, medidos nesta máquina, com os arquivos `.br` do build:
 

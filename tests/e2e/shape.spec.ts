@@ -446,6 +446,86 @@ test.describe('os controles', () => {
     expectNoErrors(errors);
   });
 
+  /** The field as it stands, and the field the page works out by itself at once from the same numbers. */
+  const fieldAgainstPage = (page: Page) =>
+    inPage<{ same: boolean; cells: number; pending: boolean }>(
+      page,
+      `const a = e.field.shapeData()?.slice() ?? null;
+      const pending = e.shapePending;
+      e.syncShape();
+      const b = e.field.shapeData();
+      let diff = 0;
+      if (a && b) for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) diff++;
+      return { same: (!a && !b) || (!!a && !!b && a.length === b.length && diff === 0), cells: a?.length ?? 0, pending };`,
+    );
+
+  test('arrastar não trava: o controle segue o mouse, a foto mostra um rascunho, e o resultado final é o mesmo', async ({ page }) => {
+    const errors = watch(page);
+    await openEditor(page);
+    await openShape(page);
+    await inPage(page, `window.__seen = []; e.on({ shaping: (p) => window.__seen.push(p) });`);
+    // A slow processor, so values come faster than their fields.
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+    const input = page.getByRole('slider', { name: 'Linha da mandíbula', exact: true });
+    const box = (await input.boundingBox())!;
+    const y = box.y + box.height / 2;
+    await page.mouse.move(box.x + box.width / 2, y);
+    await page.mouse.down();
+    for (let k = 1; k <= 24; k++) await page.mouse.move(box.x + box.width / 2 + (box.width * 0.4 * k) / 24, y);
+    // The thumb is where the mouse is the moment the move is taken, whatever the field is doing.
+    const value = Number(await input.inputValue());
+    expect(value).toBeGreaterThan(60);
+    await page.mouse.up();
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+    await settle(page, 200);
+
+    const seen = await page.evaluate(() => (window as unknown as { __seen: boolean[] }).__seen);
+    expect(seen[0]).toBe(true);
+    expect(seen[seen.length - 1]).toBe(false);
+    await expect(page.getByTestId('shape-pending')).toHaveCount(0);
+    // A burst of values within one frame, as a fast finger gives: those that came while the workers were busy
+    // are dropped, and only the latest is worked out in full.
+    const { started, bands, slots } = await inPage<{ started: number; bands: number; slots: number }>(
+      page,
+      `const jobs = e.shaper.jobs;
+      const from = jobs.started;
+      const el = document.querySelector('input[aria-label="Linha da mandíbula"]');
+      for (let v = 20; v <= 80; v += 2) {
+        el.value = String(v);
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
+      await e.shapeReady();
+      return { started: jobs.started - from, bands: jobs.o.bands, slots: jobs.o.slots };`,
+    );
+    // One rough task on each worker that was free, and the latest value with its bands. Nothing else.
+    expect(started).toBeLessThanOrEqual(slots + bands + 1);
+    await settle(page, 200);
+    const after = await fieldAgainstPage(page);
+    expect(after).toMatchObject({ same: true, pending: false });
+    expect(after.cells).toBeGreaterThan(0);
+    expect((await inPage<{ jawline: number }>(page, 'return e.doc.shapes[0].values;')).jawline).toBe(80);
+    expectNoErrors(errors);
+  });
+
+  test('desfazer com o campo a caminho deixa o que o desfazer pede, sem resto do valor antigo', async ({ page }) => {
+    const errors = watch(page);
+    await openEditor(page);
+    await openShape(page);
+    await setSlider(page, 'Linha da mandíbula', 30);
+    await settle(page, 200);
+    const before = await inPage<number[]>(page, 'return e.field.lookup(0.3, 0.6).concat(e.field.lookup(0.7, 0.6));');
+    // A new value, and the undo before its field is in: the workers' late answers must not come back.
+    await setSlider(page, 'Linha da mandíbula', -90);
+    await page.getByRole('button', { name: 'Desfazer' }).click();
+    await settle(page, 400);
+    expect(await inPage<number[]>(page, 'return e.field.lookup(0.3, 0.6).concat(e.field.lookup(0.7, 0.6));')).toEqual(before);
+    expect(await fieldAgainstPage(page)).toMatchObject({ same: true, pending: false });
+    await expect(page.getByRole('slider', { name: 'Linha da mandíbula' })).toHaveValue('30');
+    expectNoErrors(errors);
+  });
+
   test('o pincel continua por cima, e um controle não apaga o traço', async ({ page }) => {
     const errors = watch(page);
     await openEditor(page);
@@ -653,7 +733,7 @@ test.describe('o que fica atrás de quem se mexe', () => {
     await expect(card).toBeVisible({ timeout: 120_000 });
     // Nobody waits for it: a slider moves while the model works.
     await setSlider(page, 'Linha da mandíbula', 60);
-    expect(await inPage<boolean>(page, 'return e.doc.hasField;')).toBe(true);
+    await expect.poll(() => inPage<boolean>(page, 'return e.doc.hasField;'), { timeout: 10_000 }).toBe(true);
     await expect(page.locator('[data-fill=running]')).toHaveCount(1, { timeout: 240_000 });
     await expect(card).toContainText(/cerca de \d+ (s|min)/, { timeout: 120_000 });
     await page.getByTestId('fill-cancel').click();
