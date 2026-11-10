@@ -212,6 +212,8 @@ adesivos (S7), que trabalham em paralelo, cada efeito e cada adesivo no seu arqu
 - [x] S6: caretas prontas num toque (Caricatura, Bebê, Alien, Palhaço), uma etapa do desfazer, segundo toque tira
 - [x] S6: teste de cada careta sem dobra, de frente e inclinada, e e2e das prontas com desfazer e projeto salvo
 - [x] S6: conferido nas seis fotos reais, cada careta a 50 e a 100 e cada pronta, com barba, óculos e cabeça inclinada
+- [x] S6: conferido nas seis fotos reais com coroa, óculos, bigode e estrelas: os adesivos seguem cada careta e cada
+  pronta, e o Aumentar resolução leva caretas e adesivos, na ferramenta e na exportação
 - [ ] Queixão e Testão esticam a pele do queixo e da testa até umas duas vezes: barba e espinhas ficam riscadas no
   comprido
 - [ ] Achatado e Esticado não medem o cabelo: cabelo curto baixa um pouco e as placas preenchem, e cabelo muito
