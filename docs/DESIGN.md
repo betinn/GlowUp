@@ -301,6 +301,26 @@ Cada uma segue o mesmo caminho dos olhos e dentes, com as palavras do cabelo.
 - **A foto toda.** Ícone no topo, ao lado do desfazer, apagado quando não há nada a tirar. Tira tudo num toque,
   sem pergunta: o desfazer, logo ao lado, traz tudo de volta se foi sem querer.
 
+## Aumentar resolução
+
+Uma foto pequena, de rede social ou de câmera antiga, ganha tamanho e detalhe. O modelo refaz fios, poros e
+bordas: não é a foto esticada.
+
+- **Na ferramenta.** Fica em Quadro, ao lado de Recorte. O painel diz o tamanho de agora e o que fica, um seletor
+  2× e 4× quando os dois cabem, quanto deve levar neste aparelho e que os retoques entram na foto nova. O botão diz
+  o aumento: "Aumentar 4×". No fim, a foto maior abre como uma foto nova, com a revelação de sempre, e o projeto de
+  antes continua na lista, como estava.
+- **Na exportação.** Uma chave "Aumentar resolução", desligada, entre o formato e o botão de salvar. Ligada, mostra
+  o mesmo seletor e a linha do tamanho passa a dizer o tamanho final: "3000 × 3750 px, aumentada 2×". Só o
+  arquivo cresce; a foto no editor não muda.
+- **O limite, em palavras.** No máximo 20 MP, ou 8 MP num celular. Quando só 2× cabe, o painel diz quanto 4× daria
+  e que o limite existe para a memória não acabar no meio. Quando nem 2× cabe, a chave some e fica só a frase.
+- **Espera.** O cartão de progresso de sempre: baixar o modelo (só a primeira vez, e o tamanho só no celular),
+  ligar o modelo, aumentar e guardar. Cada passo diz quanto falta, e "Cancelar" vale em todos, até a foto nova
+  começar a abrir. Cancelar deixa tudo como estava e diz isso: "Parou. A foto continua como estava."
+- **Enquanto isso.** A foto continua na tela, com zoom e ferramentas. O painel avisa que o que mudar durante o
+  aumento fica no projeto de agora, porque a foto nova sai dos retoques do momento em que começou.
+
 ## Filtros
 
 Um menu sério, no lugar de Looks. Filtro só mexe em cor, grão e vinheta. Nada aqui muda o desenho de um rosto, e o

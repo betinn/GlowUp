@@ -9,6 +9,7 @@ import type { Engine } from '../core/engine';
 import { completePlates, type Inpaint } from '../core/face/complete';
 import type { InpaintAnswer, InpaintAsk } from '../core/face/inpaint.worker';
 import { timeLeft, type Stage } from '../core/progress';
+import { download } from './download';
 import { bump } from './state.svelte';
 import { Task } from './task.svelte';
 
@@ -51,28 +52,6 @@ function ask(message: InpaintAsk, transfer: Transferable[]): Promise<InpaintAnsw
     waiting.set(message.id, { resolve, reject });
     worker!.postMessage(message, transfer);
   });
-}
-
-async function download(url: string, onBytes: (count: number) => void): Promise<ArrayBuffer> {
-  const response = await fetch(url);
-  if (!response.ok || !response.body) throw new Error(`download-failed: ${response.status}`);
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
-    size += value.byteLength;
-    onBytes(value.byteLength);
-  }
-  const bytes = new Uint8Array(size);
-  let at = 0;
-  for (const c of chunks) {
-    bytes.set(c, at);
-    at += c.byteLength;
-  }
-  return bytes.buffer;
 }
 
 /** Downloads the model and its runtime once, and starts them in the worker. A failed attempt can be tried again. */
