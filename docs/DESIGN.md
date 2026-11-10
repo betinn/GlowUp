@@ -330,6 +330,8 @@ bordas: não é a foto esticada.
   começar a abrir. Cancelar deixa tudo como estava e diz isso: "Parou. A foto continua como estava."
 - **Enquanto isso.** A foto continua na tela, com zoom e ferramentas. O painel avisa que o que mudar durante o
   aumento fica no projeto de agora, porque a foto nova sai dos retoques do momento em que começou.
+- **Com o Brincar.** Caretas e adesivos entram na foto maior como se veem. Na foto nova eles já são pixels: o
+  adesivo não se arrasta mais, e o projeto de antes continua com eles editáveis.
 
 ## Filtros
 

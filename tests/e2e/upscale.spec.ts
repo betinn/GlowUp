@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { expectNoErrors, openEditor, pickTool, settle, skipIntro } from './helpers';
+import { DEV_ORIGIN } from '../../playwright.config';
+import { expectNoErrors, openEditor, pickTool, setSlider, settle, skipIntro } from './helpers';
 
 /**
  * "Aumentar resolução", as a tool and as an option of the export. The bundled Chromium has no WebGPU, so the model
@@ -170,5 +171,171 @@ test.describe('Aumentar resolução', () => {
     await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
     await page.waitForTimeout(1500);
     expect(saved).toBe(false);
+  });
+});
+
+/**
+ * With Brincar on the photo, both ways of upscaling take the photo as it shows: the faces it pulls and the stickers.
+ * The portrait is cropped to a small square at the sticker, so the processor gets through it in the test.
+ */
+test.describe('Aumentar resolução com o Brincar', () => {
+  test.use({ baseURL: DEV_ORIGIN });
+
+  const SIDE = 96;
+
+  /** The photo with every retouch, as the file holds it, in the pixels of the page. */
+  const rendered = (page: Page): Promise<number[]> =>
+    page.evaluate(`(async () => {
+      const { engine } = await import(/* @vite-ignore */ '/src/ui/state.svelte.ts');
+      const { renderImage } = await import(/* @vite-ignore */ '/src/core/export.ts');
+      const canvas = await renderImage(engine(), { tile() {} });
+      return Array.from(canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data);
+    })()`) as Promise<number[]>;
+
+  /** The current photo as a PNG, as the export makes it without the option. */
+  const exported = async (page: Page): Promise<Buffer> =>
+    Buffer.from(
+      (await page.evaluate(`(async () => {
+        const { engine } = await import(/* @vite-ignore */ '/src/ui/state.svelte.ts');
+        const { exportImage } = await import(/* @vite-ignore */ '/src/core/export.ts');
+        const blob = await exportImage(engine(), { format: 'image/png', quality: 1 }, { tile() {}, encoding() {} });
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        let s = '';
+        for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+        return btoa(s);
+      })()`)) as string,
+      'base64',
+    );
+
+  /** A PNG made 4 times bigger, brought back to the size it had by the mean of each block of 4 by 4. */
+  const shrunk = (page: Page, png: Buffer): Promise<number[]> =>
+    page.evaluate(async (b64) => {
+      const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+      const bitmap = await createImageBitmap(new Blob([bytes], { type: 'image/png' }));
+      const c = new OffscreenCanvas(bitmap.width, bitmap.height).getContext('2d')!;
+      c.drawImage(bitmap, 0, 0);
+      const big = c.getImageData(0, 0, bitmap.width, bitmap.height).data;
+      const w = bitmap.width / 4;
+      const out = new Array<number>(w * (bitmap.height / 4) * 4).fill(0);
+      for (let y = 0; y < bitmap.height; y++) {
+        for (let x = 0; x < bitmap.width; x++) {
+          const o = ((y >> 2) * w + (x >> 2)) * 4;
+          const i = (y * bitmap.width + x) * 4;
+          for (let k = 0; k < 4; k++) out[o + k] += big[i + k] / 16;
+        }
+      }
+      return out;
+    }, png.toString('base64'));
+
+  /** Mean difference in levels of 0 to 255, over the color channels of the pixels kept by `only`. */
+  function differ(a: number[], b: number[], only?: boolean[]): number {
+    let sum = 0;
+    let n = 0;
+    for (let p = 0; p < a.length / 4; p++) {
+      if (only && !only[p]) continue;
+      for (let k = 0; k < 3; k++) sum += Math.abs(a[p * 4 + k] - b[p * 4 + k]);
+      n += 3;
+    }
+    return sum / n;
+  }
+
+  /** The pixels Brincar moved by more than 20 levels on average. */
+  function changedBy(plain: number[], fun: number[]): boolean[] {
+    const out: boolean[] = [];
+    for (let p = 0; p < plain.length / 4; p++) {
+      let d = 0;
+      for (let k = 0; k < 3; k++) d += Math.abs(plain[p * 4 + k] - fun[p * 4 + k]);
+      out.push(d > 60);
+    }
+    return out;
+  }
+
+  test('a ferramenta e a exportação levam as caretas e o adesivo para a foto maior', async ({ page }) => {
+    test.setTimeout(480_000);
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    page.on('console', (m) => {
+      if (m.type() === 'error' && !m.text().includes('XNNPACK') && !m.text().includes('404')) errors.push(m.text());
+    });
+    await skipIntro(page);
+    await page.addInitScript(() => {
+      localStorage.setItem('glowup.startPath', '"fun"');
+      localStorage.setItem('glowup.upscaleTile', '64');
+      localStorage.setItem('glowup.upscaleGpu', 'off');
+    });
+    await page.goto('/');
+    await page.setInputFiles('[data-testid=file-input]', 'tests/fixtures/portrait.png');
+    await expect(page.locator('[data-fun=on]')).toHaveCount(1, { timeout: 90_000 });
+    await expect(page.getByTestId('opening')).toHaveCount(0);
+    await settle(page);
+
+    // Where the sticker goes, found by putting it on once; then a small square around it, without Brincar.
+    await page.getByTestId('sticker').first().click();
+    await settle(page, 600);
+    await page.evaluate(`(async () => {
+      const { engine } = await import(/* @vite-ignore */ '/src/ui/state.svelte.ts');
+      const e = engine();
+      const s = e.doc.fun.stickers[0];
+      const { width: w, height: h } = e.doc;
+      await e.undo();
+      e.setCrop({ angle: 0, quarter: 0, flipH: false, flipV: false, cx: s.x * w - w / 2, cy: s.y * h - h / 2, cw: ${SIDE}, ch: ${SIDE} });
+    })()`);
+    await settle(page, 600);
+    const plain = await rendered(page);
+    expect(plain).toHaveLength(SIDE * SIDE * 4);
+
+    await setSlider(page, 'Olhão', 70);
+    await settle(page, 300);
+    await setSlider(page, 'Cabeção', 50);
+    await settle(page, 300);
+    await page.getByTestId('sticker').first().click();
+    await settle(page, 600);
+    const fun = await rendered(page);
+    // The square really changes with Brincar, so a result without it would show.
+    const changed = changedBy(plain, fun);
+    const share = changed.filter(Boolean).length / changed.length;
+    expect(share).toBeGreaterThan(0.02);
+
+    // The export, with the option on.
+    await page.getByTestId('export-open').click();
+    await page.getByRole('radio', { name: 'PNG' }).click();
+    await page.getByTestId('export-upscale-switch').click();
+    await expect(page.getByTestId('export-size')).toHaveText(`${SIDE * 4} × ${SIDE * 4} px, aumentada 4×`);
+    const [download] = await Promise.all([page.waitForEvent('download', { timeout: 240_000 }), page.getByTestId('export-go').click()]);
+    const file = readFileSync((await download.path())!);
+    expect(pngSize(file)).toEqual({ w: SIDE * 4, h: SIDE * 4 });
+    const fromExport = await shrunk(page, file);
+    // Brought back to the size it had, the bigger photo is close to the photo with Brincar, and far from the one
+    // without it where Brincar changed it.
+    const exportFun = differ(fromExport, fun, changed);
+    const exportPlain = differ(fromExport, plain, changed);
+    console.log(`changed ${(share * 100).toFixed(0)}%; export to fun ${differ(fromExport, fun).toFixed(2)} overall, ${exportFun.toFixed(2)} where changed, to plain ${exportPlain.toFixed(2)}`);
+    expect(differ(fromExport, fun)).toBeLessThan(6);
+    expect(exportFun * 3).toBeLessThan(exportPlain);
+    await page.getByRole('button', { name: 'Fechar' }).click();
+
+    // The tool, from the path with the tools. The bigger photo opens as a new one.
+    await page.getByTestId('path-switch').click();
+    await page.getByTestId('path-choice').locator('[data-path=manual]').click();
+    await pickTool(page, 'frame', 'upscale');
+    await expect(page.getByTestId('upscale-size')).toHaveText(`Agora: ${SIDE} × ${SIDE} px. Fica: ${SIDE * 4} × ${SIDE * 4} px.`);
+    await page.getByTestId('upscale-go').click();
+    await expect(page.getByTestId('opening')).toHaveCount(1, { timeout: 240_000 });
+    await expect(page.getByTestId('opening')).toHaveCount(0, { timeout: 60_000 });
+    await settle(page);
+    const grown = await page.evaluate(`(async () => {
+      const { engine } = await import(/* @vite-ignore */ '/src/ui/state.svelte.ts');
+      const e = engine();
+      return { w: e.doc.width, h: e.doc.height, fun: !!(e.doc.fun?.faces?.length || e.doc.fun?.stickers?.length) };
+    })()`);
+    // The new photo holds Brincar in its pixels, with nothing of it left to apply again.
+    expect(grown).toEqual({ w: SIDE * 4, h: SIDE * 4, fun: false });
+    const fromTool = await shrunk(page, await exported(page));
+    const toolFun = differ(fromTool, fun, changed);
+    const toolPlain = differ(fromTool, plain, changed);
+    console.log(`tool to fun ${differ(fromTool, fun).toFixed(2)} overall, ${toolFun.toFixed(2)} where changed, to plain ${toolPlain.toFixed(2)}`);
+    expect(differ(fromTool, fun)).toBeLessThan(6);
+    expect(toolFun * 3).toBeLessThan(toolPlain);
+    expectNoErrors(errors);
   });
 });

@@ -222,6 +222,7 @@ adesivos (S7), que trabalham em paralelo, cada efeito e cada adesivo no seu arqu
 - [x] Limite de 20 MP, 8 MP no celular, e o painel diz em palavras o que cabe e por quê
 - [x] Progresso com tempo que falta e cancelar, no download e no processamento; tamanho do download só no celular
 - [x] Conferido nas seis fotos reais: sem emenda nos cruzamentos de tiles, borda, fio e cílio mais nítidos que o bicúbico
+- [x] Com o Brincar: caretas e adesivos entram na foto maior, na ferramenta e na exportação, conferido nas seis fotos reais e no e2e
 - [ ] Sem WebGPU leva cerca de 40 min por megapixel: threads pediriam isolamento de origem no servidor
 - [ ] A pele sai mais lisa que a da foto: o modelo tira o bloco do JPEG e junto um pouco do poro
 
