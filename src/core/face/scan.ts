@@ -37,7 +37,11 @@ export const FACE_OVAL: readonly number[] = [
 /** Position of the bottom of the chin inside `FACE_OVAL`. */
 export const CHIN = FACE_OVAL.indexOf(152);
 
-/** Contours of the eyes and four points on the edge of each iris, as the landmark list numbers them. */
+/**
+ * Contours of the eyes and four points on the edge of each iris, as the landmark list numbers them. Each
+ * contour starts at the outer corner, runs along the lower lid to the inner corner and comes back along the
+ * upper lid. The limit of the iris counts on this order to know which lid has the lashes.
+ */
 export const EYES: readonly (readonly number[])[] = [
   [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246],
   [263, 249, 390, 373, 374, 380, 381, 382, 362, 398, 384, 385, 386, 387, 388, 466],
