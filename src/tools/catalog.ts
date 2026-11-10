@@ -5,7 +5,7 @@ import type { FaceRegion } from '../core/face/regions';
 import type { ShapeSection } from '../core/face/reshape';
 import type { ToolModule } from './types';
 
-export type ToolKind = 'mask' | 'heal' | 'liquify' | 'shape' | 'adjust' | 'filters' | 'blur' | 'crop';
+export type ToolKind = 'mask' | 'heal' | 'liquify' | 'shape' | 'adjust' | 'filters' | 'blur' | 'crop' | 'upscale';
 export type GroupId = 'skin' | 'eyes' | 'makeup' | 'hair' | 'shape' | 'filters' | 'light' | 'frame';
 
 export interface ToolMeta {
@@ -73,6 +73,7 @@ export const TOOLS: ToolMeta[] = [
   { id: 'blur', label: 'Desfoque', group: 'light', kind: 'blur', hint: 'Arraste o círculo para escolher o foco.' },
 
   { id: 'crop', label: 'Recorte', group: 'frame', kind: 'crop', hint: 'Arraste os cantos. A foto pode girar.' },
+  { id: 'upscale', label: 'Aumentar resolução', group: 'frame', kind: 'upscale', hint: 'Dobra ou quadruplica o tamanho, com detalhe de verdade.' },
 ];
 
 export const toolById = (id: string) => TOOLS.find((t) => t.id === id);

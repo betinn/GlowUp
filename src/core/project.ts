@@ -179,7 +179,7 @@ export class Autosave {
   constructor(
     private readonly engine: Engine,
     readonly id: string,
-    private readonly name: string,
+    readonly name: string,
     restored?: ProjectRecord,
   ) {
     if (restored) {

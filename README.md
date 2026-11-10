@@ -76,6 +76,14 @@ nos controles do Formato do rosto.
 **Geral:** 11 ajustes, desfoque radial e tilt-shift, recorte com rotação, espelho, endireitar e proporções,
 antes/depois (segurar ou dividir, com a foto original ou só sem o filtro), exportação em JPG, PNG e WebP.
 
+**Aumentar resolução:** dobra ou quadruplica o tamanho da foto com o Real-ESRGAN, que refaz detalhe de rosto, cabelo e
+pele em vez de só esticar os pixels. Fica em dois lugares. A ferramenta, no menu Quadro, aumenta a foto como ela está,
+com os retoques, e abre a foto maior no editor como uma foto nova; o projeto de antes continua na lista. Na exportação é
+uma chave, desligada por padrão, que aumenta só o arquivo salvo. O resultado tem no máximo 20 MP, ou 8 MP num celular,
+e 8192 px no lado maior, para a memória não acabar no meio: o painel diz qual aumento cabe e por quê. Roda no aparelho,
+na GPU com WebGPU ou no processador, com progresso, tempo que falta e botão de cancelar no download e no
+processamento. O modelo baixa só no primeiro uso, cerca de 36 MB com o runtime.
+
 Um filtro vale para a foto toda ou para um rosto escolhido: um anel aparece em cada rosto, um toque
 escolhe, e pincel e borracha acertam a área. Sem rosto na foto, a área é pintada à mão.
 
@@ -146,6 +154,7 @@ passo atual, com a própria foto revelando na tela.
 | `src/core` | documento, geometria, pincel, máscaras, exportação, projetos |
 | `src/core/face` | busca de rostos em tiles, máscara do rosto, limites de pele, olhos, dentes e cabelo, busca de manchas e detector carregado sob demanda |
 | `src/core/fun` | Brincar: campo próprio, caretas em `effects/` e adesivos em `stickers/`, um arquivo cada |
+| `src/core/superres` | aumento de resolução: modelo, worker, tiles com emenda suave e limite de tamanho |
 | `src/tools/<ferramenta>` | shader, lógica e painel de cada ferramenta, carregados sob demanda |
 | `src/presets` | LUTs procedurais, looks e miniaturas |
 | `src/ui` | interface em Svelte |
@@ -163,6 +172,9 @@ Algumas decisões do pipeline:
 - Manchas viram operações independentes de resolução: uma membrana suave preenche o buraco e a
   textura fina vem de uma área vizinha escolhida automaticamente.
 - A exportação usa o mesmo pipeline, em tiles com margem, e não deixa emendas.
+- O aumento de resolução roda num worker, em tiles que se sobrepõem: a borda de cada tile não conta, e no meio da
+  sobreposição um passa para o outro aos poucos, com pesos que somam 1. Só uma fileira de tiles fica em ponto
+  flutuante, então a memória cresce com a largura da foto e não com a área.
 - O filtro pode ter máscara própria, presa à foto original: ela acompanha o liquify e vale igual no
   preview, no zoom, na exportação e no projeto salvo.
 
@@ -209,5 +221,6 @@ código: nenhuma vem de banco de imagens, marca, personagem ou conjunto de emoji
 
 O detector usa `@mediapipe/tasks-vision` e os modelos `face_landmarker.task`, `hair_segmenter.tflite` e
 `selfie_multiclass.tflite`, todos sob Apache 2.0. O preenchimento usa `onnxruntime-web` e o modelo MI-GAN,
-`migan_inpaint.onnx`, os dois sob MIT. Os avisos e os textos das licenças estão em
+`migan_inpaint.onnx`, os dois sob MIT. O aumento de resolução usa o Real-ESRGAN, `realesrgan_x4plus.onnx`, sob
+BSD de 3 cláusulas, convertido para ONNX por [`scripts/superres/convert.py`](scripts/superres/convert.py). Os avisos e os textos das licenças estão em
 [`public/third-party.txt`](public/third-party.txt) e seguem junto com o site.
