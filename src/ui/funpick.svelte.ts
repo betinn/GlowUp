@@ -5,6 +5,8 @@
 
 import type { Engine } from '../core/engine';
 import { placeOnFace } from '../core/fun/anchor';
+import { comboOf, comboValues, type FunCombo } from '../core/fun/combos';
+import { FUN_EFFECTS } from '../core/fun/effects/index';
 import type { StickerDef } from '../core/fun/types';
 import { faceAt } from '../core/face/reshape';
 import type { Face } from '../core/face/scan';
@@ -119,6 +121,32 @@ export function setFunValue(e: Engine, id: string, value: number, layered: boole
   if (!face) return;
   e.setFunValue(funPlaceOf(e, face), id, value, true);
   if (layered && value > 0 && lockState.state === 'idle') void ensureLock(e).then(bump);
+  bump();
+}
+
+/** The careta pronta the chosen face has on, if its numbers are exactly one. */
+export function funComboOn(e: Engine): FunCombo | null {
+  const face = chosenFunFace();
+  if (!face) return null;
+  const [u, v] = funPlaceOf(e, face);
+  const values = e.doc.fun?.faces?.find((shape) => shape.at[0] === u && shape.at[1] === v)?.values;
+  return values && Object.keys(values).length ? comboOf(values) : null;
+}
+
+/**
+ * Puts a careta pronta on the chosen face, as one undo step: its numbers, and zero for every other effect. On the
+ * face that already has it, it takes it off.
+ */
+export function applyCombo(e: Engine, combo: FunCombo): void {
+  const face = chosenFunFace();
+  if (!face) return;
+  const off = funComboOn(e)?.id === combo.id;
+  const values = comboValues(combo);
+  const at = funPlaceOf(e, face);
+  e.commit();
+  for (const effect of FUN_EFFECTS) e.setFunValue(at, effect.id, off ? 0 : values[effect.id], true);
+  e.commit();
+  if (!off && FUN_EFFECTS.some((f) => f.layered && values[f.id] > 0) && lockState.state === 'idle') void ensureLock(e).then(bump);
   bump();
 }
 

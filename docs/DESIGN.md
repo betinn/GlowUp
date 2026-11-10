@@ -438,9 +438,14 @@ O caminho das brincadeiras: caretas no rosto e adesivos. Fica ao lado de Filtros
 entra nos números, no campo ou nos limites do Formato do rosto e do Liquify, e o menu não mostra ferramenta nenhuma
 do retoque.
 
-- **Caretas.** Um controle por efeito, de 0 a 100, no rosto escolhido. Olhão aumenta os olhos. Cabeção aumenta a
-  cabeça com o cabelo, e corpo e fundo ficam: ele pede a separação da pessoa quando sai do zero, e sem ela a cabeça
-  cresce com o que está em volta, e o painel diz isso.
+- **Caretas.** Um controle por efeito, de 0 a 100, no rosto escolhido: Olhão e Olhinhos, Narigão e Narizinho, Bocão
+  e Boquinha, Sorrisão, Bochechas de esquilo e Cara de peixe, Queixão e Testão, Esticado e Achatado, e Cabeção. Os
+  que mexem na cabeça inteira ou numa ponta do rosto (Queixão, Testão, Esticado, Achatado e Cabeção) pedem a
+  separação da pessoa quando saem do zero: a cabeça vai por cima do corpo e do fundo, que ficam. Sem ela, o que está
+  em volta da cabeça mexe junto, e o painel diz isso.
+- **Caretas prontas.** Caricatura, Bebê, Alien e Palhaço, em botões acima dos controles. Um toque põe os números
+  delas nos controles e zera os outros, numa etapa só do desfazer. O botão da que está no rosto fica aceso, e um
+  segundo toque nele tira tudo. Mexer num controle depois apaga o botão, porque os números já não são os dela.
 - **Adesivos.** Uma grade em quatro abas (Óculos, Cabeça, Rosto, Em volta), com a arte de cada um. Um toque põe o
   adesivo no rosto escolhido, no lugar dele. Arrastar move. Dois dedos, a alça do canto ou a rodinha do mouse giram e
   mudam o tamanho. O "x" na moldura tira. A moldura só aparece na tela.
@@ -457,6 +462,19 @@ Um ponto da foto vai primeiro pelo campo do Brincar e dali pelo campo do retoque
 dobra o rosto como o retoque deixou. Com o campo do Brincar vazio, nenhuma leitura muda, e o resultado do retoque
 sai igual, pixel por pixel, como o e2e confere. A parte que move uma cabeça sozinha leva a cabeça para um lado e
 corpo e fundo para o outro, como a do Tamanho da cabeça, com as mesmas placas e o mesmo preenchimento.
+
+### Como as caretas se somam
+
+Uma careta depois da outra, na ordem do menu, que é a de `src/core/fun/effects/index.ts`: primeiro as partes
+pequenas (olhos, nariz, boca), depois as bochechas, depois o comprimento do rosto (Queixão, Testão), por último a
+cabeça inteira (Esticado, Achatado, Cabeção). Cada uma dobra a foto como as de antes deixaram e lê o rosto ali: os
+pontos do detector passam pelas anteriores antes de a próxima medir o rosto. Um narigão cresce junto com a cabeça
+em que está, e o Cabeção cresce o queixo comprido inteiro. Deformações que nunca dobram, uma depois da outra,
+também nunca dobram, o que somar não garantiria.
+
+O campo do Brincar não tem a parte que desliza os lábios sobre os dentes, que pediria mais uma textura no
+`develop.frag`. O Bocão então aumenta a boca inteira, lábios e dentes juntos, por igual: os dentes crescem e não
+esticam.
 
 ### Como adicionar uma careta
 
@@ -487,8 +505,17 @@ export const narigao: FunEffect = {
   ao longo de uma linha. O teste `neverFolds` em `tests/unit/fun.test.ts` serve para conferir.
 - `alone(x, y)`, de 0 a 1, é a parte do pedaço que move a cabeça sozinha, sem o corpo. Com ela, marque
   `layered: true`, e o menu pede a separação da pessoa. Veja `growHead` em `src/core/fun/kit.ts`.
-- `kit.ts` tem `magnify`, `growHead`, `eyesOf` e `middleOf`. Uma ajuda que só um efeito usa fica no arquivo dele,
-  para duas sessões não mexerem no mesmo arquivo.
+- `kit.ts` tem `magnify`, `growHead`, `eyesOf` e `middleOf`. `warps.ts` tem o resto das caretas: `zoom` (um oval
+  que cresce por igual até perto da borda), `bulge` (cresce ou encolhe com a curva do `magnify`), `slide` (empurra
+  um pedaço), `lengthen` (alonga uma ponta do rosto), `reshapeHead` (muda as proporções da cabeça), `lineMap`, e
+  `mouthOf`, `noseOf`, `cheeksOf` e `browTop`. Cada um diz no comentário por que nunca dobra. Uma ajuda que só um
+  efeito usa fica no arquivo dele, para duas sessões não mexerem no mesmo arquivo.
+- O lugar da careta na lista é a ordem em que ela entra. Ponha uma careta de parte pequena antes das de rosto e
+  de cabeça.
+- `tests/unit/fun-effects.test.ts` confere toda careta do registro sozinha: nada a zero, nenhuma dobra a 50 e a
+  100, de frente e inclinado, no rosto e no corpo, e que 100 mexe mais que 50. Um teste dela diz para que lado os
+  pontos andam.
+- Uma careta pronta é uma linha em `src/core/fun/combos.ts`, só com números das caretas do registro.
 - Cada efeito tem o seu limite dentro de `pieces`. Nenhum passa pelos limites do Formato do rosto.
 
 ### Como adicionar um adesivo

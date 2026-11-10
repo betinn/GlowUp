@@ -65,13 +65,14 @@ completado por um modelo de preenchimento, em segundo plano, com progresso, temp
 **Filtros:** 40 filtros em 10 categorias, com intensidade, favoritos e uma sugestão pelo tom da foto. Cada filtro é um
 arquivo de dados, com cor, grão, vinheta e ajustes, e nunca muda o desenho do rosto.
 
-**Brincar:** caretas de brincadeira, cada uma num controle de 0 a 100 (Olhão aumenta os olhos, Cabeção aumenta a
-cabeça e deixa corpo e fundo onde estão), e 24 adesivos desenhados no projeto, em quatro abas: Óculos, Cabeça
-(coroa, chapéus, orelhas, auréola, chifrinhos), Rosto (bigodes, nariz de palhaço, bochechas, lágrima, sardas) e Em
-volta (corações, estrelas e brilhos em volta da cabeça). Cada um entra no seu lugar no rosto escolhido, segue a
-inclinação e o Cabeção, e se arrasta, gira e muda de tamanho com o dedo ou o mouse. Vários ficam juntos na foto, o
-último por cima, e qualquer um pode vir para a frente. Fica num caminho próprio, longe do retoque: nada daqui mexe
-nos controles do Formato do rosto.
+**Brincar:** caretas de brincadeira, cada uma num controle de 0 a 100 (Olhão e Olhinhos, Narigão e Narizinho, Bocão
+e Boquinha, Sorrisão, Bochechas de esquilo, Cara de peixe, Queixão, Testão, Esticado, Achatado e Cabeção, que aumenta
+a cabeça e deixa corpo e fundo onde estão), caretas prontas num toque (Caricatura, Bebê, Alien e Palhaço), e 24
+adesivos desenhados no projeto, em quatro abas: Óculos, Cabeça (coroa, chapéus, orelhas, auréola, chifrinhos), Rosto
+(bigodes, nariz de palhaço, bochechas, lágrima, sardas) e Em volta (corações, estrelas e brilhos em volta da cabeça).
+Cada adesivo entra no seu lugar no rosto escolhido, segue a inclinação e as caretas, e se arrasta, gira e muda de
+tamanho com o dedo ou o mouse. Vários ficam juntos na foto, o último por cima, e qualquer um pode vir para a frente.
+Fica num caminho próprio, longe do retoque: nada daqui mexe nos controles do Formato do rosto.
 
 **Geral:** 11 ajustes, desfoque radial e tilt-shift, recorte com rotação, espelho, endireitar e proporções,
 antes/depois (segurar ou dividir, com a foto original ou só sem o filtro), exportação em JPG, PNG e WebP.
