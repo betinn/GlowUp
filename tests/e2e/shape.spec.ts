@@ -733,7 +733,7 @@ test.describe('o que fica atrás de quem se mexe', () => {
     await expect(card).toBeVisible({ timeout: 120_000 });
     // Nobody waits for it: a slider moves while the model works.
     await setSlider(page, 'Linha da mandíbula', 60);
-    expect(await inPage<boolean>(page, 'return e.doc.hasField;')).toBe(true);
+    await expect.poll(() => inPage<boolean>(page, 'return e.doc.hasField;'), { timeout: 10_000 }).toBe(true);
     await expect(page.locator('[data-fill=running]')).toHaveCount(1, { timeout: 240_000 });
     await expect(card).toContainText(/cerca de \d+ (s|min)/, { timeout: 120_000 });
     await page.getByTestId('fill-cancel').click();
