@@ -29,6 +29,14 @@ export async function ensureField(engine: Engine): Promise<void> {
   engine.registerField(createField(engine.glc, engine.doc.width, engine.doc.height));
 }
 
+/** Loads Brincar: its field and the art of its stickers. */
+export async function ensureFun(engine: Engine): Promise<void> {
+  if (engine.fun) return;
+  const { createFun } = await import('../core/fun/controller');
+  if (engine.fun || !engine.source) return;
+  engine.registerFun(createFun(engine.glc, engine.doc.width, engine.doc.height, () => engine.refreshFun()));
+}
+
 /** Loads everything a saved document needs before its first render. */
 export async function ensureDocTools(engine: Engine): Promise<void> {
   const { doc } = engine;
@@ -38,4 +46,5 @@ export async function ensureDocTools(engine: Engine): Promise<void> {
   await Promise.all(ids.filter((id) => loaders[id]).map((id) => ensureLayerTool(engine, id)));
   if (doc.heals.length) await ensureHeal(engine);
   if (doc.hasField) await ensureField(engine);
+  if (doc.fun) await ensureFun(engine);
 }

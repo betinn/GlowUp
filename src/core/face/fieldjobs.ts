@@ -9,7 +9,7 @@
  * page would have worked out by itself.
  */
 
-import { bandsOf, joinBands, type FieldBand, type FieldGrids, type GridArea, type ShapeSource } from './fieldwork';
+import { bandsOf, joinBands, type AnySource, type FieldBand, type FieldGrids, type GridArea } from './fieldwork';
 
 export type FieldTask = { kind: 'rough'; step: number } | { kind: 'band'; y0: number; y1: number };
 
@@ -20,7 +20,7 @@ export interface TaskResult {
 }
 
 /** Runs a task of a job on one of the slots. */
-export type RunTask = (slot: number, job: number, source: ShapeSource, task: FieldTask) => Promise<TaskResult>;
+export type RunTask = (slot: number, job: number, source: AnySource, task: FieldTask) => Promise<TaskResult>;
 
 /** A field to show. `grids` is null when the field moves nothing. `rough` while the finished field is on its way. */
 export interface FieldFrame {
@@ -41,12 +41,12 @@ export interface FieldJobsOptions {
   /** The finished field of the latest value is on its way, or no longer. */
   busy?(busy: boolean): void;
   /** A worker failed: the source of the latest job, for the page to work out by itself. */
-  failed?(source: ShapeSource, error: unknown): void;
+  failed?(source: AnySource, error: unknown): void;
 }
 
 interface Job {
   id: number;
-  source: ShapeSource;
+  source: AnySource;
   area: GridArea | null;
   bands: FieldBand[];
   left: number;
@@ -78,7 +78,7 @@ export class FieldJobs {
   }
 
   /** Asks for the field of a new value. What was asked before and has not started is dropped. */
-  request(source: ShapeSource): void {
+  request(source: AnySource): void {
     const job: Job = { id: ++this.seq, source, area: null, bands: [], left: 0 };
     const was = !!this.latest;
     this.latest = job;

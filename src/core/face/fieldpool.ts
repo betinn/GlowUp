@@ -6,7 +6,7 @@
 
 import type { FieldAnswer, FieldAsk } from './field.worker';
 import { FieldJobs, type FieldJobsOptions, type FieldTask, type TaskResult } from './fieldjobs';
-import type { ShapeSource } from './fieldwork';
+import type { AnySource } from './fieldwork';
 
 /** Bands of a finished field for each worker: small enough that a newer value never waits long for one. */
 const BANDS_PER_WORKER = 4;
@@ -25,12 +25,12 @@ export interface FieldWorkers {
   destroy(): void;
 }
 
-/** Null where the browser runs no workers. Then the page works the field out by itself. */
-export function createFieldJobs(o: Pick<FieldJobsOptions, 'show' | 'busy' | 'failed'>): FieldWorkers | null {
+/** Null where the browser runs no workers. Then the page works the field out by itself. `most` caps the workers. */
+export function createFieldJobs(o: Pick<FieldJobsOptions, 'show' | 'busy' | 'failed'>, most = 4): FieldWorkers | null {
   if (typeof Worker === 'undefined') return null;
   let gridW = 2;
   let gridH = 2;
-  const count = workerCount();
+  const count = Math.min(most, workerCount());
   const workers: Worker[] = [];
   const pending: (((answer: FieldAnswer) => void) | null)[] = [];
   let id = 0;
@@ -55,7 +55,7 @@ export function createFieldJobs(o: Pick<FieldJobsOptions, 'show' | 'busy' | 'fai
     for (const w of workers) w.terminate();
     return null;
   }
-  const run = (slot: number, job: number, source: ShapeSource, task: FieldTask): Promise<TaskResult> =>
+  const run = (slot: number, job: number, source: AnySource, task: FieldTask): Promise<TaskResult> =>
     new Promise((resolve, reject) => {
       pending[slot] = (answer) => {
         if (answer.kind === 'failed') reject(new Error(answer.message));

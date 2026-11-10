@@ -192,6 +192,24 @@
 - [ ] Placa na resolução da foto: hoje ela tem a da prévia, e numa foto de 12 MP o que aparece atrás sai mais suave
 - [ ] Retoques de pele chegarem à placa: o pescoço que aparece vem da foto sem Suavizar nem Tom de pele
 
+## M22. Brincar
+
+O que é de brincadeira, separado do retoque e dos filtros sérios. Três sessões: a base (S5), as caretas (S6) e os
+adesivos (S7), que trabalham em paralelo, cada efeito e cada adesivo no seu arquivo.
+
+- [x] S5: entrada Brincar na tela de escolha, ao lado de Filtros, com menu próprio
+- [x] S5: campo próprio, antes do campo do retoque, nos workers com rascunho, no desfazer e no projeto salvo
+- [x] S5: com o Brincar vazio, Formato do rosto e Liquify saem iguais, pixel por pixel (e2e)
+- [x] S5: registro de caretas, com Olhão e Cabeção, este com a separação da pessoa e o preenchimento
+- [x] S5: camada de adesivos na tela e na exportação em resolução total, presa ao rosto, com arrastar, dois dedos, alça e rodinha
+- [x] S5: Óculos redondos, desenhados no projeto
+- [x] S5: conferido nas seis fotos reais: cada careta, os óculos e tudo junto, na tela e na exportação
+- [ ] S6: mais caretas (boca pequena, nariz, queixo, olhos de inseto e outras), cada uma no seu arquivo
+- [ ] S7: catálogo de adesivos (óculos, chapéus, bigodes e outros), cada um no seu arquivo
+- [ ] Cabeção com uma mão na frente do rosto: a mão fica atrás da cabeça que cresce, porque a separação não diz o que está na frente
+- [ ] Adesivo preso a um rosto ainda não mostra de qual rosto é, numa foto de grupo; ele vai para o rosto escolhido no menu
+- [ ] Moldura do adesivo pelo teclado: hoje Delete tira, e mover ou girar pede mouse ou toque
+
 ## Metas medidas
 
 Foto gerada de 12 MP (4000 x 3000), Chromium com aceleração, em uma placa dedicada (`node scripts/perf.mjs`):

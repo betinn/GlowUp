@@ -7,6 +7,12 @@
 // it together, as one surface, so a neck goes where its jaw goes. What covers the body stays where it is, and
 // so does the body under a head that changes size, but for the neck. The brush moves the whole person, and the
 // background too when its lock is off.
+//
+// Brincar has a warp of its own, which never goes into the realistic field. It goes first: a point of the photo
+// is read where the playful warp says, and from there where the realistic one says, so the playful warp bends
+// the face as the realistic tools left it. Its share that moves a head alone sends the head one way and the
+// body and the background the other, as the share of the sliders does. With no playful warp, every point is
+// read as it always was, down to the bit.
 in vec2 vUv;
 out vec4 outColor;
 
@@ -17,6 +23,10 @@ uniform sampler3D uLut;
 uniform vec4 uRegion;
 uniform vec2 uTexel;
 uniform bool uHasField;
+uniform bool uHasFun;
+// The playful warp in red and green, and its share that moves a head alone in blue and alpha.
+uniform sampler2D uFun;
+uniform bool uFunAlone;
 uniform bool uLayered;
 uniform sampler2D uPerson;
 uniform sampler2D uHead;
@@ -117,10 +127,18 @@ void main() {
   bool composed = false;
   // The share of this pixel that is a guess of a plate: no detail of the photo around it belongs to it.
   float guess = 0.0;
-  if (uHasField) {
+  if (uHasField || uHasFun) {
     vec2 iuv = uRegion.xy + vUv * uRegion.zw;
+    // Where the head is read from before the realistic field, and where the body and the background are.
+    vec2 ph = iuv;
+    if (uHasFun) {
+      vec4 f = texture(uFun, iuv);
+      ph = iuv + f.xy;
+      iuv = uFunAlone ? ph - f.zw : ph;
+    }
     vec2 d = texture(uField, iuv).xy;
-    uv = (iuv + d - uRegion.xy) / uRegion.zw;
+    vec2 dh = uHasFun ? texture(uField, ph).xy : d;
+    uv = (ph + dh - uRegion.xy) / uRegion.zw;
     if (uLayered) {
       vec2 db = texture(uBrushField, iuv).xy;
       float longSide = max(uPixels.x, uPixels.y);
@@ -130,7 +148,7 @@ void main() {
       // brush may move it too.
       vec2 da = uHeadAlone ? texture(uHeadField, iuv).xy : vec2(0.0);
       vec2 asked = d - db - da;
-      vec2 sh = iuv + d;
+      vec2 sh = ph + dh;
       vec2 sy = iuv + db;
       if (uFollows && asked != vec2(0.0)) sy += bodyMove(sy, asked);
       vec2 sb = uBrushFree ? iuv + db : iuv;
@@ -150,7 +168,7 @@ void main() {
       if (uHasLips) {
         // Lips that a slider shaped slide over the inside of the mouth, which is read without that share of
         // the field, so the teeth stay as they are. Past what the photo shows of it, the plate carries it on.
-        vec2 dl = texture(uLipField, iuv).xy;
+        vec2 dl = texture(uLipField, ph).xy;
         float slid = smoothstep(0.0, 1.0, length(dl * uPixels));
         float open = slid > 0.0 ? textureLod(uMouth, sh, 0.0).r * slid : 0.0;
         if (open > 0.0) {

@@ -10,6 +10,7 @@
  */
 
 import type { FaceShape } from '../doc';
+import type { FunSource } from '../fun/types';
 import { reshapeField, type ShapeSection } from './reshape';
 import type { Face } from './scan';
 import { shapeField, type ShapeField } from './shape';
@@ -24,6 +25,12 @@ export interface ShapeSource {
   w: number;
   h: number;
 }
+
+/** What a worker works a field out from: the face menu and Liquify, or Brincar, each a field of its own. */
+export type AnySource = ShapeSource | FunSource;
+
+/** The source is of Brincar. */
+export const isFun = (source: AnySource): source is FunSource => 'kind' in source && source.kind === 'fun';
 
 /** A cell moved less than this, in UV, counts as still. */
 export const STILL = 1e-6;

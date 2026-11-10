@@ -369,3 +369,28 @@ depois. Conferido nas quatro fotos reais de teste, no app.
 | 250 | No máximo um campo entra por quadro, e "não há deformação" é contado uma vez por mudança | Cada `bump` da interface perguntava se a grade estava vazia, e isso varria 2 milhões de números várias vezes por movimento: 1,5 s em 40 movimentos a 4x, mais que o próprio campo. |
 | 251 | Enquanto o completo não chegou, um fio de luz numa pílula no alto da foto, depois de 140 ms. Exportar e salvar o projeto esperam o completo | Quem arrasta vê que a foto está alcançando o controle, sem nada bloquear o toque. O atraso evita piscar num aparelho rápido. A exportação e o projeto salvo nunca levam o rascunho. |
 | 252 | O preenchimento cede a vez à página entre os passos pesados, as distâncias, os anéis, o acerto e o retorno à resolução da prévia | Medido: rodava 390 ms seguidos na página, em tarefas de até 300 ms, enquanto alguém podia estar num controle. Agora nenhuma passa de 67 ms, com o mesmo resultado. Levar tudo para o worker do modelo ficou para depois, junto com a separação da pessoa, que é o que ainda prende a página ao abrir o menu. |
+
+## Brincar
+
+O caminho das brincadeiras, a base de S5: menu, campo próprio, registro de caretas e camada de adesivos, onde S6 e S7
+constroem. Conferido nas seis fotos reais de teste, na tela e na exportação.
+
+| # | Decisão | Motivo |
+| --- | --- | --- |
+| 253 | Brincar é um caminho próprio em `ui/paths.ts`, depois de Filtros, e o menu não tem nenhuma ferramenta do retoque | O pedido é manter a brincadeira longe do retoque realista e dos filtros sérios. Um caminho já traz a entrada na tela de escolha e na barra, sem tocar no catálogo |
+| 254 | As caretas guardam números em `doc.fun.faces` e o campo numa textura própria, nunca em `doc.shapes` nem no campo do Liquify | Uma careta não pode passar pelos limites do Formato do rosto, nem um controle realista herdar a careta. Zerar, desfazer e salvar tratam cada um no seu canto |
+| 255 | Um ponto vai primeiro pelo campo do Brincar e dali pelo do retoque, em `develop.frag` | A careta dobra o rosto como o retoque deixou, e os limites do retoque continuam medidos no rosto de verdade. Com o Brincar vazio, nada é lido de outro lugar, e o resultado sai igual pixel por pixel, como o e2e confere |
+| 256 | O campo do Brincar e a parte que move a cabeça sozinha vão juntos numa textura RGBA16F | O `develop.frag` já lê 15 texturas, e 17 passava do limite de 16 de muitos celulares, que é o mínimo do WebGL2. Visto no navegador: o shader não ligava |
+| 257 | O campo do Brincar usa os mesmos workers e o mesmo rascunho do PR #12, num conjunto próprio de até 2 workers, e a fonte diz de quem é com `kind: 'fun'` | Arrastar fica fluido sem código novo de agendamento, e um controle do Brincar nunca descarta um campo do Formato do rosto a caminho, nem o contrário |
+| 258 | Uma careta é um arquivo com `pieces(rosto, força)`, no mesmo formato de pedaço do Formato do rosto, somados por `fieldOf`, e registrada numa linha de `effects/index.ts` | S6 escreve cada careta sem mexer no campo, no menu nem no desfazer. Reaproveitar o pedaço dá a parte da cabeça sozinha e o corte na borda da foto de graça |
+| 259 | Olhão é uma lupa em cada olho, até 2 vezes no meio, com raio de 1,2 largura do olho | Com mais raio os dois olhos se encontram sobre o nariz. A forma da lupa nunca dobra, e o teste confere ao longo de três direções |
+| 260 | Cabeção cresce até 1,7 vez em volta do pescoço, com a zona medida na cabeça como era, e a parte sozinha do Tamanho da cabeça | Medir na cabeça antiga mantém a cabeça inteira com a mesma forma em qualquer tamanho. Ombros e fundo ficam, e o pescoço acompanha onde encosta na mandíbula |
+| 261 | O Cabeção pede a separação da pessoa só quando sai do zero, e sem ela a cabeça cresce com o que está em volta | Olhão e adesivos não precisam dos 44 MB nem dos 2 s da separação. O painel diz quando não deu para separar |
+| 262 | O adesivo guarda o meio, a largura e o giro na foto como foi aberta, e as deformações levam ele para onde o rosto foi, achando o ponto que lê aquele lugar | Reabre sem detector, e segue o rosto em qualquer careta ou controle do retoque, sem guardar nada a mais. Arrastar põe o meio no ponto da foto que aparece sob o dedo |
+| 263 | O adesivo entra depois do `develop` e antes do último estágio | Recorte, giro e desfoque valem para ele como para a foto. O filtro, o grão e a vinheta do filtro não pintam a arte, e o alfa diz isso ao último estágio |
+| 264 | A arte é um SVG do projeto, desenhado na hora no tamanho que tem, em potências de 2 de 64 a 4096, com a cor já multiplicada pela cobertura | Fica nítida na tela e na exportação em resolução total sem guardar imagem, e a borda macia não ganha linha escura. A exportação espera a arte no tamanho cheio |
+| 265 | Uma passada por adesivo, só na caixa dele, sobre uma cópia da foto revelada | O contexto de GL não tem mistura de cores, e o custo fica do tamanho do adesivo |
+| 266 | Cada gesto num adesivo é uma etapa do desfazer: arrastar, dois dedos, alça, rodinha | Igual a um controle: soltar fecha a etapa. A rodinha fecha depois de 300 ms parada |
+| 267 | O projeto salvo leva `doc.fun` no documento e o campo em `fun` no registro, e um projeto só com Brincar reabre no Brincar | Abre sem detector, como o Formato do rosto. Um projeto antigo abre sem nada de Brincar |
+| 268 | "Voltar ao original" tira o Brincar também, e o menu tem "Zerar Brincar" | É o que a foto original é. O Zerar dos grupos do retoque não toca no Brincar |
+| 269 | Os rostos do Brincar ficam em `funFaces`, separados dos do Formato do rosto | Abrir o Brincar não muda como o Formato do rosto refaz o campo de um projeto reaberto |
