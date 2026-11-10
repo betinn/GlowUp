@@ -17,6 +17,7 @@ import type { HairCut } from './hair';
 import type { PartsCut } from './person';
 import type { Area } from './mask';
 import { addFace, byPosition, keepScanning, readFace, SCAN_LEVELS, tileGrid, type Face } from './scan';
+import { stopUsageLog } from './usagelog';
 
 /** Sizes after decompression, for a real percentage even when the server sends brotli. */
 export const WASM_BYTES = 14_603_354;
@@ -95,8 +96,11 @@ export function loadDetector(progress: (fraction: number) => void, starting: () 
   return job;
 }
 
-/** Starts one task. The runtime gets the WebAssembly already compiled, through its own hook. */
-function create<T>(make: () => Promise<T>): Promise<T> {
+/**
+ * Starts one task, with its usage log off: see `usagelog.ts`. The runtime gets the WebAssembly already
+ * compiled, through its own hook.
+ */
+function create<T extends object>(make: () => Promise<T>): Promise<T> {
   const failed = new Promise<never>((_, reject) => {
     (self as unknown as { Module?: EmscriptenHooks }).Module = {
       instantiateWasm(imports, done) {
@@ -105,7 +109,7 @@ function create<T>(make: () => Promise<T>): Promise<T> {
       },
     };
   });
-  return Promise.race([make(), failed]);
+  return Promise.race([make(), failed]).then(stopUsageLog);
 }
 
 /** Downloads what is missing with real byte counts, then starts what is not running yet. */

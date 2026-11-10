@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Point } from '../../src/core/face/mask';
 import { lipReach } from '../../src/core/face/makeup';
-import { buildRegionMask } from '../../src/core/face/regions';
+import { buildRegionMask, hull } from '../../src/core/face/regions';
 import type { MaskTarget } from '../../src/core/face/mask';
 import { EYES, FACE_OVAL, INNER_LIPS, IRISES, makeFace, OUTER_LIPS, readFace, type FaceParts } from '../../src/core/face/scan';
 
@@ -132,12 +132,15 @@ describe('iris from the photo', () => {
    * One eye at (0.3, 0.3): skin around, the white inside the lids, and the iris a little left and below
    * where the model puts it, as when the eye looks aside. Lashes along the upper lid.
    */
-  function photo(iris: Point, irisColor = IRIS, white = WHITE, skin = SKIN): MaskTarget {
-    const paint = (u: number, v: number): [number, number, number] => {
+  type Rgb = [number, number, number];
+  /** `over` paints on top of the iris: a glint, or the shadow of the lid. */
+  function photo(iris: Point, irisColor = IRIS, white = WHITE, skin = SKIN, over?: (u: number, v: number) => Rgb | null): MaskTarget {
+    const paint = (u: number, v: number): Rgb => {
       if (Math.abs(v - (0.3 - 0.036)) < 0.006 && Math.abs(u - 0.3) < 0.07) return LASH;
       const inEye = ((u - 0.3) / 0.08) ** 2 + ((v - 0.3) / 0.04) ** 2 < 1;
       if (!inEye) return skin;
-      return Math.hypot(u - iris[0], v - iris[1]) < 0.035 ? irisColor : white;
+      if (Math.hypot(u - iris[0], v - iris[1]) >= 0.035) return white;
+      return over?.(u, v) ?? irisColor;
     };
     const read = (area: { x: number; y: number; w: number; h: number }) => {
       const out = new Uint8ClampedArray(area.w * area.h * 4);
@@ -174,11 +177,75 @@ describe('iris from the photo', () => {
     expect(at(mask, 0.3, 0.338)).toBeLessThan(40);
   });
 
+  it('holds the glint of a light as part of the iris', () => {
+    const GLINT: Rgb = [250, 250, 248];
+    // A wide glint beside the pupil, and one that touches the edge of the iris next to the white.
+    const inside: Point = [0.31, 0.295];
+    const onEdge: Point = [0.33, 0.31];
+    const glint = (u: number, v: number) => (Math.hypot(u - inside[0], v - inside[1]) < 0.012 || Math.hypot(u - onEdge[0], v - onEdge[1]) < 0.008 ? GLINT : null);
+    const mask = buildRegionMask([face(0)], 'iris', photo([0.3, 0.3], IRIS, WHITE, SKIN, glint))!;
+    expect(at(mask, ...inside)).toBe(255);
+    expect(at(mask, 0.3, 0.3)).toBe(255);
+    expect(at(mask, 0.327, 0.309)).toBeGreaterThan(200);
+    // No hole anywhere in it: every row of this iris is one run.
+    for (let y = 55; y <= 65; y++) {
+      const row = Array.from({ length: SIZE / 2 }, (_, x) => mask[y * SIZE + x] > 127);
+      expect(row.lastIndexOf(true) - row.indexOf(true) + 1).toBe(row.filter(Boolean).length);
+    }
+    // The white past the iris and the skin under it stay out, glint or not.
+    expect(at(mask, 0.345, 0.3)).toBeLessThan(40);
+    expect(at(mask, 0.3, 0.345)).toBeLessThan(40);
+  });
+
+  it('holds the top of the iris under the shadow of the lid, and not the lashes over it', () => {
+    // The shadow is darker and redder than the iris in the light, and less red than lashes.
+    const shadow = (_: number, v: number): Rgb | null => (v < 0.282 ? [62, 52, 50] : null);
+    const mask = buildRegionMask([face(0)], 'iris', photo([0.3, 0.3], IRIS, WHITE, SKIN, shadow))!;
+    expect(at(mask, 0.3, 0.276)).toBeGreaterThan(200);
+    expect(at(mask, 0.3, 0.3)).toBe(255);
+    expect(at(mask, 0.3, 0.262)).toBeLessThan(60);
+  });
+
+  it('leaves out skin as dark as the iris', () => {
+    const darkSkin: Rgb = [112, 78, 62];
+    const mask = buildRegionMask([face(0)], 'iris', photo([0.3, 0.3], IRIS, WHITE, darkSkin))!;
+    expect(at(mask, 0.3, 0.3)).toBe(255);
+    expect(at(mask, 0.3, 0.345)).toBeLessThan(40);
+    expect(at(mask, 0.3, 0.35)).toBe(0);
+  });
+
+  it('ends the white of the eye at the iris the photo shows', () => {
+    const white = buildRegionMask([face(0)], 'sclera', photo([0.288, 0.31]))!;
+    // The iris left of and below the circle of the model is not white.
+    expect(at(white, 0.26, 0.315)).toBeLessThan(40);
+    expect(at(white, 0.288, 0.31)).toBe(0);
+    // The white the circle of the model covers is.
+    expect(at(white, 0.33, 0.29)).toBeGreaterThan(200);
+    expect(at(white, 0.35, 0.3)).toBeGreaterThan(200);
+  });
+
   it('falls back to the shape of the model when the photo cannot tell the iris apart', () => {
     const dark: [number, number, number] = [80, 60, 50];
     const mask = buildRegionMask([face(0)], 'iris', photo([0.288, 0.31], dark, dark, dark))!;
     expect(at(mask, 0.3, 0.3)).toBeGreaterThan(200);
     expect(at(mask, 0.26, 0.315)).toBeLessThan(60);
+  });
+});
+
+describe('convex outline', () => {
+  it('keeps the corners and drops what lies inside or along an edge', () => {
+    const points: Point[] = [
+      [0, 0],
+      [4, 0],
+      [4, 4],
+      [0, 4],
+      [2, 2],
+      [2, 0],
+      [1, 3],
+    ];
+    const outline = hull(points);
+    expect(outline).toHaveLength(4);
+    expect(new Set(outline.map(([x, y]) => `${x},${y}`))).toEqual(new Set(['0,0', '4,0', '4,4', '0,4']));
   });
 });
 
