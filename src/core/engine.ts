@@ -5,7 +5,10 @@
 
 import { GLContext, type Tex } from './gl/context';
 import { DEFAULT_BRUSH, StrokeInterpolator, type BrushSettings, type Dab } from './brush';
-import { clone, createDoc, DEFAULT_ADJUST, COVER_MASK, DEFAULT_BLUR, FILTER_MASK, HEAD_MASK, MOUTH_MASK, PERSON_MASK, PHOTO_MASKS, type Adjustments, type BlurSettings, type EditDoc, type FaceShape, type FilterState, type HealOp, type LayerId, type ParamValue } from './doc';
+import { clone, createDoc, DEFAULT_ADJUST, COVER_MASK, DEFAULT_BLUR, FILTER_MASK, HEAD_MASK, MOUTH_MASK, PERSON_MASK, PHOTO_MASKS, type Adjustments, type BlurSettings, type EditDoc, type FilterState, type HealOp, type LayerId, type ParamValue } from './doc';
+import { createFieldJobs, type FieldWorkers } from './face/fieldpool';
+import type { FieldFrame } from './face/fieldjobs';
+import type { FieldGrids, ShapeSource } from './face/fieldwork';
 import type { Face } from './face/scan';
 import { applyMat3, defaultCrop, imageToOutput, outputSize, outputToImage, rotatedBounds, type Crop } from './geometry';
 import { decodeTile, encodeTile } from './history/codec';
@@ -97,16 +100,7 @@ export type FieldScript =
   | { strokes: readonly FieldStroke[] }
   | { offset(u: number, v: number): readonly [number, number]; area?: { u0: number; v0: number; u1: number; v1: number } };
 
-/** What the document asks of the shape of the faces. */
-export interface ShapeSource {
-  /** Strength of the automatic mode, when it is on. */
-  amount: number | undefined;
-  shapes: readonly FaceShape[];
-  off: readonly ('face' | 'eyes' | 'nose')[];
-  faces: readonly Face[];
-  w: number;
-  h: number;
-}
+export type { ShapeSource } from './face/fieldwork';
 
 /** What the liquify module provides once loaded. */
 export interface FieldController {
@@ -134,6 +128,12 @@ export interface FieldController {
   /** What the document asks for as it stands, for saving, so a project opens with no detector. */
   shapeData(): Float32Array | null;
   restoreShape(data: Float32Array | null): void;
+  /** Puts a field worked out elsewhere in place of the shape. Null takes it off. */
+  setShapeGrids(grids: FieldGrids | null): void;
+  /** Shows a rough field on the GPU while the finished one is on its way. `setShapeGrids` or `setShape` follows. */
+  showRoughGrids(grids: FieldGrids): void;
+  /** The size of the grid, which a field worked out elsewhere must have. */
+  readonly gridSize: { w: number; h: number };
   maxDisplacement(): number;
   destroy(): void;
 }
@@ -151,6 +151,8 @@ export interface EngineEvents {
   error(message: string): void;
   /** A whole stroke fell outside the limit of the brush. */
   outside(): void;
+  /** The finished field of a face slider is on its way, or no longer. The photo shows a rough one meanwhile. */
+  shaping(pending: boolean): void;
 }
 
 function previewSide(glc: GLContext): number {
@@ -189,6 +191,16 @@ export class Engine {
   fieldRev = 0;
   /** The faces the sliders hold on to. Empty on a reopened project until the menu looks for them. */
   shapeFaces: readonly Face[] = [];
+  /** The same faces as plain data, for a worker, and which list they were made from. */
+  private plainFaces: { of: readonly Face[]; faces: Face[] } | null = null;
+  /** The workers of the field of the face sliders. Null before the first live slider, or where none can run. */
+  private shaper: FieldWorkers | null = null;
+  /** No worker could start or one failed: the page works the field out by itself from here on. */
+  private shaperOff = false;
+  /** The finished field of a face slider is on its way, and the photo shows a rough one meanwhile. */
+  shapePending = false;
+  /** The newest field the workers gave, put in place on the next frame, so a frame never takes two. */
+  private nextField: { frame: FieldFrame; raf: number } | null = null;
   /** The photo with nobody in it and with no head in it, while the mattes exist. */
   private plates: { w: number; h: number; span: number; back: { data: Uint8Array; tex: Tex }; head: { data: Uint8Array; tex: Tex }; way: Tex | null; mattes: { person: Uint8Array; head: Uint8Array } } | null = null;
   /** Counts the times the layers were set, so work done for older ones is not taken for these. */
@@ -289,6 +301,8 @@ export class Engine {
   }
 
   close(): void {
+    this.shaper?.jobs.cancel();
+    this.dropNextField();
     this.stopFlight();
     this.stopReveal();
     cancelAnimationFrame(this.frame);
@@ -320,6 +334,8 @@ export class Engine {
   /** Releases the GPU context. The engine cannot be used after this. */
   destroy(): void {
     this.close();
+    this.shaper?.destroy();
+    this.shaper = null;
     this.history.clear();
     this.glc.gl.getExtension('WEBGL_lose_context')?.loseContext();
   }
@@ -341,6 +357,8 @@ export class Engine {
   }
 
   registerField(field: FieldController): void {
+    this.shaper?.jobs.cancel();
+    this.dropNextField();
     this.field = field;
     if (this.pipeline) this.pipeline.field = field;
   }
@@ -464,15 +482,18 @@ export class Engine {
 
   /* The shape of the faces */
 
-  /** Works out the field again from the numbers in the document. The strokes of the brush stay on top. */
+  /** Works out the field again from the numbers in the document, at once. The strokes of the brush stay on top. */
   syncShape(): void {
     const { field, doc } = this;
     if (!field) return;
-    const shapes = (doc.shapes ?? []).filter((s) => Object.values(s.values).some((v) => v !== 0));
-    if (doc.shapeAmount === undefined && !shapes.length) {
+    // Whatever the workers still had for an older value is dropped: this is the field now.
+    this.shaper?.jobs.cancel();
+    this.dropNextField();
+    const source = this.shapeSource();
+    if (source === null) {
       field.setShape(null);
-    } else if (this.shapeFaces.length) {
-      field.setShape({ amount: doc.shapeAmount, shapes, off: doc.shapesOff ?? [], faces: this.shapeFaces, w: doc.width, h: doc.height });
+    } else if (source) {
+      field.setShape(source);
     }
     // A reopened project with no faces yet keeps what it saved, which is the same field.
     doc.hasField = !field.isEmpty();
@@ -481,8 +502,116 @@ export class Engine {
     this.requestRender();
   }
 
-  /** Live change of a slider of a face. Call `commit` when the gesture ends. */
-  setShapeValue(at: readonly [number, number], id: string, value: number): void {
+  /** What the document asks of the field. Null when nothing, undefined when the faces are not known yet. */
+  private shapeSource(): ShapeSource | null | undefined {
+    const { doc } = this;
+    const shapes = (doc.shapes ?? []).filter((s) => Object.values(s.values).some((v) => v !== 0));
+    if (doc.shapeAmount === undefined && !shapes.length) return null;
+    if (!this.shapeFaces.length) return undefined;
+    if (this.plainFaces?.of !== this.shapeFaces) this.plainFaces = { of: this.shapeFaces, faces: JSON.parse(JSON.stringify(this.shapeFaces)) as Face[] };
+    return { amount: doc.shapeAmount, shapes: clone(shapes), off: [...(doc.shapesOff ?? [])], faces: this.plainFaces.faces, w: doc.width, h: doc.height };
+  }
+
+  /**
+   * Works out the field again away from the page, while a slider moves. The photo shows a rough field at once
+   * and the finished one when it is done; until then `shapePending` is set. A newer value drops what an older
+   * one had left to do. Where no worker runs, this is `syncShape`.
+   */
+  private syncShapeLater(): void {
+    const { field } = this;
+    if (!field) return;
+    const source = this.shapeSource();
+    const jobs = source ? this.fieldJobs(field) : null;
+    if (!source || !jobs) {
+      this.syncShape();
+      return;
+    }
+    jobs.request(source);
+  }
+
+  private fieldJobs(field: FieldController) {
+    if (this.shaperOff) return null;
+    this.shaper ??= createFieldJobs({
+      show: (frame) => this.queueField(frame),
+      busy: (pending) => {
+        // The finished field is in hand once it is on the photo, not when the workers let it go.
+        if (!pending && this.nextField) return;
+        this.setShapePending(pending);
+      },
+      failed: () => {
+        this.shaperOff = true;
+        this.shaper?.destroy();
+        this.shaper = null;
+        this.syncShape();
+      },
+    });
+    if (!this.shaper) {
+      this.shaperOff = true;
+      return null;
+    }
+    this.shaper.setGrid(field.gridSize.w, field.gridSize.h);
+    return this.shaper.jobs;
+  }
+
+  private setShapePending(pending: boolean): void {
+    if (this.shapePending === pending) return;
+    this.shapePending = pending;
+    this.emit('shaping', pending);
+  }
+
+  private queueField(frame: FieldFrame): void {
+    if (this.nextField) {
+      this.nextField.frame = frame;
+      return;
+    }
+    this.nextField = { frame, raf: requestAnimationFrame(() => this.flushField()) };
+  }
+
+  private dropNextField(): void {
+    if (!this.nextField) return;
+    cancelAnimationFrame(this.nextField.raf);
+    this.nextField = null;
+    if (!this.shaper?.jobs.busy) this.setShapePending(false);
+  }
+
+  /** Puts the newest field from the workers on the photo now. */
+  private flushField(): void {
+    const next = this.nextField;
+    if (!next) return;
+    cancelAnimationFrame(next.raf);
+    this.nextField = null;
+    this.showField(next.frame);
+    if (!next.frame.rough && !this.shaper?.jobs.busy) this.setShapePending(false);
+  }
+
+  private showField(frame: FieldFrame): void {
+    const { field, doc } = this;
+    if (!field) return;
+    if (frame.rough && frame.grids) {
+      field.showRoughGrids(frame.grids);
+      doc.hasField = true;
+    } else {
+      field.setShapeGrids(frame.grids);
+      doc.hasField = !field.isEmpty();
+    }
+    // Only the finished field counts as a change of the field, for autosave and for the undo.
+    if (!frame.rough) this.fieldRev++;
+    this.ctx?.invalidate('global');
+    this.requestRender();
+    if (!frame.rough) this.emit('change');
+  }
+
+  /** Resolves once the field shows what the document asks for, finished. */
+  async shapeReady(): Promise<void> {
+    await this.shaper?.jobs.idle();
+    this.flushField();
+  }
+
+  /**
+   * Change of a slider of a face. `live` while a finger is on it: the field follows away from the page, and the
+   * photo shows a rough field meanwhile. Call `commit` when the gesture ends.
+   */
+  setShapeValue(at: readonly [number, number], id: string, value: number, live = false): void {
     this.track('Formato do rosto');
     const shapes = (this.doc.shapes ??= []);
     let shape = shapes.find((s) => s.at[0] === at[0] && s.at[1] === at[1]);
@@ -492,15 +621,17 @@ export class Engine {
     }
     if (value === 0) delete shape.values[id];
     else shape.values[id] = value;
-    this.syncShape();
+    if (live) this.syncShapeLater();
+    else this.syncShape();
     this.emit('change');
   }
 
-  /** Live change of the strength of the automatic mode. Call `commit` when the gesture ends. */
-  setShapeAmount(amount: number): void {
+  /** Change of the strength of the automatic mode, `live` as for `setShapeValue`. Call `commit` when the gesture ends. */
+  setShapeAmount(amount: number, live = false): void {
     this.track('Automático');
     this.doc.shapeAmount = amount;
-    this.syncShape();
+    if (live) this.syncShapeLater();
+    else this.syncShape();
   }
 
   /** Turns a section of the sliders off or on, as one undo step. The numbers stay. */

@@ -41,9 +41,12 @@ export async function exportImage(
   options: ExportOptions,
   events: ExportEvents,
 ): Promise<Blob> {
+  if (!engine.source || !engine.pipeline) throw new Error('no-image');
+  engine.commit();
+  // A face slider just let go may still have its finished field on the way: the file waits for it.
+  await engine.shapeReady();
   const { glc, doc, source, pipeline } = engine;
   if (!source || !pipeline) throw new Error('no-image');
-  engine.commit();
   const crop = doc.crop;
   const out = outputSize(crop);
   const side = Math.min(tileSide(), glc.caps.maxTexture >> 1);

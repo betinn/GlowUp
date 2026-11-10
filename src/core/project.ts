@@ -219,7 +219,8 @@ export class Autosave {
         if (bytes) this.masks[id] = await pack(bytes);
         this.savedRev.set(id, rev);
       }
-      if (this.savedFieldRev !== engine.fieldRev) {
+      // While a face slider has its finished field on the way, the photo shows a rough one: it waits for the next save.
+      if (this.savedFieldRev !== engine.fieldRev && !engine.shapePending) {
         this.savedFieldRev = engine.fieldRev;
         const data = engine.field?.serialize();
         this.field = data && engine.doc.hasField && !engine.field?.brushEmpty() ? await pack(new Uint8Array(data.buffer, data.byteOffset, data.byteLength)) : null;

@@ -19,7 +19,7 @@ const STROKES = { layers: [], liquify: true };
 export const shapeAmount = (e: Engine): number => e.doc.shapeAmount ?? SHAPE_DEFAULT;
 
 /** Follows the slider while it is held. `e.commit` closes the gesture as one step. */
-export const previewShape = (e: Engine, amount: number): void => e.setShapeAmount(amount);
+export const previewShape = (e: Engine, amount: number): void => e.setShapeAmount(amount, true);
 
 export const liquifyAction: AutoAction = {
   words: {
