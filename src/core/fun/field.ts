@@ -9,7 +9,7 @@
  * that never fold, one after the other, never fold either, where adding them up could.
  */
 
-import { faceAt, fieldOf } from '../face/reshape';
+import { faceAt } from '../face/reshape';
 import { makeFace, type Face, type FaceMarks, type FaceParts } from '../face/scan';
 import type { ShapeField } from '../face/shape';
 import { FUN_EFFECTS } from './effects/index';
@@ -28,7 +28,7 @@ export function funFieldFrom({ shapes, faces, w, h }: FunSource): ShapeField | n
     const face = faceAt(faces, shape.at);
     return face ? [{ face, values: shape.values }] : [];
   });
-  const stages: ShapeField[] = [];
+  const stages: Stage[] = [];
   for (const effect of FUN_EFFECTS) {
     const pieces: FunPiece[] = [];
     for (const { face, values } of asks) {
@@ -40,22 +40,84 @@ export function funFieldFrom({ shapes, faces, w, h }: FunSource): ShapeField | n
       if (!read) continue;
       pieces.push(...effect.pieces(read, Math.min(100, value) / 100));
     }
-    if (!pieces.length) continue;
-    const field = fieldOf(pieces, kx, ky);
-    // Nothing of Brincar slides lips over teeth.
-    stages.push({ offset: field.offset, alone: field.alone, area: field.area });
+    if (pieces.length) stages.push(stageOf(pieces, kx, ky));
   }
   if (!stages.length) return null;
   return chain(stages);
 }
 
+/** Of the way to the edge of the photo, the share a point may read, as in `fieldOf` of `core/face/reshape.ts`. */
+const EDGE_ROOM = 0.6;
+
+/**
+ * One effect on every face: what its pieces add up to at a point, and the share of that which moves a head
+ * alone, in one go. Toward an edge the read stops short of it, as `fieldOf` does, so what touches the edge
+ * stretches and leaves no streaks.
+ */
+interface Stage {
+  area: ShapeField['area'];
+  layered: boolean;
+  /** Writes the move and, when `share`, the share of it that moves a head alone, in UV, into `out`. */
+  at(u: number, v: number, out: Float64Array, share: boolean): void;
+}
+
+function stageOf(pieces: readonly FunPiece[], kx: number, ky: number): Stage {
+  const area = { u0: 1, v0: 1, u1: 0, v1: 0 };
+  for (const p of pieces) {
+    area.u0 = Math.min(area.u0, (p.x - p.reach) / kx);
+    area.v0 = Math.min(area.v0, (p.y - p.reach) / ky);
+    area.u1 = Math.max(area.u1, (p.x + p.reach) / kx);
+    area.v1 = Math.max(area.v1, (p.y + p.reach) / ky);
+  }
+  const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
+  const short = (move: number, at: number, side: number) => (move < 0 ? Math.max(move, -at * EDGE_ROOM) : Math.min(move, (side - at) * EDGE_ROOM));
+  const part: [number, number] = [0, 0];
+  return {
+    area: { u0: clamp01(area.u0), v0: clamp01(area.v0), u1: clamp01(area.u1), v1: clamp01(area.v1) },
+    layered: pieces.some((p) => p.alone),
+    at(u, v, out, share) {
+      const x = u * kx;
+      const y = v * ky;
+      let sx = 0;
+      let sy = 0;
+      let ax = 0;
+      let ay = 0;
+      for (const p of pieces) {
+        if (Math.abs(x - p.x) > p.reach || Math.abs(y - p.y) > p.reach) continue;
+        part[0] = 0;
+        part[1] = 0;
+        p.add(x, y, part);
+        if (part[0] === 0 && part[1] === 0) continue;
+        sx += part[0];
+        sy += part[1];
+        if (share && p.alone) {
+          const k = p.alone(x, y);
+          ax += part[0] * k;
+          ay += part[1] * k;
+        }
+      }
+      if (sx === 0 && sy === 0) {
+        out[0] = out[1] = out[2] = out[3] = 0;
+        return;
+      }
+      const cx = short(sx, x, kx);
+      const cy = short(sy, y, ky);
+      out[0] = cx / kx;
+      out[1] = cy / ky;
+      // Cut short by as much as the whole was, so the body never reads past where the head does.
+      out[2] = ax === 0 ? 0 : (ax * (sx === 0 ? 1 : cx / sx)) / kx;
+      out[3] = ay === 0 ? 0 : (ay * (sy === 0 ? 1 : cy / sy)) / ky;
+    },
+  };
+}
+
 /**
  * Stages one after the other: the first bends the photo, the next bends what the first showed, and so on. A point
  * shown goes back through the last stage first. The body goes through each stage but for the share of it that
- * moves a head alone, so the share of the whole is where the head is read against where the body is.
+ * moves a head alone, so the share of the whole is where the head is read against where the body is. Until a
+ * stage parts them, head and body are read at the same point, once.
  */
-function chain(stages: readonly ShapeField[]): ShapeField {
-  if (stages.length === 1) return stages[0];
+function chain(stages: readonly Stage[]): ShapeField {
   const area = { u0: 1, v0: 1, u1: 0, v1: 0 };
   for (const s of stages) {
     area.u0 = Math.min(area.u0, s.area.u0);
@@ -63,33 +125,43 @@ function chain(stages: readonly ShapeField[]): ShapeField {
     area.u1 = Math.max(area.u1, s.area.u1);
     area.v1 = Math.max(area.v1, s.area.v1);
   }
+  const buf = new Float64Array(4);
   const offset = (u: number, v: number): [number, number] => {
     let a = u;
     let b = v;
     for (let i = stages.length - 1; i >= 0; i--) {
-      const [du, dv] = stages[i].offset(a, b);
-      a += du;
-      b += dv;
+      stages[i].at(a, b, buf, false);
+      a += buf[0];
+      b += buf[1];
     }
     return [a - u, b - v];
   };
-  const layered = stages.some((s) => s.alone);
   return {
     area,
     offset,
-    alone: layered
+    alone: stages.some((s) => s.layered)
       ? (u, v) => {
-          const [hu, hv] = offset(u, v);
           let a = u;
           let b = v;
+          let c = u;
+          let d = v;
+          let apart = false;
           for (let i = stages.length - 1; i >= 0; i--) {
             const s = stages[i];
-            const [du, dv] = s.offset(a, b);
-            const [au, av] = s.alone ? s.alone(a, b) : [0, 0];
-            a += du - au;
-            b += dv - av;
+            s.at(a, b, buf, true);
+            a += buf[0];
+            b += buf[1];
+            if (!apart) {
+              c += buf[0] - buf[2];
+              d += buf[1] - buf[3];
+              apart = buf[2] !== 0 || buf[3] !== 0;
+            } else {
+              s.at(c, d, buf, true);
+              c += buf[0] - buf[2];
+              d += buf[1] - buf[3];
+            }
           }
-          return [u + hu - a, v + hv - b];
+          return [a - c, b - d];
         }
       : undefined,
   };
