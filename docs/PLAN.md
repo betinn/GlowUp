@@ -127,6 +127,67 @@
 - [x] Deslocamento do Liquify por código, em traços ou por função, com desfazer
 - [x] Projeto salvo inválido sai da lista com aviso, e falha passageira avisa e mantém o projeto
 
+## M18. Automático de Forma e Luz
+
+- [x] Liquify no Automático: maxilar e olhos pelos pontos do rosto, numa etapa, com intensidade ao vivo
+- [x] O pincel do Liquify segue funcionando por cima do Automático
+- [x] Ajustes no Automático: exposição, contraste e balanço de branco lidos da foto, nos controles de sempre
+- [x] Desfoque no Automático: foco na cabeça, e sem rosto a foto não muda e o painel diz
+- [x] Chavinha, segundo toque, Zerar e desfazer como em Pele e Make
+- [x] Conferido nas fotos reais e em cópias escurecidas, clareadas e com dominante de cor
+
+## M19. Glow na Hora
+
+- [x] Tela de escolha depois de abrir a foto, montada de uma lista: Glow na Hora e Do Meu Jeito
+- [x] Botão na barra para trocar de caminho, sem perder o que já foi feito
+- [x] Menu de looks: um toque aplica no rosto todo, tira as máscaras do look anterior e fica numa etapa do desfazer
+- [x] Avisos para rosto não achado, detector que não baixa, código que não baixa e o que ficou de fora
+- [x] Painel Receitas removido, e a lista revista nas fotos reais: Festa saiu e os outros ficaram mais leves
+- [x] Sombras não transforma o ruído de cor do preto em mancha colorida
+- [x] Arquivo `.jfif` abre, mesmo sem tipo declarado
+
+## M20. Menu Filtros
+
+- [x] Um arquivo de dados por filtro, com tabela, grão, vinheta e ajustes, sem mudar o render
+- [x] Os 40 filtros migrados, com as mesmas tabelas
+- [x] Filtros no lugar de Looks, com categorias e intensidade
+- [x] Sugestão automática pelo tom da foto
+- [x] Script de réplica a partir de fotos antes e depois, com relatório e aviso de efeito local
+- [x] Entrada de Filtros na tela de escolha de caminho
+- [ ] Filtros replicados dos pares reais
+
+## M21. Formato do rosto
+
+- [x] Grupo Forma vira Formato do rosto, com Rosto, Olhos, Nariz e boca, e Liquify
+- [x] Pessoa separada do fundo no aparelho, com o Selfie Segmenter servido pelo site, lazy, e licença registrada
+- [x] Toda deformação deste menu deixa o fundo parado, inclusive o Automático do Liquify
+- [x] Chave "Travar o fundo" no pincel do Liquify, ligada por padrão, uma etapa do desfazer
+- [x] O painel diz quando não dá para separar o fundo e o que acontece
+- [x] Controles pelos pontos do rosto, no zero e para os dois lados, sem acumular erro
+- [x] Rosto: mandíbula, maxilar, queixo, maçãs, têmporas, testa, comprimento, cabeça e papada quando dá para ver
+- [x] Olhos: tamanho, ângulo, alongar, abrir e fechar, pupilas e sobrancelhas
+- [x] Nariz e boca, sempre no zero: largura, ponte, comprimento, ponta; largura, volume, altura e cantos
+- [x] Cabeça maior e menor, com o que aparece preenchido a partir do fundo
+- [x] Traços do pincel e controles juntos, Zerar, interruptor, vários rostos e projeto salvo
+- [x] Conferido nas quatro fotos reais, com linhas finas sobre a foto ampliada
+- [x] Separação pelo Selfie Multiclass: cabeça, corpo e fundo, sem o travesseiro ao lado da mandíbula
+- [x] Controles movem só a cabeça, com a sombra do queixo junto, e pescoço, ombros e fundo parados
+- [x] Olhos, nariz e boca em zonas: a parte muda inteira, a vizinha não se mexe, e nada dobra
+- [x] Lábios deslizam sobre os dentes, e a altura move a boca inteira
+- [x] O que aparece atrás completado pelo MI-GAN, fundo e corpo cada um do seu tipo, em anéis
+- [x] Cartão de progresso com tempo medido no aparelho, cancelar e retomar, e a exportação espera
+- [x] Conferido nas sete fotos reais, cada controle nas duas pontas, com a contagem sem faixa de fora
+- [x] Quem usa decidiu: ficam os dois modelos, cerca de 44 MB no primeiro uso do menu
+- [x] Aviso do tamanho só no celular, e tempo que falta em todo download e em todo passo demorado
+- [x] O aviso de 6 MB do detector, nas outras ferramentas, também só no celular
+- [x] O pescoço acompanha a mandíbula e o queixo, sem degrau, e volta à largura que tinha; ombros ficam
+- [x] Roupa, colar e cinto ficam parados, pixel por pixel, e a pele entre eles e o rosto absorve a diferença
+- [x] Limites medidos nas seis fotos: mandíbula 9%, maxilar 10%, queixo e comprimento 6%, e o lado largo de um rosto virado contido
+- [x] Preenchimento a partir de fundo limpo: sombra de contato e pontas de barba saem com a pessoa, e a faixa nova encontra a foto sem degrau de tom
+- [x] Conferido nas seis fotos reais: mandíbula em -100, -50, +50 e +100 e queixo em -100, com linhas finas
+- [ ] Placa na resolução da foto: hoje ela tem a da prévia, e numa foto de 12 MP o que aparece atrás sai mais suave
+- [ ] Retoques de pele chegarem à placa: o pescoço que aparece vem da foto sem Suavizar nem Tom de pele
+
 ## Metas medidas
 
 Foto gerada de 12 MP (4000 x 3000), Chromium com aceleração, em uma placa dedicada (`node scripts/perf.mjs`):
@@ -203,6 +264,83 @@ gzip, e o detector continua fora do precache.
 A cobertura dos dentes usa uma estimativa por brilho e cor, não um contorno feito à mão. Rosto muito virado
 leva o contorno do olho mais distante para fora do lugar. Isto também é teste de fumaça, com poucas fotos e
 poucos tons de pele.
+
+### Formato do rosto
+
+As fotos reais da pasta de testes, na exportação inteira, pixel a pixel. Conta todo pixel fora da pessoa, sem deixar
+faixa nenhuma de fora. O que muda é a borda que a cabeça e o pescoço deixaram, o que ela largava no chão ao lado,
+como a sombra de contato, e o chão das pontas soltas do cabelo, completados pelo modelo. Entre parênteses, quantos
+mudaram mais de 8 níveis. A mandíbula muda mais fundo do que na medida anterior porque agora o pescoço vai junto e
+a borda dele também se afasta. Os limites são os da decisão 237.
+
+| Foto | Pixels fora da pessoa | Cabeça em -100 | Mandíbula em -100 | Queixo em -100 |
+| --- | --- | --- | --- | --- |
+| Close na cama, travesseiro claro, 675 x 1200 | 272 mil | 14.286 (6.010) | 6.093 (2.408) | 641 (80) |
+| Selfie na rua, asfalto, 827 x 1351 | 374 mil | 17.971 (6.496) | 86 (5) | 0 |
+| Close no carro, 399 x 501 | 64 mil | 5.246 (2.988) | 1.319 (757) | 0 |
+| Retrato com parede clara, 800 x 993 | 336 mil | 9.284 (2.719) | 2.768 (853) | 0 |
+| Selfie de óculos, calçada, 774 x 1600 | 548 mil | 22.878 (9.782) | 5.948 (2.227) | 0 |
+| Retrato com fundo claro e mão na cabeça, 758 x 1341 | 419 mil | 6.557 (1.366) | 1.238 (576) | 1.410 (345) |
+
+No retrato gerado dos testes, de 1500 x 1875, com o palpite rápido: 8.243 de 1,14 milhão de pixels de fundo com a
+cabeça em -100, 0,7%, e 5.922 com a mandíbula, todos a menos de 35% do comprimento do rosto da cabeça. No corpo,
+só o que fica a menos disso: mais longe ele sai igual, pixel por pixel.
+
+O pescoço, nas mesmas seis fotos, cada uma com a mandíbula em -100, -50, +50 e +100 e o queixo em -100, olhadas
+ampliadas com os mattes em linhas finas. Deslize é quanto a cabeça escorrega sobre a pele do corpo no pior ponto,
+onde uma gola não deixa a pele acompanhar: é o degrau que sobra.
+
+| Foto | Rosto | Borda da mandíbula em -100 | Deslize, mandíbula em -100 | Deslize, queixo em -100 |
+| --- | --- | --- | --- | --- |
+| Close na cama, alça e corrente fina | 535 px | 16,0 px | 0 | 20,3 px |
+| Selfie na rua, blusa escura | 428 px | 12,3 px | 7,7 px | 10,6 px |
+| Close no carro, cinto encostado no queixo | 294 px | 9,1 px | 2,2 px | 17,5 px |
+| Retrato com parede clara, gola logo abaixo | 512 px | 15,1 px | 6,0 px | 9,7 px |
+| Selfie de óculos, corrente grossa | 476 px | 14,3 px | 7,1 px | 0 |
+| Retrato com fundo claro, blusa preta | 341 px | 10,7 px | 2,5 px | 0 |
+
+Download e tempo, medidos nesta máquina, com os arquivos `.br` do build:
+
+| Item | Na rede | Tempo |
+| --- | --- | --- |
+| Selfie Multiclass | 14.955.395 bytes | 0,3 s por recorte, três por rosto |
+| MI-GAN | 24.252.773 bytes | 0,1 s por bloco com WebGPU, 1,7 s em WebAssembly |
+| ONNX Runtime Web, WebAssembly e worker | 4.349.039 bytes | cerca de 2,5 s para ligar |
+| Preenchimento do close na cama, com WebGPU | | cerca de 5 s |
+| Preenchimento do retrato dos testes, sem WebGPU | | 1,3 min |
+
+O que ficou limitado, visto nas fotos: óculos na frente do nariz ou dos olhos entortam com os controles dessas
+partes. Em fundo com textura, o chão das pontas soltas do cabelo volta com textura parecida e não igual. Com a
+cabeça em -100, um ou outro risco fino pode aparecer no fundo liso ao lado do rosto, visto só com zoom.
+
+No pescoço: com a gola encostada no canto da mandíbula, a pele não tem para onde ir e o rosto desliza sobre ela.
+No limite isso é um pedaço de pescoço a mais ao lado da barba, sem corte. No close no carro o cinto passa por cima
+do queixo, e ali o queixo sobe sobre o cinto, que fica. Com o queixo em -100 e uma alça a 30 px dele, a borda do
+pescoço faz uma quina pequena logo abaixo do queixo, vista com zoom de 5 vezes. A faixa de fundo que aparece ao lado
+do pescoço vem do modelo: num travesseiro com dobras ela continua as dobras parecidas, não iguais. Para ir além
+disso seria preciso completar também a roupa atrás da pele, com um terceiro plano e outra passada do modelo, e
+medir o pescoço como parte própria em vez de pele nua em geral.
+
+### Automático de Forma e Luz
+
+As quatro fotos reais da pasta de testes, e cópias delas alteradas. As fotos não entram no repositório.
+
+| Foto | Exposição | Contraste | Temperatura | Tint | Maior deslocamento em 50 |
+| --- | --- | --- | --- | --- | --- |
+| Selfie na rua, ao entardecer | 0 | +16 | -4 | -4 | 0,49% do lado maior |
+| Retrato com parede clara | 0 | 0 | -7 | +6 | 0,63% |
+| Close no carro, teto bege | 0 | 0 | 0 | +6 | 1,00% |
+| Close na cama, luz de abajur | 0 | +6 | -14 | +6 | 0,97% |
+
+| Cópia alterada | Exposição | Contraste | Temperatura | Tint |
+| --- | --- | --- | --- | --- |
+| Retrato, valores de sRGB a 45% | +51 | +23 | -5 | +6 |
+| Retrato, valores de sRGB a 150% | -25 | 0 | 0 | +6 |
+| Retrato com sépia a 35% | 0 | 0 | -11 | +6 |
+| Close no carro, contraste a 60% | 0 | +22 | +5 | +6 |
+
+Quatro fotos é pouco, e nenhuma tem pele retinta. O limite que protege esse caso está em teste unitário com
+pele desenhada, não em foto real. Sem foto de grupo real, o foco de vários rostos só rodou no retrato gerado.
 
 ### Foco, brilho e modo automático
 

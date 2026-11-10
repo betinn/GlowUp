@@ -36,7 +36,7 @@ async function applied(page: Page, tool: string): Promise<Buffer> {
 }
 
 test.describe('cabelo', () => {
-  test('Cabelo tem menu próprio, entre Make e Forma, com cinco ferramentas', async ({ page }) => {
+  test('Cabelo tem menu próprio, entre Make e Formato do rosto, com cinco ferramentas', async ({ page }) => {
     await openEditor(page);
     const groups = await page.locator('[data-group]').evaluateAll((list) => list.map((b) => b.getAttribute('data-group')));
     expect(groups.indexOf('hair')).toBe(groups.indexOf('makeup') + 1);
@@ -54,9 +54,9 @@ test.describe('cabelo', () => {
     const plain = await page.screenshot();
     await page.locator('[data-group=hair]').click();
     await page.locator('[data-tool=haircolor]').click();
-    // The search says what it looks for, and the first time how much it downloads.
+    // The search says what it looks for, and the first time that it downloads. The size is only said on a phone.
     await expect(page.locator('[data-limit=searching]')).toBeVisible();
-    await expect(page.getByText(/Só na primeira vez, cerca de 7 MB/)).toBeVisible();
+    await expect(page.getByText('Só na primeira vez. A foto não sai do seu aparelho.')).toBeVisible();
     await expect(page.locator('[data-limit=on]')).toBeVisible({ timeout: 60_000 });
     await expect(page.locator('[data-region-show=glow]')).toHaveCount(1, { timeout: 10_000 });
     await page.screenshot({ path: shot('ui-cabelo-brilho') });

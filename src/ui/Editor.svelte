@@ -5,7 +5,8 @@
   import { Autosave, InvalidProjectError, loadOriginal, loadProject, unpack, validProject } from '../core/project';
   import { nextPaint } from '../core/progress';
   import { readFile, SourceImage } from '../core/source';
-  import { FILTER_MASK, type LayerId } from '../core/doc';
+  import { FILTER_MASK, PHOTO_MASKS, type LayerId } from '../core/doc';
+  import { startFill } from './fill.svelte';
   import { syncFilter } from '../presets/apply';
   import { ensureDocTools } from '../tools/activate';
   import { GROUPS, TOOLS, toolById, type GroupId } from '../tools/catalog';
@@ -13,6 +14,8 @@
   import ExportSheet from './ExportSheet.svelte';
   import Icon from './Icon.svelte';
   import Onboarding from './Onboarding.svelte';
+  import PathChoice from './PathChoice.svelte';
+  import PathSwitch from './PathSwitch.svelte';
   import Stage from './Stage.svelte';
   import { changeBrushSize, resetToolMemory, selectTool, switchable, toggleEffect, toggleMark } from './actions';
   import { comparePress, holdCompare, toggleCompare } from './compare';
@@ -21,16 +24,17 @@
   import { regionShow } from './regionshow.svelte';
   import { groupChanged, photoChanged, resetGroup, resetPhoto } from './reset';
   import { cancelOpening, finishOpening, reportOpenFailure } from './open';
+  import { pathById, startPaths } from './paths';
   import HealPanel from './panels/HealPanel.svelte';
   import MaskPanel from './panels/MaskPanel.svelte';
-  import { autosave, bump, clearEditorCloser, closeEditor, engine, hasEngine, prefs, setAutosave, setEditorCloser, setEngine, toast, ui } from './state.svelte';
+  import { autosave, bump, clearEditorCloser, closeEditor, engine, hasEngine, setAutosave, setEditorCloser, setEngine, toast, ui } from './state.svelte';
 
   /** Panels and overlays of the non-brush tools load on demand. */
   const PANELS: Record<string, () => Promise<{ default: Component }>> = {
     liquify: () => import('./panels/LiquifyPanel.svelte'),
+    shape: () => import('./panels/ShapePanel.svelte'),
     adjust: () => import('./panels/AdjustPanel.svelte'),
     filters: () => import('./panels/FiltersPanel.svelte'),
-    presets: () => import('./panels/PresetsPanel.svelte'),
     blur: () => import('./panels/BlurPanel.svelte'),
     crop: () => import('./panels/CropPanel.svelte'),
   };
@@ -38,11 +42,11 @@
   const loadBlurOverlay = () => import('./BlurOverlay.svelte');
   const loadFaceOverlay = () => import('./FaceOverlay.svelte');
   const loadHealOverlay = () => import('./HealOverlay.svelte');
+  const loadShapeOverlay = () => import('./ShapeOverlay.svelte');
 
   let canvas = $state<HTMLCanvasElement>();
   let ready = $state(false);
   let failed = $state<string | null>(null);
-  let onboarding = $state(false);
   let panelOpen = $state(true);
   let w = $state(0);
   let h = $state(0);
@@ -52,6 +56,8 @@
   let barH = $state(0);
 
   const desktop = $derived(w >= 900);
+  /** What the path shows in place of the groups and tools. */
+  const pathMenu = $derived(pathById(ui.path)?.menu);
   const meta = $derived(ui.tool ? toolById(ui.tool) : undefined);
   const groupTools = $derived(TOOLS.filter((t) => t.group === ui.group));
   /** Tools of the group with their effect on the photo. Their button shows a small switch, turned on. */
@@ -133,7 +139,7 @@
         const bytes = await unpack(blob);
         const store = e.masks!;
         // The mask of a tool that no longer exists stays out, so the next save drops it.
-        if (id !== FILTER_MASK && !e.doc.layers[id]) continue;
+        if (id !== FILTER_MASK && !PHOTO_MASKS.includes(id) && !e.doc.layers[id]) continue;
         if (bytes.length === store.w * store.h) store.write(id, bytes);
         // A mask made for another screen size is lost, and a filter with no mask would just vanish.
         else if (id === FILTER_MASK) e.doc.filter = { ...e.doc.filter, masked: false, reach: undefined };
@@ -144,6 +150,16 @@
         if (bytes.byteLength !== e.field.serialize().byteLength) throw new InvalidProjectError('field size');
         e.field.restore(new Float32Array(bytes.buffer as ArrayBuffer, bytes.byteOffset, bytes.byteLength / 4));
       }
+      if (record.shape && e.field) {
+        const bytes = await unpack(record.shape);
+        // The whole, and after it the shares of the lips and of the head, when the project has them.
+        if (![1, 2, 3].includes(bytes.byteLength / e.field.serialize().byteLength)) throw new InvalidProjectError('field size');
+        e.field.restoreShape(new Float32Array(bytes.buffer as ArrayBuffer, bytes.byteOffset, bytes.byteLength / 4));
+      }
+      // Before this field, the automatic mode was written into the strokes, so there is no strength to move.
+      if (record.shape === undefined) delete e.doc.shapeAmount;
+      await e.refreshLock();
+      startFill(e, 'project');
       await syncFilter(e);
       e.ctx?.invalidate('healed');
       await firstFrame(e);
@@ -204,7 +220,7 @@
       ui.tool = null;
       ui.toolModule = null;
       bump();
-      if (!prefs.read('glowup.onboarded', false)) onboarding = true;
+      startPaths(!!projectId);
       await finishOpening();
     } catch (err) {
       console.error(err);
@@ -233,6 +249,9 @@
     ui.exportOpen = false;
     ui.painting = false;
     ui.faceChoosing = false;
+    ui.path = null;
+    ui.choosingPath = false;
+    ui.onboarding = null;
   });
 
   function updateViewport() {
@@ -240,14 +259,14 @@
     const e = engine();
     const top = barH;
     if (desktop) {
-      e.setViewport(w, h, { top: top + 8, right: sideW + 8, bottom: 12, left: railW + 8 });
+      e.setViewport(w, h, { top: top + 8, right: sideW + 8, bottom: 12, left: (ui.path && !pathMenu ? railW : 0) + 8 });
     } else {
       e.setViewport(w, h, { top: top + 2, right: 0, bottom: bottomH + 2, left: 0 });
     }
   }
 
   $effect(() => {
-    void [w, h, bottomH, sideW, railW, barH, desktop];
+    void [w, h, bottomH, sideW, railW, barH, desktop, ui.path];
     if (canvas && ready) untrack(updateViewport);
   });
 
@@ -308,7 +327,7 @@
   }
 
   function keydown(ev: KeyboardEvent) {
-    if (!ready) return;
+    if (!ready || ui.choosingPath) return;
     const t = ev.target as HTMLElement;
     if (t instanceof HTMLInputElement && t.type !== 'range') return;
     const e = engine();
@@ -397,11 +416,19 @@
         <FaceOverlay />
       {/await}
     {/if}
+    {#if meta?.kind === 'shape' && !ui.splitOn && !ui.compareHold}
+      {#await loadShapeOverlay() then { default: ShapeOverlay }}
+        <ShapeOverlay />
+      {/await}
+    {/if}
   {/if}
 
   <header class="bar" bind:clientHeight={barH}>
     <button type="button" class="icon-btn" aria-label="Voltar para o início" onclick={leave}><Icon name="back" /></button>
     <span class="brand serif">Glowup</span>
+    {#if ready && ui.path}
+      <PathSwitch />
+    {/if}
     <div class="grow"></div>
     <button type="button" class="icon-btn" aria-label="Voltar ao original" title="Voltar ao original" data-testid="reset-photo"
       disabled={!photoDirty} onclick={() => void resetPhoto()}><Icon name="reset" /></button>
@@ -422,7 +449,15 @@
     </button>
   </header>
 
-  {#if ready}
+  {#if ready && pathMenu}
+    <div class="bottom" bind:clientHeight={bottomH}>
+      <aside class="side" bind:clientWidth={sideW} aria-label="Menu">
+        {#await pathMenu() then { default: Menu }}
+          <Menu />
+        {/await}
+      </aside>
+    </div>
+  {:else if ready && ui.path}
     <div class="bottom" bind:clientHeight={bottomH}>
       <aside class="side" bind:clientWidth={sideW} aria-label="Ferramenta">
         <div class="tools scroll-x" role="toolbar" aria-label="Ferramentas">
@@ -499,6 +534,10 @@
     <div class="reach" role="status" data-testid="reach-chip" in:reveal={{ duration: 200, y: -6 }}>O brilho mostra onde o pincel alcança</div>
   {/if}
 
+  {#if ready && ui.choosingPath}
+    <PathChoice />
+  {/if}
+
   {#if ui.busy}
     <div class="busy" role="status" in:reveal={{ duration: 200, delay: 220, y: -6 }}>
       <p class="serif">{ui.busy}</p>
@@ -517,8 +556,8 @@
 {#if ui.exportOpen}
   <ExportSheet />
 {/if}
-{#if onboarding}
-  <Onboarding onclose={() => (onboarding = false)} />
+{#if ui.onboarding}
+  <Onboarding cards={ui.onboarding} onclose={() => (ui.onboarding = null)} />
 {/if}
 
 <style>
@@ -700,12 +739,15 @@
     display: none;
   }
 
-  /* Eight groups fit across a 375 px phone. */
+  /* Eight groups fit across a 375 px phone. A long name goes on two lines, with the others at the top. */
   .group {
     flex: 1;
+    align-content: start;
     min-width: 44px;
     min-height: 50px;
     padding: 5px 0 3px;
+    line-height: 1.1;
+    text-align: center;
   }
 
   .group.on {

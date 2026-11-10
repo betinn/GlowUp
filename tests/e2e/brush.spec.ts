@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { TOOLS } from '../../src/tools/catalog';
-import { expectNoErrors, facePoint, imageRect, limitSettled, meanDiff, openEditor, paint, pickTool, scribble, settle } from './helpers';
+import { expectNoErrors, facePoint, imageRect, limitSettled, meanDiff, openEditor, paint, pickTool, scribble, settle, skipIntro } from './helpers';
 
 /** Iris of the left eye of the fixture portrait, in its own coordinates. */
 const IRIS: [number, number] = [-0.155, -0.06];
@@ -116,7 +116,7 @@ test.describe('marca do pincel', () => {
   });
 
   test('com o zoom no detalhe real, aberta e fechada também batem', async ({ page }) => {
-    await page.addInitScript(() => localStorage.setItem('glowup.onboarded', 'true'));
+    await skipIntro(page);
     await page.goto('/');
     const buffer = await largePortrait(page);
     await page.setInputFiles('[data-testid=file-input]', { name: 'retrato-grande.jpg', mimeType: 'image/jpeg', buffer });

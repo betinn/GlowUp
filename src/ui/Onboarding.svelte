@@ -1,12 +1,13 @@
 <script lang="ts">
-  /** Three short cards, shown once. Each one shows the gesture instead of describing it at length. */
+  /** Short cards, shown once. Each one shows the gesture instead of describing it at length. */
   import { reveal } from './motion';
-  import { prefs } from './state.svelte';
+  import { ONBOARDED_KEY, VIEW_ONBOARDED_KEY } from './paths';
+  import { prefs, type OnboardingCards } from './state.svelte';
 
-  let { onclose }: { onclose: () => void } = $props();
+  let { cards, onclose }: { cards: OnboardingCards; onclose: () => void } = $props();
 
   const touch = matchMedia('(pointer: coarse)').matches;
-  const STEPS = [
+  const ALL = [
     { kind: 'paint', title: touch ? 'Um dedo pinta.' : 'Arraste para pintar.', text: 'Cada ferramenta age só onde você passar.' },
     {
       kind: 'pinch',
@@ -15,12 +16,14 @@
     },
     { kind: 'hold', title: 'Segure para ver o antes.', text: 'Nada é definitivo. A original fica intacta.' },
   ];
+  // A path with no brush has no use for the card about painting, and the path with one owes only that card after it.
+  const STEPS = $derived(ALL.filter((s) => cards === 'all' || (cards === 'paint') === (s.kind === 'paint')));
 
   let step = $state(0);
   const current = $derived(STEPS[step]);
 
   function finish() {
-    prefs.write('glowup.onboarded', true);
+    prefs.write(cards === 'view' ? VIEW_ONBOARDED_KEY : ONBOARDED_KEY, true);
     onclose();
   }
 </script>

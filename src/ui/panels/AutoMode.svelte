@@ -17,6 +17,7 @@
   const auto = $derived(toolLimit.mode === 'auto');
   const filled = $derived((ui.rev, !!toolLimit.tool && hasWork(e, toolLimit.tool)));
   const place = $derived(placeOf(toolLimit.tool));
+  const applied = $derived(words && 'applied' in words ? words.applied : undefined);
   /** Without a region there is no brush to promise, and the words of the tool say it all. */
   const note = $derived.by(() => {
     if (!toolLimit.region) {
@@ -48,7 +49,7 @@
       <ModeSelector />
       {#if auto}
         {#if filled}
-          <p class="note" role="status">Aplicado {place} que achei. Para tirar, toque de novo na ferramenta. Para retocar à mão, use Manual.</p>
+          <p class="note" role="status">{applied ?? `Aplicado ${place} que achei. Para tirar, toque de novo na ferramenta. Para retocar à mão, use Manual.`}</p>
         {:else if regionShow.phase || !on}
           <p class="note" role="status">Já aplico {place}.</p>
         {:else}

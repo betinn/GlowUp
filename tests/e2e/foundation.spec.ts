@@ -28,8 +28,8 @@ test.describe('APIs chamadas por código', () => {
     const outcome = await inPage<{ filled: string[]; missed: string[]; failed: boolean; stopped: boolean }>(
       page,
       `const { applyRecipe } = await use('/src/ui/actions.ts');
-       const { BUILTIN_PRESETS } = await use('/src/presets/recipes.ts');
-       return applyRecipe(BUILTIN_PRESETS.find((p) => p.id === 'glow'));`,
+       const { LOOKS } = await use('/src/presets/recipes.ts');
+       return applyRecipe(LOOKS.find((p) => p.id === 'glow'));`,
     );
     expect(outcome).toEqual({ filled: ['smooth', 'highlight', 'blush'], missed: [], failed: false, stopped: false });
     await settle(page);
@@ -47,7 +47,7 @@ test.describe('APIs chamadas por código', () => {
            filter: e.doc.filter.id,
          };`,
       );
-    expect(await state()).toEqual({ depth: 1, label: 'Receita', painted: ['blush', 'highlight', 'smooth'], exposure: 6, filter: 'mel' });
+    expect(await state()).toEqual({ depth: 1, label: 'Look', painted: ['blush', 'highlight', 'smooth'], exposure: 6, filter: 'mel' });
 
     await page.getByRole('button', { name: 'Desfazer' }).click();
     await settle(page);
@@ -56,7 +56,7 @@ test.describe('APIs chamadas por código', () => {
 
     await page.getByRole('button', { name: 'Refazer' }).click();
     await settle(page);
-    expect(await state()).toEqual({ depth: 1, label: 'Receita', painted: ['blush', 'highlight', 'smooth'], exposure: 6, filter: 'mel' });
+    expect(await state()).toEqual({ depth: 1, label: 'Look', painted: ['blush', 'highlight', 'smooth'], exposure: 6, filter: 'mel' });
 
     // A tool filled by the recipe opens with what it has, in the automatic mode.
     await page.locator('[data-group=skin]').click();

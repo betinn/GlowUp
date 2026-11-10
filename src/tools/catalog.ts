@@ -2,10 +2,11 @@
 
 import type { LayerId } from '../core/doc';
 import type { FaceRegion } from '../core/face/regions';
+import type { ShapeSection } from '../core/face/reshape';
 import type { ToolModule } from './types';
 
-export type ToolKind = 'mask' | 'heal' | 'liquify' | 'adjust' | 'filters' | 'presets' | 'blur' | 'crop';
-export type GroupId = 'skin' | 'eyes' | 'makeup' | 'hair' | 'shape' | 'looks' | 'light' | 'frame';
+export type ToolKind = 'mask' | 'heal' | 'liquify' | 'shape' | 'adjust' | 'filters' | 'blur' | 'crop';
+export type GroupId = 'skin' | 'eyes' | 'makeup' | 'hair' | 'shape' | 'filters' | 'light' | 'frame';
 
 export interface ToolMeta {
   id: string;
@@ -19,6 +20,8 @@ export interface ToolMeta {
   fill?: FaceRegion;
   /** What it draws has a size on the skin, so it takes the size of the face found in the photo. */
   faceSized?: boolean;
+  /** The sliders it shows, for a tool of the shape of the face. */
+  section?: ShapeSection;
   hint: string;
 }
 
@@ -27,8 +30,8 @@ export const GROUPS: { id: GroupId; label: string }[] = [
   { id: 'eyes', label: 'Olhos' },
   { id: 'makeup', label: 'Make' },
   { id: 'hair', label: 'Cabelo' },
-  { id: 'shape', label: 'Forma' },
-  { id: 'looks', label: 'Looks' },
+  { id: 'shape', label: 'Formato do rosto' },
+  { id: 'filters', label: 'Filtros' },
   { id: 'light', label: 'Luz' },
   { id: 'frame', label: 'Quadro' },
 ];
@@ -59,10 +62,12 @@ export const TOOLS: ToolMeta[] = [
   { id: 'haircontrast', label: 'Contraste', group: 'hair', kind: 'mask', layer: 'haircontrast', region: 'hair', hint: 'Mais contraste dá volume. Menos deixa macio.' },
   { id: 'hairsharp', label: 'Nitidez', group: 'hair', kind: 'mask', layer: 'hairsharp', region: 'hair', hint: 'Realça os fios um a um.' },
 
+  { id: 'faceshape', label: 'Rosto', group: 'shape', kind: 'shape', section: 'face', hint: 'Cada controle começa no zero e vai para os dois lados. O fundo fica onde está.' },
+  { id: 'eyeshape', label: 'Olhos', group: 'shape', kind: 'shape', section: 'eyes', hint: 'Mexa aos poucos: um olho muda muito com pouco.' },
+  { id: 'noseshape', label: 'Nariz e boca', group: 'shape', kind: 'shape', section: 'nose', hint: 'Tudo começa no zero, e nada aqui entra sozinho. O nariz é seu, mexa só se quiser.' },
   { id: 'liquify', label: 'Liquify', group: 'shape', kind: 'liquify', hint: 'Empurre, infle ou contraia. Devagar fica mais natural.' },
 
-  { id: 'presets', label: 'Receitas', group: 'looks', kind: 'presets', hint: 'Combinações prontas de ajustes e ferramentas.' },
-  { id: 'filters', label: 'Filtros', group: 'looks', kind: 'filters', hint: 'Toque de novo no filtro para tirar.' },
+  { id: 'filters', label: 'Filtros', group: 'filters', kind: 'filters', hint: 'Toque de novo no filtro para tirar.' },
 
   { id: 'adjust', label: 'Ajustes', group: 'light', kind: 'adjust', hint: 'Dois toques em um controle voltam ao zero.' },
   { id: 'blur', label: 'Desfoque', group: 'light', kind: 'blur', hint: 'Arraste o círculo para escolher o foco.' },

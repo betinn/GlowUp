@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { expectNoErrors, facePoint, imageRect, limitSettled, meanDiff, openEditor, paint, pickTool, PORTRAIT, scribble, setSlider, settle, onSite } from './helpers';
+import { expectNoErrors, facePoint, imageRect, limitSettled, meanDiff, openEditor, paint, pickTool, PORTRAIT, scribble, setSlider, settle, skipIntro, onSite } from './helpers';
 
 /** The real detector runs here too: the procedural portraits are enough to trigger it. */
 const GROUP = { w: 1200, h: 750 };
@@ -166,7 +166,9 @@ test.describe('limite do pincel', () => {
     await page.locator('[data-group=eyes]').click();
     await page.locator('[data-tool=eyecolor]').click();
     await expect(page.getByRole('progressbar', { name: 'Procurando os olhos' })).toBeVisible();
-    await expect(page.getByText('Só na primeira vez, cerca de 6 MB. A foto não sai do seu aparelho.')).toBeVisible();
+    // On a computer the card says it downloads once, and no size: that warning is for a phone.
+    await expect(page.getByText('Só na primeira vez. A foto não sai do seu aparelho.')).toBeVisible();
+    await expect(page.locator('[data-limit=searching]')).not.toContainText('MB');
     await page.screenshot({ path: shot('ui-limite-procurando') });
 
     const [x, y] = facePoint(page, ...IRIS);
@@ -283,7 +285,7 @@ test.describe('limite do pincel', () => {
   });
 
   test('boca fechada não tem dentes, e o pincel fica livre', async ({ page }) => {
-    await page.addInitScript(() => localStorage.setItem('glowup.onboarded', 'true'));
+    await skipIntro(page);
     await page.goto('/');
     const buffer = await closedMouth(page);
     await page.setInputFiles('[data-testid=file-input]', { name: 'boca-fechada.png', mimeType: 'image/png', buffer });
@@ -360,10 +362,10 @@ test.describe('limite do pincel', () => {
 
   test('sair dos filtros para uma ferramenta dos olhos não trava o pincel', async ({ page }) => {
     await openEditor(page);
-    await pickTool(page, 'looks', 'filters');
+    await pickTool(page, 'filters', 'filters');
     await pickTool(page, 'eyes', 'eyecolor');
     await expect(toggle(page)).toHaveAttribute('aria-checked', 'true');
-    await pickTool(page, 'looks', 'filters');
+    await pickTool(page, 'filters', 'filters');
     await expect(limit(page, 'on')).toHaveCount(0);
     await pickTool(page, 'eyes', 'sparkle');
     await expect(toggle(page)).toHaveAttribute('aria-checked', 'true');
@@ -440,14 +442,21 @@ test.describe('limite do pincel', () => {
 });
 
 test.describe('limite do pincel, celular', () => {
-  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
+  test.use({
+    viewport: { width: 390, height: 844 },
+    hasTouch: true,
+    isMobile: true,
+    deviceScaleFactor: 2,
+    userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36',
+  });
 
   test('o interruptor cabe no painel e o aviso aparece no toque', async ({ page }) => {
     const seen = watch(page);
     await openEditor(page);
     await page.locator('[data-group=eyes]').tap();
     await page.locator('[data-tool=eyecolor]').tap();
-    await expect(page.getByText('Só na primeira vez, cerca de 6 MB. A foto não sai do seu aparelho.')).toBeInViewport();
+    // A phone may be on mobile data, so there the card says how much it downloads.
+    await expect(page.getByText('Só na primeira vez, cerca de 6 MB: melhor no Wi-Fi. A foto não sai do seu aparelho.')).toBeInViewport();
     await expect(page.getByTestId('limit-free')).toBeInViewport();
     await page.screenshot({ path: shot('ui-celular-limite-procurando') });
     await limitSettled(page);

@@ -118,6 +118,7 @@ test.describe('fluxos', () => {
   test('onboarding aparece uma vez', async ({ page }) => {
     await page.goto('/');
     await page.setInputFiles('[data-testid=file-input]', 'tests/fixtures/gradient.png');
+    await page.locator('[data-path=manual]').click();
     await expect(page.getByRole('dialog', { name: 'Como usar' })).toBeVisible();
     for (let i = 0; i < 3; i++) await page.getByTestId('onboarding-next').click();
     await expect(page.getByRole('dialog', { name: 'Como usar' })).toBeHidden();
@@ -162,6 +163,7 @@ test.describe('fluxos', () => {
   test('exporta PNG, JPG e WebP em resolução total', async ({ page }) => {
     await openEditor(page);
     await pickTool(page, 'light', 'adjust');
+    await limitSettled(page);
     const png = imageSize(await exportFile(page, 'PNG'));
     expect(png).toMatchObject({ w: 1500, h: 1875, type: 'png' });
     const jpg = imageSize(await exportFile(page, 'JPG'));
@@ -194,8 +196,10 @@ test.describe('fluxos', () => {
     await pickTool(page, 'makeup', 'blush');
     await paint(page, scribble(-0.15, 0.1, 0.08, 0.08, 6), 3);
     await pickTool(page, 'shape', 'liquify');
+    await limitSettled(page);
     await paint(page, [[-0.29, 0.14], [-0.25, 0.14]]);
     await pickTool(page, 'light', 'adjust');
+    await limitSettled(page);
     await page.getByRole('slider', { name: 'Exposição' }).fill('30');
     await page.mouse.move(2, 2);
     await settle(page, 400);
@@ -216,7 +220,7 @@ test.describe('fluxos', () => {
 
   test('segurar compara, tocar divide', async ({ page }) => {
     await openEditor(page);
-    await pickTool(page, 'looks', 'filters');
+    await pickTool(page, 'filters', 'filters');
     await page.locator('[data-filter=prata]').click();
     await page.mouse.move(2, 2);
     await settle(page, 500);
@@ -232,18 +236,6 @@ test.describe('fluxos', () => {
     await settle(page, 1100);
   });
 
-  test('receita aplica ajustes e filtro, e pode ser criada', async ({ page }) => {
-    await openEditor(page);
-    await pickTool(page, 'looks', 'presets');
-    await page.locator('[data-preset=glow]').click();
-    await settle(page, 600);
-    await page.getByPlaceholder('Dar nome à edição atual').fill('Minha');
-    await page.getByRole('button', { name: 'Salvar receita' }).click();
-    await expect(page.getByRole('button', { name: 'Apagar receita Minha' })).toBeVisible();
-    await pickTool(page, 'light', 'adjust');
-    await expect(page.getByRole('slider', { name: 'Exposição' })).toHaveValue('6');
-  });
-
   test('a grade de tiles não muda o resultado da exportação', async ({ page }) => {
     await openEditor(page);
     await pickTool(page, 'skin', 'smooth');
@@ -253,13 +245,15 @@ test.describe('fluxos', () => {
     await pickTool(page, 'skin', 'highlight');
     await paint(page, [[-0.1, 0.1], [0.1, 0.1]], 2);
     await pickTool(page, 'shape', 'liquify');
+    await limitSettled(page);
     await paint(page, [[-0.29, 0.14], [-0.24, 0.14]]);
     await pickTool(page, 'light', 'adjust');
+    await limitSettled(page);
     await setSlider(page, 'Sombras', 50);
     await setSlider(page, 'Realces', -40);
     await setSlider(page, 'Nitidez', 40);
     await setSlider(page, 'Granulação', 20);
-    await pickTool(page, 'looks', 'filters');
+    await pickTool(page, 'filters', 'filters');
     await page.locator('[data-filter=mel]').click();
     await settle(page, 400);
     const whole = await exportFile(page, 'PNG');

@@ -1,0 +1,13 @@
+{
+  "id": "rosa-bruma",
+  "name": "Rosa Bruma",
+  "category": "Sonho",
+  "suggest": false,
+  "lut": {
+    "ops": [
+      { "op": "split", "shadow": "#9a5a7a", "highlight": "#ffe8e8", "amount": 0.16 },
+      { "op": "fade", "black": 0.07 },
+      { "op": "saturate", "k": 0.9 }
+    ]
+  }
+}

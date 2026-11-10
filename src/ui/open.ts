@@ -17,7 +17,7 @@ const stages = (decodeEstimate: number, read: string, extra: Stage[] = []): Stag
   { id: 'render', label: 'Revelando', weight: 26, estimate: 400 },
 ];
 
-export const isPhoto = (file: File) => file.type.startsWith('image/') || /\.(jpe?g|png|webp|avif|heic|heif)$/i.test(file.name);
+export const isPhoto = (file: File) => file.type.startsWith('image/') || /\.(jpe?g|jfif|png|webp|avif|heic|heif)$/i.test(file.name);
 
 function begin(task: Task, photo: string | null, from: Point | null, next: () => void): void {
   ui.opening = { task, photo, from };

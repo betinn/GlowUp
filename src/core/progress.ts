@@ -72,6 +72,27 @@ export class StagedProgress {
   }
 }
 
+/** A time in the words of a progress card: seconds up to a minute and a half, then minutes. */
+export function timeLeft(ms: number): string {
+  const seconds = Math.max(1, Math.round(ms / 1000));
+  if (seconds < 90) return `cerca de ${seconds} s`;
+  return `cerca de ${Math.round(seconds / 60)} min`;
+}
+
+/** Before this long, or this share of a step, how fast it goes says too little about how long it will take. */
+const LEFT_AFTER_MS = 600;
+const LEFT_AFTER_SHARE = 0.03;
+
+/**
+ * The time a step still needs, from how long it took to get as far as it did: a download at the speed it has
+ * had so far, a search at the pace of the tiles already searched. Empty while there is too little to go by,
+ * and when the step is over.
+ */
+export function leftFrom(elapsed: number, fraction: number): string {
+  if (elapsed < LEFT_AFTER_MS || fraction < LEFT_AFTER_SHARE || fraction >= 1) return '';
+  return timeLeft((elapsed * (1 - fraction)) / fraction);
+}
+
 /**
  * Waits until the browser has had a chance to paint. Hidden tabs get no frames, so a timer backs it
  * up and work keeps going in the background.

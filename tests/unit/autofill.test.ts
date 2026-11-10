@@ -364,7 +364,7 @@ describe('applying a recipe from code', () => {
     expect(e.doc.adjust.contrast).toBe(12);
     expect(e.doc.layers.smooth?.params.strength).toBe(70);
     expect(e.history.depth).toBe(1);
-    expect(e.history.undoLabel).toBe('Receita');
+    expect(e.history.undoLabel).toBe('Look');
 
     await e.history.undo();
     expect(e.doc.adjust.contrast).toBe(0);

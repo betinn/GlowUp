@@ -4,8 +4,18 @@ import { TOOLS } from '../../src/tools/catalog';
 /** Size of the fixture portrait. Coordinates below match scripts/make-fixtures.mjs. */
 export const PORTRAIT = { w: 1500, h: 1875 };
 
+/** No cards and no screen of choice: the photo opens straight on the tools. */
+export async function skipIntro(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    localStorage.setItem('glowup.onboarded', 'true');
+    localStorage.setItem('glowup.startPath', '"manual"');
+    // The completion of what warps uncover downloads a model and takes a while: only its own tests start it.
+    localStorage.setItem('glowup.fill', 'off');
+  });
+}
+
 export async function openEditor(page: Page, fixture = 'portrait.png'): Promise<void> {
-  await page.addInitScript(() => localStorage.setItem('glowup.onboarded', 'true'));
+  await skipIntro(page);
   await page.goto('/');
   await page.setInputFiles('[data-testid=file-input]', `tests/fixtures/${fixture}`);
   await page.locator('[data-group=skin]').waitFor({ timeout: 90_000 });

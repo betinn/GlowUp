@@ -52,6 +52,22 @@ export const LAYER_ORDER: readonly LayerId[] = [
 /** Mask key of a filter limited to part of the photo. It never joins the chain of tools. */
 export const FILTER_MASK = 'filter' as unknown as LayerId;
 
+/** Mask key of the person, for the lock of the background. It comes from the photo and no edit changes it. */
+export const PERSON_MASK = 'person' as unknown as LayerId;
+/** Mask key of the heads: hair, face and what is worn on them. The sliders of the face move this whole. */
+export const HEAD_MASK = 'head' as unknown as LayerId;
+/** Mask key of the opening of the mouths, which lips shaped by a slider slide over. */
+export const MOUTH_MASK = 'mouth' as unknown as LayerId;
+/**
+ * Mask key of how far each point is from what covers the body: clothes and what is worn below the head. Bare
+ * skin goes along with a face that moves, and what covers the body stays.
+ */
+export const COVER_MASK = 'cover' as unknown as LayerId;
+/** The mask of `COVER_MASK` keeps distances up to this share of the long side of the photo. */
+export const COVER_SPAN = 0.12;
+/** The masks that come from the photo. No edit changes them, and they go into a saved project. */
+export const PHOTO_MASKS: readonly LayerId[] = [PERSON_MASK, HEAD_MASK, MOUTH_MASK, COVER_MASK];
+
 export type ParamValue = number | string;
 export type Params = Record<string, ParamValue>;
 
@@ -125,6 +141,12 @@ export interface FilterState {
   reach?: number;
 }
 
+/** The sliders of the face menu on one face: where the face is, so they find it again, and their numbers. */
+export interface FaceShape {
+  at: [number, number];
+  values: Record<string, number>;
+}
+
 /** One healing operation. Coordinates are image UV, radii are fractions of the long side. */
 export interface HealOp {
   id: number;
@@ -146,6 +168,14 @@ export interface EditDoc {
   layers: Partial<Record<LayerId, LayerState>>;
   heals: HealOp[];
   hasField: boolean;
+  /** Strength of the automatic Liquify, 0..100, when it is on. Older projects leave this out. */
+  shapeAmount?: number;
+  /** The sliders of the face menu, per face. Older projects leave this out. */
+  shapes?: FaceShape[];
+  /** Sections of the face menu switched off. Their numbers stay. */
+  shapesOff?: ('face' | 'eyes' | 'nose')[];
+  /** The brush of Liquify moves the background too. Older projects leave this out: the background stays. */
+  unlocked?: boolean;
 }
 
 export function createDoc(width: number, height: number): EditDoc {

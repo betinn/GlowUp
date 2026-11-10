@@ -29,6 +29,8 @@ npm run dev
 | `npm run e2e` | fluxos, telas e validação visual, na GPU e em paralelo (precisa de `npm run build` antes) |
 | `npm run fixtures` | regenera as imagens de teste procedurais |
 | `npm run scan` | varredura de higiene do repositório, do histórico e do `dist/` |
+| `npm run replicate` | cria um filtro a partir de fotos antes e depois, com relatório (veja [docs/DESIGN.md](docs/DESIGN.md)) |
+| `npm run replicate:validate` | prova o script de réplica com filtros conhecidos, em uma pasta de fotos |
 
 O e2e roda na GPU do aparelho e em 75% dos núcleos. `E2E_GPU=0` volta ao SwiftShader, para máquina
 sem GPU, e `E2E_PORT` troca a porta do preview, para duas cópias do repositório testarem ao mesmo tempo.
@@ -53,10 +55,17 @@ o lugar sozinho no Automático, e no Manual o pincel fica preso a ele.
 **Voltar ao original:** "Zerar" tira tudo de um menu, e o botão no topo tira tudo da foto. Os dois são uma
 etapa do desfazer.
 
-**Forma:** liquify (empurrar, inflar, contrair, restaurar).
+**Formato do rosto:** controles pelos pontos do rosto, cada um a partir do zero. Rosto (mandíbula, maxilar, queixo, maçãs,
+têmporas, testa, comprimento, tamanho da cabeça e papada quando a foto mostra), Olhos (tamanho, ângulo, alongar, abrir e
+fechar, pupilas, sobrancelhas) e Nariz e boca. Liquify (empurrar, inflar, contrair, restaurar), com o fundo travado por
+padrão. A foto é separada em camadas no próprio aparelho: os controles movem só a cabeça, e pescoço, ombros e fundo
+ficam onde estão. Os lábios deslizam sobre os dentes, que não esticam. O que a cabeça descobre ao diminuir é
+completado por um modelo de preenchimento, em segundo plano, com progresso, tempo que falta e botão de cancelar.
 
-**Geral:** 40 filtros em 10 categorias com intensidade e favoritos, receitas prontas e suas,
-11 ajustes, desfoque radial e tilt-shift, recorte com rotação, espelho, endireitar e proporções,
+**Filtros:** 40 filtros em 10 categorias, com intensidade, favoritos e uma sugestão pelo tom da foto. Cada filtro é um
+arquivo de dados, com cor, grão, vinheta e ajustes, e nunca muda o desenho do rosto.
+
+**Geral:** 11 ajustes, desfoque radial e tilt-shift, recorte com rotação, espelho, endireitar e proporções,
 antes/depois (segurar ou dividir, com a foto original ou só sem o filtro), exportação em JPG, PNG e WebP.
 
 Um filtro vale para a foto toda ou para um rosto escolhido: um anel aparece em cada rosto, um toque
@@ -67,7 +76,10 @@ olheiras, a íris, o branco do olho, os dentes ou os fios, em todos os rostos ac
 libera o pincel. Se o detector não acha
 rosto, a boca está fechada ou o download falha, o pincel fica livre. O detector baixa só na primeira vez
 que alguém abre uma dessas ferramentas ou escolhe um rosto, cerca de 6 MB, do próprio site. O de cabelo
-soma menos de 1 MB, só na primeira ferramenta de cabelo.
+soma menos de 1 MB, só na primeira ferramenta de cabelo. Na primeira ferramenta de Formato do rosto baixam o modelo
+que separa cabeça, corpo e fundo, 15 MB, e o que completa o fundo, 29 MB com o seu runtime. Nada disso entra no
+precache, e a foto continua no aparelho. Os cartões de download mostram quanto falta, e só num celular dizem o
+tamanho, em todos os downloads do app.
 
 Ao abrir uma delas, a foto aproxima do rosto, dos olhos, da boca ou do cabelo e um brilho rápido mostra onde
 o pincel alcança. No modo Automático, que vem ligado, a ferramenta já aplica em todos os rostos achados,
@@ -126,7 +138,7 @@ passo atual, com a própria foto revelando na tela.
 | `src/core` | documento, geometria, pincel, máscaras, exportação, projetos |
 | `src/core/face` | busca de rostos em tiles, máscara do rosto, limites de pele, olhos, dentes e cabelo, busca de manchas e detector carregado sob demanda |
 | `src/tools/<ferramenta>` | shader, lógica e painel de cada ferramenta, carregados sob demanda |
-| `src/presets` | LUTs procedurais, receitas e miniaturas |
+| `src/presets` | LUTs procedurais, looks e miniaturas |
 | `src/ui` | interface em Svelte |
 | `tests` | testes de unidade, fluxos e imagens de teste procedurais |
 | `deploy` | exemplos de servidor estático |
@@ -185,6 +197,7 @@ distribuídas via Fontsource.
 
 ## Licenças de terceiros
 
-O detector usa `@mediapipe/tasks-vision` e os modelos `face_landmarker.task` e `hair_segmenter.tflite`,
-todos sob Apache 2.0. O aviso e o texto da licença estão em [`public/third-party.txt`](public/third-party.txt)
-e seguem junto com o site.
+O detector usa `@mediapipe/tasks-vision` e os modelos `face_landmarker.task`, `hair_segmenter.tflite` e
+`selfie_multiclass.tflite`, todos sob Apache 2.0. O preenchimento usa `onnxruntime-web` e o modelo MI-GAN,
+`migan_inpaint.onnx`, os dois sob MIT. Os avisos e os textos das licenças estão em
+[`public/third-party.txt`](public/third-party.txt) e seguem junto com o site.

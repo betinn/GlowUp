@@ -298,7 +298,8 @@ export function reached(open: (i: number) => boolean, seeds: readonly number[], 
  * the model is fitted to it. A contour, not pixels: the edge comes out clean under a strong color, and a
  * glint or a pale part stays in. Inside the mouth only what is not the color of the lips and touches the
  * opening stays out, as teeth and the dark, so the line where the lips meet takes the color too. Null when
- * the lips and the skin look the same, as with a lipstick the color of the skin.
+ * the lips and the skin look the same, as with a lipstick the color of the skin. `gap`, when given, takes
+ * what stayed out inside the mouth: the opening as the photo shows it.
  */
 export function lipsFromPhoto(
   rgba: Uint8ClampedArray,
@@ -307,6 +308,7 @@ export function lipsFromPhoto(
   inner: readonly Point[],
   opening: readonly Point[] | null,
   width: number,
+  gap?: Float32Array,
 ): Float32Array | null {
   const body = cover(outer, area);
   const mouth = opening ? cover(inner, area) : new Float32Array(body.length);
@@ -383,8 +385,43 @@ export function lipsFromPhoto(
   const hole = softBlur(Float32Array.from(notLip), area.w, area.h, soft);
   // The deep of a wide mouth stays out whatever its color, as a tongue. A narrow gap has no deep part.
   const deep = softBlur(mouth, area.w, area.h, Math.max(0.6, width * MOUTH_DEEP));
-  for (let i = 0; i < n; i++) edge[i] *= 1 - Math.max(smooth(0.72, 0.92, deep[i]), hole[i]);
+  for (let i = 0; i < n; i++) {
+    const out = Math.max(smooth(0.72, 0.92, deep[i]), hole[i]);
+    if (gap) gap[i] = edge[i] * out;
+    edge[i] *= 1 - out;
+  }
   return edge;
+}
+
+/**
+ * The opening of every mouth, teeth and the dark behind them, as a mask from 0 to 255: what the lips slide over
+ * when a slider shapes them. Read from the photo as the lips are, and from the outline of the model when the
+ * photo does not tell lips from skin. Null when every mouth is closed.
+ */
+export function buildMouthMask(faces: readonly Face[], target: MaskTarget): Uint8Array | null {
+  const out = new Uint8Array(target.w * target.h);
+  for (const { parts } of faces) {
+    if (parts.outerLips.length < 16 || parts.innerLips.length < 16) continue;
+    const outer = toGrid(parts.outerLips, target);
+    const inner = toGrid(parts.innerLips, target);
+    const reach = lipReach(inner);
+    if (reach <= 0) continue;
+    const width = Math.hypot(outer[0][0] - outer[10][0], outer[0][1] - outer[10][1]) || 1;
+    const area = areaAround(outer, width * (SKIN_TO + 0.05) + 2, target);
+    if (area.w < 2 || area.h < 2) continue;
+    const opening = inner.map(([x, y], i): Point => [x + (outer[i][0] - x) * reach, y + (outer[i][1] - y) * reach]);
+    const rgba = target.color?.(area);
+    const gap = new Float32Array(area.w * area.h);
+    if (rgba && lipsFromPhoto(rgba, area, outer, inner, opening, width, gap)) {
+      place(out, target, area, gap);
+      continue;
+    }
+    const body = cover(outer, area);
+    const hole = cover(opening, area);
+    for (let i = 0; i < hole.length; i++) hole[i] *= body[i];
+    place(out, target, area, softBlur(hole, area.w, area.h, Math.max(0.5, width * LIP_FEATHER)));
+  }
+  return out.some((v) => v > 0) ? out : null;
 }
 
 /** The lips of every face, without the inside of the mouth, as a mask from 0 to 255. Null when no mouth was found. */

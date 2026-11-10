@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { compare, expectNoErrors, facePoint, imageRect, meanDiff, openEditor, pickTool, PORTRAIT, setSlider, settle, onSite } from './helpers';
+import { compare, expectNoErrors, facePoint, imageRect, meanDiff, openEditor, pickTool, PORTRAIT, setSlider, settle, onSite, limitSettled } from './helpers';
 
 /** The real detector runs in these tests: the procedural portraits are enough to trigger it. */
 const GROUP = { w: 1200, h: 750 };
@@ -22,7 +22,7 @@ function watch(page: Page) {
 }
 
 async function chooseFilter(page: Page, id = 'prata'): Promise<void> {
-  await pickTool(page, 'looks', 'filters');
+  await pickTool(page, 'filters', 'filters');
   await page.locator(`[data-filter=${id}]`).click();
   await setSlider(page, 'Intensidade', 100);
   await page.mouse.move(2, 2);
@@ -201,6 +201,7 @@ test.describe('escolher rosto', () => {
     const still = await exportPng(page);
 
     await pickTool(page, 'shape', 'liquify');
+    await limitSettled(page);
     await setSlider(page, 'Tamanho', 92);
     // A strong push moves the whole face to the side, and the gray must go with it.
     const from = facePoint(page, -0.02, 0.05);
@@ -221,7 +222,7 @@ test.describe('escolher rosto', () => {
     expect(nowGray).toBeLessThan(wasColor - 10);
 
     // The ring goes where the face went.
-    await pickTool(page, 'looks', 'filters');
+    await pickTool(page, 'filters', 'filters');
     await page.getByTestId('face-swap').click();
     await expect(rings(page)).toHaveCount(1);
     await settle(page, 300);
@@ -278,7 +279,7 @@ test.describe('escolher rosto', () => {
     const reopened = await exportPng(page);
     expect(await meanDiff(page, reference, reopened)).toBeLessThan(0.05);
 
-    await pickTool(page, 'looks', 'filters');
+    await pickTool(page, 'filters', 'filters');
     await expect(page.getByRole('radio', { name: 'Escolher rosto' })).toHaveAttribute('aria-checked', 'true');
     await expect(page.getByTestId('face-swap')).toBeVisible();
   });
@@ -382,6 +383,7 @@ test.describe('escolher rosto', () => {
     await askForFace(page);
     await expect(rings(page)).toHaveCount(2);
     await pickTool(page, 'light', 'adjust');
+    await limitSettled(page);
     await expect(rings(page)).toHaveCount(0);
     const r = imageRect(page, GROUP);
     await page.mouse.move(r.x + r.w / 2, r.y + r.h / 2);
@@ -395,8 +397,7 @@ test.describe('escolher rosto, celular', () => {
   test('toque escolhe, e o detalhe do zoom respeita a máscara', async ({ page }) => {
     const seen = watch(page);
     await openEditor(page, 'portrait.png');
-    await page.locator('[data-group=looks]').tap();
-    await page.locator('[data-tool=filters]').tap();
+    await page.locator('[data-group=filters]').tap();
     await page.locator('[data-filter=prata]').tap();
     await setSlider(page, 'Intensidade', 100);
     await settle(page, 400);

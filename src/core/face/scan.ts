@@ -97,6 +97,33 @@ export const CHEEK_TOPS: readonly (readonly number[])[] = [
   [346, 347, 330, 329],
 ];
 
+/**
+ * Single points the sliders of the face menu hold on to. Pairs go in the order of `EYES`. Checked drawn over
+ * a turned and tilted head: the corner of the jaw, the side of the cheekbone and the temple sit on the outline.
+ */
+export const MARKS = {
+  jawCorners: [172, 397],
+  cheekbones: [93, 323],
+  temples: [162, 389],
+  noseWings: [64, 294],
+  bridge: 6,
+  bridgeMiddle: 197,
+  noseTip: 1,
+  noseBase: 2,
+} as const;
+
+/** The points in `MARKS`, in image UV. */
+export interface FaceMarks {
+  jawCorners: readonly Point[];
+  cheekbones: readonly Point[];
+  temples: readonly Point[];
+  noseWings: readonly Point[];
+  bridge: Point;
+  bridgeMiddle: Point;
+  noseTip: Point;
+  noseBase: Point;
+}
+
 /** Where the tools for eyes, teeth, skin and makeup may go, in image UV. */
 export interface FaceParts {
   eyes: readonly (readonly Point[])[];
@@ -112,15 +139,27 @@ export interface FaceParts {
   hollows?: readonly (readonly Point[])[];
   noseSides?: readonly (readonly Point[])[];
   cheekTops?: readonly (readonly Point[])[];
+  /** Absent on faces made by hand in tests, unless the test is about the sliders. */
+  marks?: FaceMarks;
 }
 
 const NO_PARTS: FaceParts = { eyes: [], irises: [], innerLips: [], outerLips: [] };
+
+/** A fold seen under a chin, as heights with the top of the outline at 0 and the chin at 1. */
+export interface ChinFold {
+  /** Where the skin under the chin starts. */
+  from: number;
+  /** Where the fold is. */
+  fold: number;
+}
 
 /** A face found in the photo. Only these shapes are kept, in image UV, and only in memory. */
 export interface Face {
   outline: readonly Point[];
   box: Area;
   parts: FaceParts;
+  /** The fold under the chin, when the face menu looked and found one. */
+  chin?: ChinFold;
 }
 
 function starts(length: number, side: number): number[] {
@@ -170,6 +209,16 @@ export function readFace(point: (index: number) => Point): Face {
     hollows: HOLLOWS.map(read),
     noseSides: NOSE_SIDES.map(read),
     cheekTops: CHEEK_TOPS.map(read),
+    marks: {
+      jawCorners: read(MARKS.jawCorners),
+      cheekbones: read(MARKS.cheekbones),
+      temples: read(MARKS.temples),
+      noseWings: read(MARKS.noseWings),
+      bridge: point(MARKS.bridge),
+      bridgeMiddle: point(MARKS.bridgeMiddle),
+      noseTip: point(MARKS.noseTip),
+      noseBase: point(MARKS.noseBase),
+    },
   });
 }
 

@@ -1,0 +1,12 @@
+{
+  "id": "pessego",
+  "name": "Pêssego",
+  "category": "Pastel",
+  "lut": {
+    "ops": [
+      { "op": "split", "shadow": "#9a6a6a", "highlight": "#ffe0c8", "amount": 0.16 },
+      { "op": "fade", "black": 0.05 },
+      { "op": "saturate", "k": 0.86 }
+    ]
+  }
+}

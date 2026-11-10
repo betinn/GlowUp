@@ -1,5 +1,5 @@
 import { GLSL_HEADER, type GLContext, type Rect, type Tex, type Tex3D, type Uniforms } from '../gl/context';
-import { FILTER_MASK, LAYER_ORDER, type EditDoc, type LayerId } from '../doc';
+import { COVER_SPAN, FILTER_MASK, LAYER_ORDER, type EditDoc, type LayerId } from '../doc';
 import { imageToOutput, outputSize } from '../geometry';
 import COLOR_GLSL from '../shaders/color.glsl?raw';
 import DEVELOP_FRAG from '../shaders/develop.frag?raw';
@@ -49,14 +49,40 @@ export function toolShader(pass: ToolPass): string {
 
 export interface FieldSource {
   tex: Tex;
+  /** The brush alone. */
+  readonly brushTex?: Tex | null;
+  /** The share of the field that shapes the lips. */
+  readonly lipTex?: Tex | null;
+  /** The share of the field that moves a head alone. */
+  readonly headTex?: Tex | null;
+}
+
+/** The mattes of the photo and the plates behind them, in image UV, for warps in layers. */
+export interface Layers {
+  person: Tex;
+  head: Tex;
+  /** The opening of the mouths. Null when every mouth is closed. */
+  mouth: Tex | null;
+  /** How far each point is from what covers the body. Null in a project saved before there was one: the body then stays. */
+  cover: Tex | null;
+  /** Which way that is, as the slope of the distance. See `coverWay` in `core/face/person.ts`. */
+  coverWay: Tex | null;
+  /** The photo with nobody in it, and with no head in it. */
+  plateBack: Tex;
+  plateHead: Tex;
 }
 
 export class Pipeline {
   readonly tools = new Map<LayerId, ToolPass>();
   healer: Healer | null = null;
   field: FieldSource | null = null;
+  /** Set while the photo has its mattes: warps then move each layer alone. */
+  lock: Layers | null = null;
   lut: Tex3D;
   lutMix = 0;
+  /** What the current filter adds to the last stage, on the scales of the Ajustes panel. */
+  filterGrain = 0;
+  filterVignette = 0;
   active: LayerId | null = null;
   /** Tiny low-pass of the whole photo, shared by every context so tiles agree on tone masks. */
   private globalLow: Tex | null = null;
@@ -214,6 +240,7 @@ export class Pipeline {
     const a = doc.adjust;
     const dev = ctx.slot('dev');
     const hasField = doc.hasField && !!this.field;
+    const lock = hasField ? this.lock : null;
     const area = this.filterArea(doc);
     glc.run(
       glc.program(shader(DEVELOP_FRAG)),
@@ -226,6 +253,23 @@ export class Pipeline {
         uRegion: ctx.regionUv,
         uTexel: [1 / ctx.w, 1 / ctx.h],
         uHasField: hasField,
+        uLayered: !!lock,
+        uPerson: lock?.person ?? this.emptyField,
+        uHead: lock?.head ?? this.emptyField,
+        uMouth: lock?.mouth ?? this.emptyField,
+        uPlateBack: lock?.plateBack ?? this.emptyField,
+        uPlateHead: lock?.plateHead ?? this.emptyField,
+        uBrushField: (lock && this.field?.brushTex) || this.emptyField,
+        uLipField: (lock?.mouth && this.field?.lipTex) || this.emptyField,
+        uHeadField: (lock && this.field?.headTex) || this.emptyField,
+        uHeadAlone: !!(lock && this.field?.headTex),
+        uCover: lock?.cover ?? this.emptyField,
+        uCoverWay: lock?.coverWay ?? this.emptyField,
+        uFollows: !!(lock?.cover && lock.coverWay),
+        uCoverSpan: COVER_SPAN * Math.max(doc.width, doc.height),
+        uBrushFree: !!doc.unlocked,
+        uHasLips: !!(lock?.mouth && this.field?.lipTex),
+        uPixels: [doc.width, doc.height],
         uExposure: a.exposure / 100,
         uContrast: a.contrast / 100,
         uHighlights: a.highlights / 100,
@@ -269,6 +313,8 @@ export class Pipeline {
         uVignette: a.vignette / 100,
         uGrain: a.grain / 100,
         uGrainCells: 1500,
+        uFilterVignette: this.filterVignette / 100,
+        uFilterGrain: this.filterGrain / 100,
       },
       rect,
     );

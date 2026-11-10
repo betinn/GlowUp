@@ -1,0 +1,12 @@
+{
+  "id": "menta",
+  "name": "Menta",
+  "category": "Mar",
+  "lut": {
+    "ops": [
+      { "op": "split", "shadow": "#3a7a68", "highlight": "#f0ffe8", "amount": 0.14 },
+      { "op": "hueBand", "center": 0.55, "width": 0.14, "shift": -0.04, "sat": 1.05 },
+      { "op": "curve", "points": [[0, 0], [0.25, 0.22], [0.75, 0.79], [1, 1]] }
+    ]
+  }
+}
