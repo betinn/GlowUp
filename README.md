@@ -65,6 +65,11 @@ completado por um modelo de preenchimento, em segundo plano, com progresso, temp
 **Filtros:** 40 filtros em 10 categorias, com intensidade, favoritos e uma sugestão pelo tom da foto. Cada filtro é um
 arquivo de dados, com cor, grão, vinheta e ajustes, e nunca muda o desenho do rosto.
 
+**Brincar:** caretas de brincadeira, cada uma num controle de 0 a 100 (Olhão aumenta os olhos, Cabeção aumenta a
+cabeça e deixa corpo e fundo onde estão), e adesivos desenhados no projeto, que seguem o rosto e se arrastam, giram e
+mudam de tamanho com o dedo ou o mouse. Fica num caminho próprio, longe do retoque: nada daqui mexe nos controles
+do Formato do rosto.
+
 **Geral:** 11 ajustes, desfoque radial e tilt-shift, recorte com rotação, espelho, endireitar e proporções,
 antes/depois (segurar ou dividir, com a foto original ou só sem o filtro), exportação em JPG, PNG e WebP.
 
@@ -145,6 +150,7 @@ passo atual, com a própria foto revelando na tela.
 | `src/core/history` | pilha de desfazer e codec de tiles |
 | `src/core` | documento, geometria, pincel, máscaras, exportação, projetos |
 | `src/core/face` | busca de rostos em tiles, máscara do rosto, limites de pele, olhos, dentes e cabelo, busca de manchas e detector carregado sob demanda |
+| `src/core/fun` | Brincar: campo próprio, caretas em `effects/` e adesivos em `stickers/`, um arquivo cada |
 | `src/core/superres` | aumento de resolução: modelo, worker, tiles com emenda suave e limite de tamanho |
 | `src/tools/<ferramenta>` | shader, lógica e painel de cada ferramenta, carregados sob demanda |
 | `src/presets` | LUTs procedurais, looks e miniaturas |

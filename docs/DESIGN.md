@@ -83,6 +83,8 @@ Quem espera precisa saber três coisas: que está andando, quanto falta e que a 
   reduzido, o selo aparece pronto, sem nada se mexer.
 - **Trabalhos curtos**, como remover uma mancha, não merecem tela: só um aviso pequeno, e só se
   passarem de 220 ms. Miniaturas de filtro respiram até ficarem prontas, depois revelam.
+- **Foto alcançando o controle.** Num controle que não pode esperar, a foto mostra um rascunho e o fio de luz
+  âmbar corre no alto dela até o resultado completo entrar. Nada bloqueia o toque.
 
 ## Soltar a foto
 
@@ -159,6 +161,11 @@ duas linhas, em 84 px no computador e em 44 px no celular.
   cabeça some. Se o modelo não baixou, há um botão para tentar de novo.
 - **Controles.** Cada um começa no zero e vai para os dois lados, menos a papada, que só diminui. Mexer é uma
   etapa do desfazer por gesto, e os números ficam no projeto. Um toque duplo volta ao zero.
+- **Arrastar.** O controle segue o dedo o tempo todo, mesmo num celular fraco. A foto mostra na hora um rascunho
+  do novo formato e, quando o dedo para, o resultado completo, que é o mesmo de sempre, sem perder qualidade.
+  Enquanto o completo não chegou, um fio de luz âmbar corre numa pílula pequena no alto da foto. Ele só aparece
+  se a espera passar de 140 ms, para não piscar num aparelho rápido, e some no instante em que o completo entra.
+  Exportar e salvar o projeto esperam o completo.
 - **Rosto.** Em três partes: Contorno (linha da mandíbula, forma do maxilar, queixo, maçãs e têmporas), Altura
   (testa e comprimento) e Cabeça (tamanho e papada). No fim, uma chave desenha em linhas finas o que foi detectado:
   o contorno do rosto, olhos, íris, sobrancelhas, lábios, o meio do rosto e a borda da cabeça, que é o que os
@@ -203,9 +210,12 @@ rostos achados.
 
 - **Primeira vez.** Ao abrir a ferramenta, o cartão de progresso aparece no topo do painel com o aviso do
   download, e no celular o tamanho, 6 MB. O traço espera e um aviso explica. "Pintar livre" pula a espera.
-- **Íris.** A íris sai da própria foto, não só do desenho do modelo: o que é escuro como o meio da íris, perto
-  do círculo que o modelo dá, sem a pele, o branco, os cílios e o brilho da luz. A cor fica dentro da íris
-  mesmo com a cabeça inclinada ou o olho virado de lado.
+- **Íris.** A íris sai da própria foto, não só do desenho do modelo: o que é escuro como o meio da íris e não
+  mais vermelho que ela, perto do círculo que o modelo dá, fechado numa forma só, sem buraco. A pupila e o
+  reflexo da luz ficam dentro; a pele, o branco e os cílios ficam fora. A cor fica dentro da íris mesmo com a
+  cabeça inclinada ou o olho virado de lado. O branco do olho acaba onde essa íris começa.
+- **Reflexo da luz.** Na Cor dos olhos o reflexo continua branco e claro, em cima da cor nova, sem borda da
+  cor antiga. A pupila continua preta. Brilho no olhar realça o reflexo, e Olho vermelho não mexe nele.
 - **Interruptor.** "Só na íris", "Só no branco do olho" ou "Só nos dentes". Desligado vale para aquela
   ferramenta enquanto a foto estiver aberta.
 - **Traço fora.** A parte de fora some sem erro. Se o traço inteiro cair fora, um aviso aponta o
@@ -418,6 +428,93 @@ depois da escolha, e o caminho sem pincel não ensina a pintar.
   nenhum põe cor na boca. A miniatura mostra a cor do look nesta foto, na intensidade certa.
 - **Avisos.** Boca fechada deixa Dentes de fora, e o aviso diz isso. Sem rosto ou sem detector, entra só a
   cor do look e o aviso diz por quê. Sem detector, um segundo toque tenta de novo em vez de tirar o look.
+- **Brincar.** Caretas e adesivos, ao lado de Filtros. Um projeto só com Brincar reabre no Brincar. Veja abaixo.
+
+## Brincar
+
+O caminho das brincadeiras: caretas no rosto e adesivos. Fica ao lado de Filtros e longe do retoque. Nada daqui
+entra nos números, no campo ou nos limites do Formato do rosto e do Liquify, e o menu não mostra ferramenta nenhuma
+do retoque.
+
+- **Caretas.** Um controle por efeito, de 0 a 100, no rosto escolhido. Olhão aumenta os olhos. Cabeção aumenta a
+  cabeça com o cabelo, e corpo e fundo ficam: ele pede a separação da pessoa quando sai do zero, e sem ela a cabeça
+  cresce com o que está em volta, e o painel diz isso.
+- **Adesivos.** Uma grade com a arte de cada um. Um toque põe o adesivo no rosto escolhido, no lugar dele. Arrastar
+  move. Dois dedos, a alça do canto ou a rodinha do mouse giram e mudam o tamanho. O "x" na moldura tira. A moldura
+  só aparece na tela.
+- **Segue o rosto.** O adesivo guarda o lugar na foto como foi aberta, e as deformações, de brincadeira e de
+  verdade, levam ele para onde o rosto foi. Óculos num Cabeção crescem com a cabeça.
+- **Desfazer.** Cada gesto é uma etapa: soltar um controle, pôr, arrastar, girar ou tirar um adesivo. "Zerar
+  Brincar" tira tudo numa etapa, e "Voltar ao original" também tira o Brincar.
+
+### Como o campo se junta ao do retoque
+
+Um ponto da foto vai primeiro pelo campo do Brincar e dali pelo campo do retoque (`develop.frag`). A brincadeira
+dobra o rosto como o retoque deixou. Com o campo do Brincar vazio, nenhuma leitura muda, e o resultado do retoque
+sai igual, pixel por pixel, como o e2e confere. A parte que move uma cabeça sozinha leva a cabeça para um lado e
+corpo e fundo para o outro, como a do Tamanho da cabeça, com as mesmas placas e o mesmo preenchimento.
+
+### Como adicionar uma careta
+
+Um arquivo em `src/core/fun/effects/`, e uma linha em `src/core/fun/effects/index.ts`, que dá a ordem do menu. Nada
+mais muda: menu, campo, workers, desfazer, projeto salvo e exportação pegam sozinhos.
+
+```ts
+import { magnify } from '../kit';
+import type { FunEffect } from '../types';
+
+export const narigao: FunEffect = {
+  id: 'narigao', // vai para o projeto salvo: nunca muda
+  label: 'Narigão',
+  note: 'Um nariz de palhaço.',
+  pieces(read, strength) {
+    const tip = read.face.parts.marks?.noseTip;
+    if (!tip || strength <= 0) return [];
+    return [magnify(read.flat(tip), read.frame.halfWidth * 0.5, 0.5 * strength)];
+  },
+};
+```
+
+- `pieces(read, strength)` recebe um rosto e a força de 0 a 1, e devolve pedaços de deformação. Medidas em fração do
+  lado maior da foto. `read.face` tem os pontos do detector, `read.frame` o eixo, o comprimento e a largura do rosto,
+  e `read.flat` passa um ponto do detector para essas medidas.
+- Um pedaço diz, para cada ponto, de onde ler a foto: `add(x, y, out)` soma em `out`. `x`, `y` e `reach` dizem até
+  onde ele alcança. Deve chegar a zero sem degrau na borda e não dobrar: o ponto lido anda sempre para o mesmo lado
+  ao longo de uma linha. O teste `neverFolds` em `tests/unit/fun.test.ts` serve para conferir.
+- `alone(x, y)`, de 0 a 1, é a parte do pedaço que move a cabeça sozinha, sem o corpo. Com ela, marque
+  `layered: true`, e o menu pede a separação da pessoa. Veja `growHead` em `src/core/fun/kit.ts`.
+- `kit.ts` tem `magnify`, `growHead`, `eyesOf` e `middleOf`. Uma ajuda que só um efeito usa fica no arquivo dele,
+  para duas sessões não mexerem no mesmo arquivo.
+- Cada efeito tem o seu limite dentro de `pieces`. Nenhum passa pelos limites do Formato do rosto.
+
+### Como adicionar um adesivo
+
+Um arquivo em `src/core/fun/stickers/`, com arte feita no projeto, e uma linha em
+`src/core/fun/stickers/index.ts`, que dá a ordem da grade.
+
+```ts
+import type { StickerDef } from '../types';
+
+export const bigode: StickerDef = {
+  id: 'bigode', // vai para o projeto salvo: nunca muda
+  label: 'Bigode',
+  svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 60">…</svg>`,
+  aspect: 60 / 200,
+  anchor(read) {
+    const mouth = read.face.parts.outerLips;
+    if (!mouth.length) return null;
+    const [x, y] = read.flat(mouth[15]);
+    return { x, y: y - read.frame.length * 0.04, size: read.frame.halfWidth * 1.2, angle: 0 };
+  },
+};
+```
+
+- `svg` é um documento SVG inteiro, com `viewBox`, sem texto, fonte, imagem, script ou endereço de fora. Nunca arte
+  de terceiros. O teste do registro confere isso e que `aspect` é a altura sobre a largura do `viewBox`.
+- `anchor(read)` diz onde ele entra num rosto: o meio, a largura e o giro em radianos, nas medidas do rosto. Null
+  quando falta o que ele precisa, e ele vai para o meio do rosto.
+- A arte é desenhada na hora no tamanho que tem na tela ou no arquivo, em potências de 2 de 64 a 4096 pixels, então
+  fica nítida na exportação em resolução total.
 
 ## Layout
 

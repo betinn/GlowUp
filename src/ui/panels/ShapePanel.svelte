@@ -30,7 +30,7 @@
     if (!face) return;
     // A slider moved in a section that is off turns the section back on.
     if (off && section) e.setShapeSectionOff(section, false);
-    e.setShapeValue(placeOf(e, face), slider.id, value);
+    e.setShapeValue(placeOf(e, face), slider.id, value, true);
     bump();
   }
 

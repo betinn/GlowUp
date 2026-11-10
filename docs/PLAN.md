@@ -78,6 +78,7 @@
 
 - [x] Detector MediaPipe no próprio site, baixado só no primeiro pedido
 - [x] CSP com `'wasm-unsafe-eval'` e `application/wasm` nos exemplos de deploy
+- [x] Contador de uso do MediaPipe desligado: nem a tentativa de envio acontece
 - [x] Busca em tiles para rostos pequenos, com anéis e escolha por toque
 - [x] Máscara do rosto com borda suave, refino de contorno e desvanecer no pescoço
 - [x] Pincel, borracha e borda sobre a máscara, e pintura à mão quando não há rosto
@@ -88,6 +89,7 @@
 - [x] Clarear dividido em Dentes, em Make, e Branco do olho, em Olhos
 - [x] Marca do pincel como opção, com estado claro, e foto sempre com o resultado real
 - [x] Traço limitado à íris, ao branco do olho ou aos dentes, em todos os rostos achados
+- [x] Íris como forma fechada, com o reflexo da luz dentro, e o reflexo branco em cima da cor nova
 - [x] Pincel livre sem rosto, sem região, sem detector ou pelo interruptor
 - [x] Nada do rosto no projeto salvo
 
@@ -185,10 +187,32 @@
 - [x] Limites medidos nas seis fotos: mandíbula 9%, maxilar 10%, queixo e comprimento 6%, e o lado largo de um rosto virado contido
 - [x] Preenchimento a partir de fundo limpo: sombra de contato e pontas de barba saem com a pessoa, e a faixa nova encontra a foto sem degrau de tom
 - [x] Conferido nas seis fotos reais: mandíbula em -100, -50, +50 e +100 e queixo em -100, com linhas finas
+- [x] Arrastar um controle não trava, nem a 6x de lentidão: rascunho na hora, resultado completo igual ao de antes, fio de luz enquanto ele não chega
+- [x] O preenchimento em segundo plano cede a vez à página entre os passos pesados
+- [ ] Separar a pessoa do fundo fora da página: ao abrir o menu, o MediaPipe e a primeira placa ainda prendem a página por 0,2 a 0,5 s de cada vez, cerca de 2 s no total
+- [ ] Desfazer e refazer dos controles também pelos workers: hoje o campo é refeito na hora, 0,1 a 0,25 s num computador rápido
 - [ ] Placa na resolução da foto: hoje ela tem a da prévia, e numa foto de 12 MP o que aparece atrás sai mais suave
 - [ ] Retoques de pele chegarem à placa: o pescoço que aparece vem da foto sem Suavizar nem Tom de pele
 
-## M22. Aumentar resolução
+## M22. Brincar
+
+O que é de brincadeira, separado do retoque e dos filtros sérios. Três sessões: a base (S5), as caretas (S6) e os
+adesivos (S7), que trabalham em paralelo, cada efeito e cada adesivo no seu arquivo.
+
+- [x] S5: entrada Brincar na tela de escolha, ao lado de Filtros, com menu próprio
+- [x] S5: campo próprio, antes do campo do retoque, nos workers com rascunho, no desfazer e no projeto salvo
+- [x] S5: com o Brincar vazio, Formato do rosto e Liquify saem iguais, pixel por pixel (e2e)
+- [x] S5: registro de caretas, com Olhão e Cabeção, este com a separação da pessoa e o preenchimento
+- [x] S5: camada de adesivos na tela e na exportação em resolução total, presa ao rosto, com arrastar, dois dedos, alça e rodinha
+- [x] S5: Óculos redondos, desenhados no projeto
+- [x] S5: conferido nas seis fotos reais: cada careta, os óculos e tudo junto, na tela e na exportação
+- [ ] S6: mais caretas (boca pequena, nariz, queixo, olhos de inseto e outras), cada uma no seu arquivo
+- [ ] S7: catálogo de adesivos (óculos, chapéus, bigodes e outros), cada um no seu arquivo
+- [ ] Cabeção com uma mão na frente do rosto: a mão fica atrás da cabeça que cresce, porque a separação não diz o que está na frente
+- [ ] Adesivo preso a um rosto ainda não mostra de qual rosto é, numa foto de grupo; ele vai para o rosto escolhido no menu
+- [ ] Moldura do adesivo pelo teclado: hoje Delete tira, e mover ou girar pede mouse ou toque
+
+## M23. Aumentar resolução
 
 - [x] Real-ESRGAN x4plus convertido para ONNX por script, em float16, medido contra o float32 nas seis fotos reais
 - [x] Servido pelo site, baixado só no primeiro uso, fora do precache, com a licença registrada
@@ -289,6 +313,15 @@ gzip, e o detector continua fora do precache.
 | Contorno levado 40% rumo ao externo, os mesmos 45 | mais de 20% dos dentes de fora em 5 |
 | Bocas com abertura abaixo de 3%, 20 olhadas | nenhum dente à mostra |
 
+| Reflexo da luz dentro da máscara da íris, os 4 olhos nítidos com reflexo, de 2 fotos reais | de 42% para 97% |
+| Íris que a máscara deixava de fora, 6 olhos nítidos de 3 fotos reais | de 13% para 4% |
+| Buracos dentro da máscara, os mesmos 6 | de 2,2% da íris para zero |
+
+A íris foi medida contra um contorno feito à mão, certo a cerca de 1 px, que nesses olhos é 10% da área. Em
+mais 4 olhos pequenos ou borrados o contorno à mão é só uma ideia. Ficam de fora do alcance: olho atrás de
+óculos escuros, que recebe o círculo do modelo em cima da lente; cílios pretos por cima de uma íris castanha,
+que entram até a folga do contorno; e um reflexo largo e pouco claro num close, que pega um pouco da cor.
+
 A cobertura dos dentes usa uma estimativa por brilho e cor, não um contorno feito à mão. Rosto muito virado
 leva o contorno do olho mais distante para fora do lugar. Isto também é teste de fumaça, com poucas fotos e
 poucos tons de pele.
@@ -326,6 +359,27 @@ onde uma gola não deixa a pele acompanhar: é o degrau que sobra.
 | Retrato com parede clara, gola logo abaixo | 512 px | 15,1 px | 6,0 px | 9,7 px |
 | Selfie de óculos, corrente grossa | 476 px | 14,3 px | 7,1 px | 0 |
 | Retrato com fundo claro, blusa preta | 341 px | 10,7 px | 2,5 px | 0 |
+
+Arrastar um controle, no Chrome instalado, com o mouse de verdade a 60 movimentos por segundo durante 2,4 s, ida e
+volta. A lentidão de 4x e 6x é a do DevTools, no lugar de um celular fraco: ela vale para a página e não para os
+workers, e num celular os workers também andam devagar. "Até o controle" é do evento do mouse até o quadro seguinte
+da página, que é quando o controle se move. A tarefa mais longa é a maior da página durante o arrasto. Antes, nas
+duas fotos medidas na versão anterior. Depois, nas seis fotos reais, o pior caso entre elas.
+
+| Controle | Lentidão | Tarefa mais longa, antes | Até o controle, antes (mediana / pior) | Tarefa mais longa, depois | Até o controle, depois (mediana / pior) |
+| --- | --- | --- | --- | --- | --- |
+| Linha da mandíbula | 1x | 140 ms | 104 / 138 ms | 123 ms, uma só | 1 / 15 ms |
+| Linha da mandíbula | 4x | 858 ms | 508 / 853 ms | 105 ms, uma só | 2 / 23 ms |
+| Linha da mandíbula | 6x | 3.034 ms | 898 / 3.023 ms | 102 ms, uma só | 3 / 29 ms |
+| Queixo | 1x | 0 | 20 / 28 ms | 0 | 1 / 8 ms |
+| Queixo | 4x | 313 ms | 139 / 309 ms | 0 | 4 / 9 ms |
+| Queixo | 6x | 356 ms | 265 / 349 ms | 0 | 7 / 23 ms |
+
+Antes, quase todo movimento era uma tarefa longa: 141 a 148 por arrasto. Depois sobra uma, no primeiro arrasto de
+cada foto, que é o primeiro quadro com o campo na GPU, e o Queixo logo em seguida não tem nenhuma. O campo final,
+depois de soltar, foi comparado com o que a página faz sozinha em todas as fotos e em todas as lentidões: zero
+células diferentes. Com o preenchimento rodando e um controle arrastado sem parar, o preenchimento não passou de
+67 ms por tarefa, e o controle de 4 ms até o quadro.
 
 Download e tempo, medidos nesta máquina, com os arquivos `.br` do build:
 

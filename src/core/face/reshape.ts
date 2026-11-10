@@ -93,7 +93,7 @@ export const AT_LIMIT = {
 };
 
 /** What a warp of one part of a face adds to the offset at a point. Lengths are shares of the long side. */
-interface Piece {
+export interface Piece {
   x: number;
   y: number;
   reach: number;
@@ -350,7 +350,7 @@ function alongAxis(f: FaceFrame, half: number, wide: number, move: (t: number) =
  * shoulders, which stay. The neck is the one part of the body that goes along, where it meets the jaw, or the
  * two would come apart there.
  */
-const headAlone = (f: FaceFrame) => (x: number, y: number) => {
+export const headAlone = (f: FaceFrame) => (x: number, y: number) => {
   const rx = x - f.ox;
   const ry = y - f.oy;
   return 1 - neckFollow(f, rx * -f.dy + ry * f.dx, (rx * f.dx + ry * f.dy) / f.length);
@@ -839,8 +839,8 @@ function piecesOf(face: Face, values: ShapeValues, kx: number, ky: number): Piec
 /** Of the way to the edge of the photo, the share a point may read. Past the edge the photo has nothing to show. */
 const EDGE_ROOM = 0.6;
 
-/** A field from what the pieces of all faces add up to. */
-function fieldOf(pieces: readonly Piece[], kx: number, ky: number): ShapeField {
+/** A field from what the pieces of all faces add up to. Brincar adds its own pieces up the same way, in a field of its own. */
+export function fieldOf(pieces: readonly Piece[], kx: number, ky: number): ShapeField {
   const area = { u0: 1, v0: 1, u1: 0, v1: 0 };
   for (const p of pieces) {
     area.u0 = Math.min(area.u0, (p.x - p.reach) / kx);

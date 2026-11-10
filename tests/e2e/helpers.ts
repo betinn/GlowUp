@@ -25,6 +25,8 @@ export async function openEditor(page: Page, fixture = 'portrait.png'): Promise<
 
 export async function settle(page: Page, ms = 700): Promise<void> {
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  // A face slider works its finished field out away from the page: the photo shows it once the note is gone.
+  await expect(page.getByTestId('shape-pending')).toHaveCount(0, { timeout: 60_000 });
   await page.waitForTimeout(ms);
 }
 

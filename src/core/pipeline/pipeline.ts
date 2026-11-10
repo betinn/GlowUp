@@ -4,6 +4,7 @@ import { imageToOutput, outputSize } from '../geometry';
 import COLOR_GLSL from '../shaders/color.glsl?raw';
 import DEVELOP_FRAG from '../shaders/develop.frag?raw';
 import FINISH_FRAG from '../shaders/finish.frag?raw';
+import STICKER_FRAG from '../shaders/sticker.frag?raw';
 import { COPY_FRAG, REGION_FRAG } from '../shaders/small';
 import type { RenderContext } from './context';
 import type { Healer, MaskProvider, PassEnv, ToolPass } from './types';
@@ -72,10 +73,36 @@ export interface Layers {
   plateHead: Tex;
 }
 
+/** One sticker to draw on a context: its art, where it is, and the box it covers in pixels of the context. */
+export interface StickerDraw {
+  art: Tex;
+  /** The middle, in image UV. */
+  center: readonly [number, number];
+  /** Take an offset from the middle, in image UV, to the UV of the art. */
+  rowX: readonly [number, number];
+  rowY: readonly [number, number];
+  rect: Rect;
+}
+
+/**
+ * Brincar, as the develop stage reads it: a warp of its own, which goes before the realistic one, and the
+ * stickers, which go over the developed photo. Kept apart from `field`, so nothing playful ever reaches it.
+ */
+export interface FunLayer {
+  /** The whole playful warp in red and green, while it moves something, and the share of it that moves a head alone in blue and alpha. */
+  readonly tex: Tex | null;
+  /** There is a share that moves a head alone. */
+  readonly alone: boolean;
+  /** The stickers on a context, in the order they were put on. */
+  draws(ctx: RenderContext): StickerDraw[];
+}
+
 export class Pipeline {
   readonly tools = new Map<LayerId, ToolPass>();
   healer: Healer | null = null;
   field: FieldSource | null = null;
+  /** Brincar, once its menu or a project with it loaded. */
+  fun: FunLayer | null = null;
   /** Set while the photo has its mattes: warps then move each layer alone. */
   lock: Layers | null = null;
   lut: Tex3D;
@@ -208,7 +235,7 @@ export class Pipeline {
 
     if (dirty.global) {
       // A soft mask reaches past the brush, so a partial update would leave a seam.
-      if (doc.hasField || doc.blur.mode !== 'off' || this.filterArea(doc)?.lod) rect = null;
+      if (doc.hasField || doc.blur.mode !== 'off' || this.filterArea(doc)?.lod || (this.fun && (this.fun.tex || doc.fun?.stickers?.length))) rect = null;
       this.develop(ctx, doc, rect ? inflate(rect, 6, ctx) : null);
       dirty.global = false;
     }
@@ -240,7 +267,8 @@ export class Pipeline {
     const a = doc.adjust;
     const dev = ctx.slot('dev');
     const hasField = doc.hasField && !!this.field;
-    const lock = hasField ? this.lock : null;
+    const funTex = this.fun?.tex ?? null;
+    const lock = hasField || funTex ? this.lock : null;
     const area = this.filterArea(doc);
     glc.run(
       glc.program(shader(DEVELOP_FRAG)),
@@ -253,6 +281,9 @@ export class Pipeline {
         uRegion: ctx.regionUv,
         uTexel: [1 / ctx.w, 1 / ctx.h],
         uHasField: hasField,
+        uHasFun: !!funTex,
+        uFun: funTex ?? this.emptyField,
+        uFunAlone: !!funTex && !!this.fun?.alone,
         uLayered: !!lock,
         uPerson: lock?.person ?? this.emptyField,
         uHead: lock?.head ?? this.emptyField,
@@ -289,6 +320,7 @@ export class Pipeline {
       },
       rect,
     );
+    if (this.fun && doc.fun?.stickers?.length) this.drawStickers(ctx, dev);
 
     const b = doc.blur;
     const blurOn = b.mode !== 'off' && b.strength > 0;
@@ -318,6 +350,20 @@ export class Pipeline {
       },
       rect,
     );
+  }
+
+  /** Draws the stickers over the developed photo, each over its own box. */
+  private drawStickers(ctx: RenderContext, dev: Tex): void {
+    const draws = this.fun!.draws(ctx);
+    if (!draws.length) return;
+    const { glc } = this;
+    const below = ctx.slot('stick');
+    glc.copy(dev, below);
+    const program = glc.program(shader(STICKER_FRAG));
+    draws.forEach((d, i) => {
+      glc.run(program, dev, { uInput: below, uArt: d.art, uRegion: ctx.regionUv, uCenter: d.center, uRowX: d.rowX, uRowY: d.rowY }, d.rect);
+      if (i < draws.length - 1) glc.copy(dev, below, d.rect);
+    });
   }
 }
 

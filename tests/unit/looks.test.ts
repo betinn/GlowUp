@@ -16,14 +16,15 @@ const wearing = (index: number): EditDoc => {
 };
 
 describe('the paths', () => {
-  it('offers Glow na Hora, Do Meu Jeito and Filtros, each with its own id', () => {
-    expect(PATHS.map((p) => p.label)).toEqual(['Glow na Hora', 'Do Meu Jeito', 'Filtros']);
+  it('offers Glow na Hora, Do Meu Jeito, Filtros and Brincar, each with its own id', () => {
+    expect(PATHS.map((p) => p.label)).toEqual(['Glow na Hora', 'Do Meu Jeito', 'Filtros', 'Brincar']);
     expect(new Set(PATHS.map((p) => p.id)).size).toBe(PATHS.length);
   });
 
   it('only a path with its own menu leaves the tools out', () => {
     expect(pathById('glow')?.menu).toBeTypeOf('function');
     expect(pathById('manual')?.menu).toBeUndefined();
+    expect(pathById('fun')?.menu).toBeTypeOf('function');
     expect(pathById('other')).toBeUndefined();
     expect(pathById(null)).toBeUndefined();
   });

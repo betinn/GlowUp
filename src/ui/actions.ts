@@ -9,6 +9,7 @@ import { autoAction } from '../tools/auto';
 import { toolById, TOOLS, type ToolMeta } from '../tools/catalog';
 import { applyToolFills, clearWork, dropToolLimit, forgetFreedTools, hasWork, limitTool, prepareToolFills, refillRegion, resetLockState, toolLimit } from './facepick.svelte';
 import { dropShapeTool, forgetShapeFaces, openShapeTool, sectionHeld, setSectionOn } from './shapepick.svelte';
+import { forgetFunFaces } from './funpick.svelte';
 import { regionShow } from './regionshow.svelte';
 import { bump, engine, toast, ui } from './state.svelte';
 
@@ -36,6 +37,7 @@ export function resetToolMemory(): void {
   forgetFreedTools();
   resetLockState(engine());
   forgetShapeFaces();
+  forgetFunFaces();
 }
 
 export async function selectTool(id: string | null): Promise<void> {

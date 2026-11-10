@@ -38,6 +38,10 @@ export const ui = $state({
   /** Incremented whenever engine state changes, so derived values refresh. */
   rev: 0,
   busy: null as string | null,
+  /** The finished field of a face slider is on its way: the photo shows a rough one meanwhile. */
+  shaping: false,
+  /** The same, for an effect of Brincar. */
+  funShaping: false,
   toast: null as string | null,
   /** The path the person is on, from the list in `paths.ts`. Null until one is chosen. */
   path: null as string | null,
