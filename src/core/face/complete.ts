@@ -361,6 +361,9 @@ function ringsOf(hole: Uint8Array, reach: Float32Array, w: number, h: number): F
   return plans;
 }
 
+/** Gives the page a turn between two heavy steps, so a slider moved during the completion never waits long. */
+const breathe = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
 function coveredOf(plate: Uint8Array): Uint8Array {
   const covered = new Uint8Array(plate.length / 4);
   for (let i = 0; i < covered.length; i++) covered[i] = plate[i * 4 + 3] > 0 ? 1 : 0;
@@ -407,13 +410,16 @@ export async function completePlates(plates: PlateSet, inpaint: Inpaint, events:
   const solid = new Uint8Array(n);
   for (let i = 0; i < n; i++) solid[i] = personMatte[i] > SOLID ? 1 : 0;
   const toSolid = distanceTo(solid, sw, sh);
+  await breathe();
   const clear = clearOf(sw, sh);
   for (let i = 0; i < n; i++) {
     isBack[i] = !coveredBack[i] && toSolid[i] > clear ? 1 : 0;
     backIsHere[i] = personMatte[i] <= TRACE ? 1 : 0;
   }
   const toShown = distanceTo(isBack, sw, sh);
+  await breathe();
   const toBack = distanceTo(backIsHere, sw, sh);
+  await breathe();
   // Body is the person with no head on it. Where the head only fades out over the body, as its shadow on a
   // neck, that is still where the body is, though the model is not shown it: the shadow must not be carried on.
   // A few cells next to the background are left out, for what the edge of the matte may have missed.
@@ -424,9 +430,11 @@ export async function completePlates(plates: PlateSet, inpaint: Inpaint, events:
   // with no head on them, and carried on as if it were a neck it would paint a dark shape behind the head.
   const wide = Math.max(3, face * scale * BODY_WIDE);
   const depth = distanceTo(notBody, sw, sh);
+  await breathe();
   const core = new Uint8Array(n);
   for (let i = 0; i < n; i++) core[i] = !notBody[i] && depth[i] > wide ? 1 : 0;
   const toCore = distanceTo(core, sw, sh);
+  await breathe();
   for (let i = 0; i < n; i++) {
     bodyIsHere[i] = !notBody[i] && toCore[i] <= wide + 2 ? 1 : 0;
     isBody[i] = bodyIsHere[i] && !coveredHead[i] ? 1 : 0;
@@ -435,10 +443,13 @@ export async function completePlates(plates: PlateSet, inpaint: Inpaint, events:
   // cells. The line between neck and background under a head starts where the two meet: measured from the body
   // as it is shown, the background won a notch out of the side of every neck, as wide as the rim.
   const toShownBody = distanceTo(bodyIsHere, sw, sh);
+  await breathe();
   const bodyWhole = new Uint8Array(n);
   for (let i = 0; i < n; i++) bodyWhole[i] = personMatte[i] > SOLID && headMatte[i] <= SOLID && toShownBody[i] <= rim + 1 ? 1 : 0;
   const toBody = distanceTo(bodyWhole, sw, sh);
+  await breathe();
   const toSeen = distanceTo(isBody, sw, sh);
+  await breathe();
   const holeBack = new Uint8Array(n);
   const holeBody = new Uint8Array(n);
   for (let i = 0; i < n; i++) {
@@ -446,7 +457,9 @@ export async function completePlates(plates: PlateSet, inpaint: Inpaint, events:
     if (coveredHead[i] && toBody[i] <= band && toBody[i] <= toBack[i] + SEAM) holeBody[i] = 1;
   }
   const plansBack = ringsOf(holeBack, toShown, sw, sh);
+  await breathe();
   const plansBody = ringsOf(holeBody, toSeen, sw, sh);
+  await breathe();
   const total = [...plansBack, ...plansBody].reduce((sum, plan) => sum + plan.tiles.length, 0);
   let done = 0;
   // Before the first tile, so the wait can be told from the start.
@@ -455,8 +468,10 @@ export async function completePlates(plates: PlateSet, inpaint: Inpaint, events:
   const backBefore = back.slice();
   for (const plan of plansBack) if (!(await runFill(back, plan, sw, sh, inpaint, count))) return false;
   settle(back, backBefore, coveredBack, sw, sh);
+  await breathe();
   // The body alone, with the smooth guess of its own colors everywhere else, for the model to carry on from.
   const body = spreadKnown(head, isBody, sw, sh);
+  await breathe();
   for (const plan of plansBody) if (!(await runFill(body, plan, sw, sh, inpaint, count))) return false;
   const holeHead = new Uint8Array(n);
   for (let i = 0; i < n; i++) {
@@ -480,7 +495,9 @@ export async function completePlates(plates: PlateSet, inpaint: Inpaint, events:
     growFill(out, wide, w, h, work, sw, sh);
     events.plate(which, out);
   };
+  await breathe();
   finish('head', plates.head, head, holeHead);
+  await breathe();
   finish('back', plates.back, back, holeBack);
   return true;
 }

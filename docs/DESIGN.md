@@ -83,6 +83,8 @@ Quem espera precisa saber três coisas: que está andando, quanto falta e que a 
   reduzido, o selo aparece pronto, sem nada se mexer.
 - **Trabalhos curtos**, como remover uma mancha, não merecem tela: só um aviso pequeno, e só se
   passarem de 220 ms. Miniaturas de filtro respiram até ficarem prontas, depois revelam.
+- **Foto alcançando o controle.** Num controle que não pode esperar, a foto mostra um rascunho e o fio de luz
+  âmbar corre no alto dela até o resultado completo entrar. Nada bloqueia o toque.
 
 ## Soltar a foto
 
@@ -159,6 +161,11 @@ duas linhas, em 84 px no computador e em 44 px no celular.
   cabeça some. Se o modelo não baixou, há um botão para tentar de novo.
 - **Controles.** Cada um começa no zero e vai para os dois lados, menos a papada, que só diminui. Mexer é uma
   etapa do desfazer por gesto, e os números ficam no projeto. Um toque duplo volta ao zero.
+- **Arrastar.** O controle segue o dedo o tempo todo, mesmo num celular fraco. A foto mostra na hora um rascunho
+  do novo formato e, quando o dedo para, o resultado completo, que é o mesmo de sempre, sem perder qualidade.
+  Enquanto o completo não chegou, um fio de luz âmbar corre numa pílula pequena no alto da foto. Ele só aparece
+  se a espera passar de 140 ms, para não piscar num aparelho rápido, e some no instante em que o completo entra.
+  Exportar e salvar o projeto esperam o completo.
 - **Rosto.** Em três partes: Contorno (linha da mandíbula, forma do maxilar, queixo, maçãs e têmporas), Altura
   (testa e comprimento) e Cabeça (tamanho e papada). No fim, uma chave desenha em linhas finas o que foi detectado:
   o contorno do rosto, olhos, íris, sobrancelhas, lábios, o meio do rosto e a borda da cabeça, que é o que os

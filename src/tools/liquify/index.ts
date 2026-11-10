@@ -1,36 +1,15 @@
-import type { FieldController, ShapeSource } from '../../core/engine';
-import { reshapeField } from '../../core/face/reshape';
-import { shapeField, type ShapeField } from '../../core/face/shape';
+import type { FieldController } from '../../core/engine';
+import { fieldFrom, fillField, type FieldGrids } from '../../core/face/fieldwork';
 import type { GLContext, Tex } from '../../core/gl/context';
 import type { HistoryEntry } from '../../core/history/history';
 import { DisplacementGrid, strokeTo, type GridTile, type LiquifyMode } from './grid';
 
 const GRID_SIDE = 1024;
 
-/** A cell moved less than this, in UV, counts as still. */
-const STILL = 1e-6;
-
-/** What the automatic mode and the sliders ask for together. Each one is a function of the document alone. */
-function fieldFrom({ amount, shapes, off, faces, w, h }: ShapeSource): ShapeField | null {
-  const auto = amount === undefined ? null : shapeField(faces, w, h, amount / 100);
-  const sliders = shapes.length ? reshapeField(faces, shapes, off, w, h) : null;
-  if (!auto) return sliders;
-  if (!sliders) return auto;
-  return {
-    over: sliders.over,
-    alone: sliders.alone,
-    area: {
-      u0: Math.min(auto.area.u0, sliders.area.u0),
-      v0: Math.min(auto.area.v0, sliders.area.v0),
-      u1: Math.max(auto.area.u1, sliders.area.u1),
-      v1: Math.max(auto.area.v1, sliders.area.v1),
-    },
-    offset(u, v) {
-      const a = auto.offset(u, v);
-      const b = sliders.offset(u, v);
-      return [a[0] + b[0], a[1] + b[1]];
-    },
-  };
+/** The size of the grid of the field of a photo. */
+export function fieldGridSize(imageW: number, imageH: number): { w: number; h: number } {
+  const long = Math.max(imageW, imageH);
+  return { w: Math.max(2, Math.round((imageW / long) * GRID_SIDE)), h: Math.max(2, Math.round((imageH / long) * GRID_SIDE)) };
 }
 
 /**
@@ -46,14 +25,14 @@ function fieldFrom({ amount, shapes, off, faces, w, h }: ShapeSource): ShapeFiel
  * without, so lips slide over teeth.
  */
 export function createField(glc: GLContext, imageW: number, imageH: number): FieldController {
-  const long = Math.max(imageW, imageH);
-  const w = Math.max(2, Math.round((imageW / long) * GRID_SIDE));
-  const h = Math.max(2, Math.round((imageH / long) * GRID_SIDE));
+  const { w, h } = fieldGridSize(imageW, imageH);
   const grid = new DisplacementGrid(w, h);
   /** What the sliders and the automatic mode ask for, in the same terms. Null when nothing. */
   let shape: DisplacementGrid | null = null;
   /** Where it holds something. */
   let shapeArea = { x0: 0, y0: 0, x1: 0, y1: 0 };
+  /** The shape holds no move at all, counted from what came in. Null when it must be counted from the grid. */
+  let shapeStill: boolean | null = null;
   /** Both together, as the screen and the export read them. */
   const whole = new DisplacementGrid(w, h);
   const tex: Tex = glc.createTex(w, h, 'rg16f', { noTarget: true });
@@ -77,10 +56,21 @@ export function createField(glc: GLContext, imageW: number, imageH: number): Fie
   let last: [number, number] | null = null;
 
   /** Works out one area of `whole` and sends it to the GPU. */
-  const compose = (x0: number, y0: number, x1: number, y1: number) => {
+  const compose = (x0: number, y0: number, x1: number, y1: number, brushToo = true) => {
     const m = grid.data;
     const out = whole.data;
-    for (let y = y0; y < y1; y++) {
+    // With no stroke at all, every cell reads the shape as it is: rows are copied whole, the same numbers.
+    const bare = grid.isZero();
+    const copyRows = (from: Float32Array | null, to: Float32Array, a: { x0: number; y0: number; x1: number; y1: number }) => {
+      for (let y = a.y0; y < a.y1; y++) {
+        const i = (y * w + a.x0) * 2;
+        const j = (y * w + a.x1) * 2;
+        if (from) to.set(from.subarray(i, j), i);
+        else to.fill(0, i, j);
+      }
+    };
+    if (bare) copyRows(shape?.data ?? null, out, { x0, y0, x1, y1 });
+    for (let y = y0; y < (bare ? y0 : y1); y++) {
       for (let x = x0; x < x1; x++) {
         const i = (y * w + x) * 2;
         const du = m[i];
@@ -103,7 +93,8 @@ export function createField(glc: GLContext, imageW: number, imageH: number): Fie
     const rect = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
     if (rect.w <= 0 || rect.h <= 0) return;
     glc.upload(tex, rect, out.subarray((y0 * w + x0) * 2), w);
-    glc.upload(brushTex, rect, m.subarray((y0 * w + x0) * 2), w);
+    // The brush alone only changes with a stroke, so a new shape leaves its texture as it was.
+    if (brushToo) glc.upload(brushTex, rect, m.subarray((y0 * w + x0) * 2), w);
     for (const share of [lips, head]) {
       const { asked } = share;
       if (!asked) {
@@ -117,7 +108,8 @@ export function createField(glc: GLContext, imageW: number, imageH: number): Fie
       share.tex ??= glc.createTex(w, h, 'rg16f', { noTarget: true });
       const to = share.read.data;
       const a = fresh ? { x0: 0, y0: 0, x1: w, y1: h } : { x0, y0, x1, y1 };
-      for (let y = a.y0; y < a.y1; y++) {
+      if (bare) copyRows(asked.data, to, a);
+      for (let y = a.y0; y < (bare ? a.y0 : a.y1); y++) {
         for (let x = a.x0; x < a.x1; x++) {
           const i = (y * w + x) * 2;
           const du = m[i];
@@ -136,18 +128,105 @@ export function createField(glc: GLContext, imageW: number, imageH: number): Fie
     }
   };
 
-  /** Writes a field of the document into a grid, over `area`, and clears what it held in `before`. */
-  const fill = (data: Float32Array, before: typeof shapeArea, area: typeof shapeArea, offset: (u: number, v: number) => readonly [number, number]) => {
-    for (let y = before.y0; y < before.y1; y++) data.fill(0, (y * w + before.x0) * 2, (y * w + before.x1) * 2);
-    for (let y = area.y0; y < area.y1; y++) {
-      for (let x = area.x0; x < area.x1; x++) {
-        const [du, dv] = offset((x + 0.5) / w, (y + 0.5) / h);
-        if (!Number.isFinite(du) || !Number.isFinite(dv)) continue;
-        const i = (y * w + x) * 2;
-        data[i] = Math.abs(du) < STILL ? 0 : du;
-        data[i + 1] = Math.abs(dv) < STILL ? 0 : dv;
+  type Area = typeof shapeArea;
+  const none = (a: Area) => a.x1 <= a.x0 || a.y1 <= a.y0;
+  const union = (a: Area, b: Area): Area => (none(a) ? b : none(b) ? a : { x0: Math.min(a.x0, b.x0), y0: Math.min(a.y0, b.y0), x1: Math.max(a.x1, b.x1), y1: Math.max(a.y1, b.y1) });
+  /** Where the textures may show a rough field the grids do not hold. Composed again with the next field. */
+  let roughArea: Area = { x0: 0, y0: 0, x1: 0, y1: 0 };
+  /** Zeros to clear a texture with. Made the first time a rough field needs them. */
+  let zeros: Float32Array | null = null;
+
+  /** Writes the rows of a field over `area` into a grid, and clears what it held in `before`. */
+  const fill = (grid: DisplacementGrid, before: Area, area: Area, rows: Float32Array) => {
+    const { data } = grid;
+    grid.changed();
+    for (let y = before.y0; y < before.y1; y++) {
+      // Rows the field writes are only cleared where it does not write.
+      if (y >= area.y0 && y < area.y1 && !none(area)) {
+        if (before.x0 < area.x0) data.fill(0, (y * w + before.x0) * 2, (y * w + Math.min(before.x1, area.x0)) * 2);
+        if (before.x1 > area.x1) data.fill(0, (y * w + Math.max(before.x0, area.x1)) * 2, (y * w + before.x1) * 2);
+      } else {
+        data.fill(0, (y * w + before.x0) * 2, (y * w + before.x1) * 2);
       }
     }
+    const wide = (area.x1 - area.x0) * 2;
+    if (wide <= 0) return;
+    for (let y = area.y0; y < area.y1; y++) data.set(rows.subarray((y - area.y0) * wide, (y - area.y0 + 1) * wide), (y * w + area.x0) * 2);
+  };
+
+  /** Sends rows of a field straight to a texture over `area`, and zeros over the rest of `cover`. */
+  const sendRough = (t: Tex, cover: Area, area: Area, rows: Float32Array) => {
+    zeros ??= new Float32Array(w * h * 2);
+    const clear = (x0: number, y0: number, x1: number, y1: number) => {
+      if (x1 > x0 && y1 > y0) glc.upload(t, { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }, zeros!);
+    };
+    if (none(area)) {
+      clear(cover.x0, cover.y0, cover.x1, cover.y1);
+      return;
+    }
+    clear(cover.x0, cover.y0, cover.x1, area.y0);
+    clear(cover.x0, area.y1, cover.x1, cover.y1);
+    clear(cover.x0, area.y0, area.x0, area.y1);
+    clear(area.x1, area.y0, cover.x1, area.y1);
+    glc.upload(t, { x: area.x0, y: area.y0, w: area.x1 - area.x0, h: area.y1 - area.y0 }, rows, area.x1 - area.x0);
+  };
+
+  /**
+   * Shows a rough field while the finished one is on its way: with no stroke of the brush, its rows go straight
+   * to the textures, and the grids keep the last finished field. Otherwise it takes the place of the shape.
+   */
+  const showRough = (next: FieldGrids) => {
+    const fits = ([[lips, next.over], [head, next.alone]] as const).every(([share, of]) => !!of === !!share.tex && !!of === !!share.asked);
+    if (!grid.isZero() || !fits) {
+      setGrids(next);
+      return;
+    }
+    const cover = union(union(roughArea, shapeArea), next.area);
+    sendRough(tex, cover, next.area, next.whole);
+    if (next.over) sendRough(lips.tex!, cover, next.area, next.over);
+    if (next.alone) sendRough(head.tex!, cover, next.area, next.alone);
+    roughArea = cover;
+  };
+
+  /** Puts the grids of a field in place of the shape, and sends what changed to the GPU. */
+  const setGrids = (next: FieldGrids | null) => {
+    if (!next) {
+      if (!shape) return;
+      shape = null;
+      shapeStill = null;
+      lips.asked = null;
+      head.asked = null;
+      const a = union(shapeArea, roughArea);
+      roughArea = { x0: 0, y0: 0, x1: 0, y1: 0 };
+      compose(a.x0, a.y0, a.x1, a.y1, false);
+      shapeArea = { x0: 0, y0: 0, x1: 0, y1: 0 };
+      return;
+    }
+    shape ??= new DisplacementGrid(w, h);
+    const before = shapeArea;
+    shapeArea = { ...next.area };
+    shapeStill = true;
+    for (let i = 0; i < next.whole.length; i++) {
+      if (Math.abs(next.whole[i]) > 1e-6) {
+        shapeStill = false;
+        break;
+      }
+    }
+    fill(shape, before, shapeArea, next.whole);
+    for (const [share, of] of [[lips, next.over], [head, next.alone]] as const) {
+      if (of) {
+        share.asked ??= new DisplacementGrid(w, h);
+        fill(share.asked, before, shapeArea, of);
+      } else {
+        share.asked = null;
+      }
+    }
+    const has = before.x1 > before.x0 && before.y1 > before.y0;
+    const a = has ? before : shapeArea;
+    // What a rough field left on the textures is composed again too.
+    const all = union({ x0: Math.min(a.x0, shapeArea.x0), y0: Math.min(a.y0, shapeArea.y0), x1: Math.max(a.x1, shapeArea.x1), y1: Math.max(a.y1, shapeArea.y1) }, roughArea);
+    roughArea = { x0: 0, y0: 0, x1: 0, y1: 0 };
+    compose(all.x0, all.y0, all.x1, all.y1, false);
   };
 
   const flush = () => {
@@ -211,46 +290,25 @@ export function createField(glc: GLContext, imageW: number, imageH: number): Fie
       return step(label);
     },
 
-    isEmpty: () => grid.isEmpty() && (!shape || shape.isEmpty()),
+    isEmpty: () => grid.isEmpty() && (!shape || (shapeStill ?? shape.isEmpty())),
     brushEmpty: () => grid.isEmpty(),
     serialize: () => grid.data,
 
     restore(data) {
       grid.data.set(data);
+      grid.changed();
       compose(0, 0, w, h);
     },
 
     setShape(source) {
       const next = source ? fieldFrom(source) : null;
-      if (!next) {
-        if (!shape) return;
-        shape = null;
-        lips.asked = null;
-        head.asked = null;
-        compose(shapeArea.x0, shapeArea.y0, shapeArea.x1, shapeArea.y1);
-        shapeArea = { x0: 0, y0: 0, x1: 0, y1: 0 };
-        return;
-      }
-      shape ??= new DisplacementGrid(w, h);
-      const before = shapeArea;
-      const x0 = Math.max(0, Math.floor(next.area.u0 * w));
-      const y0 = Math.max(0, Math.floor(next.area.v0 * h));
-      const x1 = Math.min(w, Math.ceil(next.area.u1 * w));
-      const y1 = Math.min(h, Math.ceil(next.area.v1 * h));
-      shapeArea = { x0, y0, x1: Math.max(x0, x1), y1: Math.max(y0, y1) };
-      fill(shape.data, before, shapeArea, (u, v) => next.offset(u, v));
-      for (const [share, of] of [[lips, next.over], [head, next.alone]] as const) {
-        if (of) {
-          share.asked ??= new DisplacementGrid(w, h);
-          fill(share.asked.data, before, shapeArea, (u, v) => of(u, v));
-        } else {
-          share.asked = null;
-        }
-      }
-      const has = before.x1 > before.x0 && before.y1 > before.y0;
-      const a = has ? before : shapeArea;
-      compose(Math.min(a.x0, shapeArea.x0), Math.min(a.y0, shapeArea.y0), Math.max(a.x1, shapeArea.x1), Math.max(a.y1, shapeArea.y1));
+      setGrids(next ? fillField(next, w, h) : null);
     },
+
+    setShapeGrids: setGrids,
+    showRoughGrids: showRough,
+
+    gridSize: { w, h },
 
     shapeData() {
       if (!shape) return null;
@@ -275,6 +333,8 @@ export function createField(glc: GLContext, imageW: number, imageH: number): Fie
         const size = w * h * 2;
         shape ??= new DisplacementGrid(w, h);
         shape.data.set(data.subarray(0, size));
+        shape.changed();
+        shapeStill = null;
         for (const [share, at] of [[lips, size], [head, size * 2]] as const) {
           const part = data.length >= at + size ? data.subarray(at, at + size) : null;
           if (part?.some((v) => v !== 0)) {
