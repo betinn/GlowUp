@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
+import { readFileSync } from 'node:fs';
 import { DEV_ORIGIN } from '../../playwright.config';
-import { expectNoErrors, imageRect, meanDiff, settle, skipIntro } from './helpers';
+import { expectNoErrors, imageRect, meanDiff, pickTool, settle, skipIntro } from './helpers';
 
 /** The dev server serves each module by address, so a test can read the document and the pixels. */
 test.use({ baseURL: DEV_ORIGIN });
@@ -218,6 +219,131 @@ test.describe('os adesivos do Brincar', () => {
       expect(s.y).toBeLessThan(box.y + box.h * 0.3);
       expect(s.y).toBeGreaterThan(box.y - box.h * 1.2);
     }
+    expectNoErrors(errors);
+  });
+
+  test('vários adesivos, em ordem, passam pela exportação aumentada e pela ferramenta Aumentar resolução', async ({ page }) => {
+    // The model runs on the processor here, so the photo is cropped to a small square and the stickers are made
+    // small enough to fit in it, one over the other.
+    test.setTimeout(600_000);
+    const errors = watch(page);
+    await page.addInitScript(() => {
+      localStorage.setItem('glowup.upscaleTile', '64');
+      localStorage.setItem('glowup.upscaleGpu', 'off');
+    });
+    await openBrincar(page);
+    const SIDE = 96;
+    const rendered = () =>
+      inPage<number[]>(
+        page,
+        `const { renderImage } = await import(/* @vite-ignore */ '/src/core/export.ts');
+        const canvas = await renderImage(e, { tile() {} });
+        return Array.from(canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data);`,
+      );
+    /** A PNG 4 times bigger, back to the size it had by the mean of each block of 4 by 4. */
+    const shrunk = (png: Buffer) =>
+      page.evaluate(async (b64) => {
+        const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+        const bitmap = await createImageBitmap(new Blob([bytes], { type: 'image/png' }));
+        const c = new OffscreenCanvas(bitmap.width, bitmap.height).getContext('2d')!;
+        c.drawImage(bitmap, 0, 0);
+        const big = c.getImageData(0, 0, bitmap.width, bitmap.height).data;
+        const w = bitmap.width / 4;
+        const out = new Array<number>(w * (bitmap.height / 4) * 4).fill(0);
+        for (let y = 0; y < bitmap.height; y++) {
+          for (let x = 0; x < bitmap.width; x++) {
+            const o = ((y >> 2) * w + (x >> 2)) * 4;
+            const i = (y * bitmap.width + x) * 4;
+            for (let k = 0; k < 4; k++) out[o + k] += big[i + k] / 16;
+          }
+        }
+        return { w: bitmap.width, h: bitmap.height, px: out };
+      }, png.toString('base64'));
+    /** Mean difference in levels, over the color channels of the pixels kept by `only`. */
+    const differ = (a: number[], b: number[], only?: boolean[]) => {
+      let sum = 0;
+      let n = 0;
+      for (let p = 0; p < a.length / 4; p++) {
+        if (only && !only[p]) continue;
+        for (let k = 0; k < 3; k++) sum += Math.abs(a[p * 4 + k] - b[p * 4 + k]);
+        n += 3;
+      }
+      return sum / n;
+    };
+
+    // A small square around the eyes, found by putting a pair of glasses on once.
+    await put(page, 'oculos', 'oculos-escuros');
+    const middle = await inPage<[number, number]>(
+      page,
+      `const s = e.doc.fun.stickers[0];
+      const { width: w, height: h } = e.doc;
+      e.removeSticker(s.id);
+      e.setCrop({ angle: 0, quarter: 0, flipH: false, flipV: false, cx: s.x * w - w / 2, cy: s.y * h - h / 2, cw: ${SIDE}, ch: ${SIDE} });
+      return [s.x, s.y];`,
+    );
+    await settle(page, 600);
+    const plain = await rendered();
+    expect(plain).toHaveLength(SIDE * SIDE * 4);
+
+    // Four stickers of four tabs, piled in the square: hearts under, then a crown, glasses and a nose on top.
+    for (const [group, kind] of [['volta', 'coracoes'], ['cabeca', 'coroa'], ['oculos', 'oculos-escuros'], ['rosto', 'nariz-palhaco']]) await put(page, group, kind);
+    await inPage(
+      page,
+      `const [mx, my] = ${JSON.stringify(middle)};
+      const { width: w, height: h } = e.doc;
+      const long = Math.max(w, h);
+      const spots = [[0, 0, 90], [0, -22, 60], [0, 4, 70], [8, 14, 34]];
+      e.doc.fun.stickers.forEach((s, i) => {
+        const [dx, dy, px] = spots[i];
+        e.changeSticker(s.id, { x: mx + dx / w, y: my + dy / h, size: px / long, angle: 0.15 });
+      });
+      e.commit();`,
+    );
+    await settle(page, 800);
+    expect(await kinds(page)).toEqual(['coracoes', 'coroa', 'oculos-escuros', 'nariz-palhaco']);
+    const fun = await rendered();
+    const changed: boolean[] = [];
+    for (let p = 0; p < plain.length / 4; p++) {
+      let d = 0;
+      for (let k = 0; k < 3; k++) d += Math.abs(plain[p * 4 + k] - fun[p * 4 + k]);
+      changed.push(d > 60);
+    }
+    expect(changed.filter(Boolean).length / changed.length).toBeGreaterThan(0.3);
+
+    // The export with the option on: 4 times the square, with the stickers in it, in their order.
+    await page.getByTestId('export-open').click();
+    await page.getByRole('radio', { name: 'PNG' }).click();
+    await page.getByTestId('export-upscale-switch').click();
+    await expect(page.getByTestId('export-size')).toHaveText(`${SIDE * 4} × ${SIDE * 4} px, aumentada 4×`);
+    const [download] = await Promise.all([page.waitForEvent('download', { timeout: 300_000 }), page.getByTestId('export-go').click()]);
+    const fromExport = await shrunk(readFileSync((await download.path())!));
+    expect([fromExport.w, fromExport.h]).toEqual([SIDE * 4, SIDE * 4]);
+    expect(differ(fromExport.px, fun)).toBeLessThan(6);
+    expect(differ(fromExport.px, fun, changed) * 3).toBeLessThan(differ(fromExport.px, plain, changed));
+    await page.getByRole('button', { name: 'Fechar' }).click();
+
+    // The tool: the bigger photo opens as a new one, with the stickers in its pixels and none left to draw again.
+    await page.getByTestId('path-switch').click();
+    await page.getByTestId('path-choice').locator('[data-path=manual]').click();
+    await pickTool(page, 'frame', 'upscale');
+    await page.getByTestId('upscale-go').click();
+    await expect(page.getByTestId('opening')).toHaveCount(1, { timeout: 300_000 });
+    await expect(page.getByTestId('opening')).toHaveCount(0, { timeout: 60_000 });
+    await settle(page);
+    const grown = await inPage<{ w: number; h: number; stickers: number }>(page, 'return { w: e.doc.width, h: e.doc.height, stickers: e.doc.fun?.stickers?.length ?? 0 };');
+    expect(grown).toEqual({ w: SIDE * 4, h: SIDE * 4, stickers: 0 });
+    const png = await inPage<string>(
+      page,
+      `const { exportImage } = await import(/* @vite-ignore */ '/src/core/export.ts');
+      const blob = await exportImage(e, { format: 'image/png', quality: 1 }, { tile() {}, encoding() {} });
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      let s = '';
+      for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+      return btoa(s);`,
+    );
+    const fromTool = await shrunk(Buffer.from(png, 'base64'));
+    expect(differ(fromTool.px, fun)).toBeLessThan(6);
+    expect(differ(fromTool.px, fun, changed) * 3).toBeLessThan(differ(fromTool.px, plain, changed));
     expectNoErrors(errors);
   });
 });

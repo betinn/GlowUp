@@ -212,6 +212,7 @@ adesivos (S7), que trabalham em paralelo, cada efeito e cada adesivo no seu arqu
 - [x] S7: vários adesivos na foto, fila "Na foto" no menu para escolher cada um, o último por cima e "Trazer para frente"
 - [x] S7: miniaturas da grade feitas do próprio SVG
 - [x] S7: conferido nas seis fotos reais: cada adesivo, com cabeça inclinada, barba e óculos de verdade, com Cabeção e Olhão, na exportação em resolução total
+- [x] S7: adesivos conferidos no Aumentar resolução, na ferramenta e na exportação, em 4× nas seis fotos reais e no e2e
 - [ ] Topo da cabeça estimado pelo rosto: com muito cabelo para cima, coroa e chapéus ficam um pouco dentro do cabelo; arrastar resolve
 - [ ] Cabeção com uma mão na frente do rosto: a mão fica atrás da cabeça que cresce, porque a separação não diz o que está na frente
 - [ ] Adesivo preso a um rosto ainda não mostra de qual rosto é, numa foto de grupo; ele vai para o rosto escolhido no menu. Nenhuma das seis fotos reais tem mais de um rosto: o grupo foi conferido só na foto gerada do e2e
