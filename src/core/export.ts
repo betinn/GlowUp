@@ -20,9 +20,12 @@ export interface ExportOptions {
   quality: number;
 }
 
-export interface ExportEvents {
+export interface RenderEvents {
   /** A tile is finished. `canvas` holds the photo so far, and `rect` is the part that just arrived. */
   tile(done: number, total: number, canvas: OffscreenCanvas, rect: Rect): void;
+}
+
+export interface ExportEvents extends RenderEvents {
   /** All tiles are done and the file is being compressed. */
   encoding(): void;
 }
@@ -36,11 +39,17 @@ function tileSide(): number {
   return matchMedia('(pointer: coarse)').matches ? 1280 : 2048;
 }
 
-export async function exportImage(
-  engine: Engine,
-  options: ExportOptions,
-  events: ExportEvents,
-): Promise<Blob> {
+export async function exportImage(engine: Engine, options: ExportOptions, events: ExportEvents): Promise<Blob> {
+  const canvas = await renderImage(engine, events);
+  events.encoding();
+  await nextPaint();
+  return encodeImage(canvas, options);
+}
+
+export const encodeImage = (canvas: OffscreenCanvas, options: ExportOptions) => canvas.convertToBlob({ type: options.format, quality: options.quality });
+
+/** The photo with every retouch, at full resolution, as the file will hold it. */
+export async function renderImage(engine: Engine, events: RenderEvents): Promise<OffscreenCanvas> {
   if (!engine.source || !engine.pipeline) throw new Error('no-image');
   engine.commit();
   // A face slider just let go may still have its finished field on the way: the file waits for it.
@@ -119,10 +128,7 @@ export async function exportImage(
     engine.ctx?.invalidate('prefix');
     engine.requestRender();
   }
-
-  events.encoding();
-  await nextPaint();
-  return canvas.convertToBlob({ type: options.format, quality: options.quality });
+  return canvas;
 }
 
 /** True when this browser can really encode the format. */

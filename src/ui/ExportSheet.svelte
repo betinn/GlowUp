@@ -1,12 +1,18 @@
 <script lang="ts">
   import { onDestroy, onMount, tick } from 'svelte';
-  import { canEncode, exportImage, type ExportFormat } from '../core/export';
+  import { canEncode, encodeImage, renderImage, type ExportFormat } from '../core/export';
+  import { nextPaint, timeLeft } from '../core/progress';
+  import { capFor, capNote, pickScale, scalesFor, type Scale } from '../core/superres/size';
+  import { onPhone } from './device';
   import { fillSettled } from './fill.svelte';
   import { outputSize } from '../core/geometry';
   import Icon from './Icon.svelte';
   import ProgressCard from './ProgressCard.svelte';
   import Segment from './Segment.svelte';
   import Slider from './Slider.svelte';
+  import Switch from './Switch.svelte';
+  import { cancelUpscale, expectedMs, UPSCALE_DOWNLOAD_MB, upscaleCanvas, upscaleReady } from './upscale';
+  import { grow as toolGrow } from './upscaletool.svelte';
   import { reveal, rise } from './motion';
   import { engine, ui } from './state.svelte';
   import { Task } from './task.svelte';
@@ -19,6 +25,20 @@
     { value: 'image/png', label: 'PNG', ext: 'png' },
     { value: 'image/webp', label: 'WebP', ext: 'webp' },
   ];
+
+  /** The upscale is an option of the file, off unless asked for, within the cap of this device. */
+  const cap = capFor(onPhone());
+  const scales = scalesFor(size.w, size.h, cap);
+  const capWords = capNote(size.w, size.h, cap);
+  let grow = $state(false);
+  let scale = $state<Scale>(pickScale(size.w, size.h, cap) ?? 2);
+  /** The file will be upscaled: asked for, within the cap, and the model not busy with the tool. */
+  const enlarge = $derived(grow && scales.length > 0 && toolGrow.state !== 'running');
+  const outW = $derived(enlarge ? size.w * scale : size.w);
+  const outH = $derived(enlarge ? size.h * scale : size.h);
+  /** The upscale is running, and can be stopped. */
+  let growing = $state(false);
+  let stoppedNote = $state(false);
 
   let format = $state<ExportFormat>('image/jpeg');
   let quality = $state(92);
@@ -81,12 +101,21 @@
 
   async function start() {
     const { label, ext } = FORMATS.find((f) => f.value === format)!;
-    const megapixels = (size.w * size.h) / 1e6;
+    const megapixels = (outW * outH) / 1e6;
+    const upscaling = enlarge;
     const task = new Task([
-      { id: 'tiles', label: 'Aplicando seus retoques', weight: 78 },
-      { id: 'encode', label: `Comprimindo em ${label}`, weight: 22, estimate: 150 + megapixels * (format === 'image/png' ? 160 : 50) },
+      { id: 'tiles', label: 'Aplicando seus retoques', weight: upscaling ? 6 : 78 },
+      ...(upscaling && !upscaleReady()
+        ? [
+            { id: 'download', label: 'Baixando o modelo de resolução', weight: 20 },
+            { id: 'start', label: 'Ligando o modelo', weight: 4, estimate: 3000 },
+          ]
+        : []),
+      ...(upscaling ? [{ id: 'upscale', label: `Aumentando ${scale}×`, weight: 60 }] : []),
+      { id: 'encode', label: `Comprimindo em ${label}`, weight: upscaling ? 10 : 22, estimate: 150 + megapixels * (format === 'image/png' ? 160 : 50) },
     ]);
     failed = false;
+    stoppedNote = false;
     done = null;
     job = task;
     task.stage('tiles');
@@ -97,17 +126,37 @@
       // A completion still running would leave its quick guess in the file.
       await fillSettled();
       const started = performance.now();
-      const blob = await exportImage(
-        e,
-        { format, quality: quality / 100 },
-        {
-          tile(n, total, canvas, r) {
-            task.report(n / total, total > 1 ? `parte ${n} de ${total}` : '');
-            c?.drawImage(canvas, r.x, r.y, r.w, r.h, r.x * previewScale, r.y * previewScale, r.w * previewScale, r.h * previewScale);
-          },
-          encoding: () => task.stage('encode'),
+      let canvas: OffscreenCanvas | null = await renderImage(e, {
+        tile(n, total, canvas, r) {
+          task.report(n / total, total > 1 ? `parte ${n} de ${total}` : '');
+          c?.drawImage(canvas, r.x, r.y, r.w, r.h, r.x * previewScale, r.y * previewScale, r.w * previewScale, r.h * previewScale);
         },
-      );
+      });
+      if (upscaling) {
+        growing = true;
+        canvas = await upscaleCanvas(canvas, scale, {
+          downloading: (fraction, left) => {
+            task.stage('download');
+            task.report(fraction, left);
+          },
+          starting: (left) => task.stage('start', left),
+          running: (fraction, left) => {
+            task.stage('upscale');
+            task.report(fraction, left);
+          },
+        });
+        growing = false;
+        if (!canvas) {
+          // Stopped: nothing is saved, and the options come back as they were.
+          task.stop();
+          job = null;
+          stoppedNote = true;
+          return;
+        }
+      }
+      task.stage('encode');
+      await nextPaint();
+      const blob = await encodeImage(canvas, { format, quality: quality / 100 });
       const file = new File([blob], `glowup-${Date.now().toString(36)}.${ext}`, { type: format });
       task.finish('Pronta');
       done = { file, ms: performance.now() - started };
@@ -117,10 +166,15 @@
       task.stop();
       failed = true;
       job = null;
+    } finally {
+      growing = false;
     }
   }
 
-  onDestroy(() => job?.stop());
+  onDestroy(() => {
+    job?.stop();
+    if (growing) cancelUpscale();
+  });
 
   const close = () => {
     if (!running) ui.exportOpen = false;
@@ -157,12 +211,19 @@
   {/if}
 
   {#if job && !done}
-    <ProgressCard task={job} title="Exportando a foto" note="{size.w} × {size.h} px, resolução total. Pode deixar a aba aberta." />
+    <ProgressCard
+      task={job}
+      title="Exportando a foto"
+      note="{outW} × {outH} px{enlarge ? `, aumentada ${scale}× aqui no aparelho` : ', resolução total'}. Pode deixar a aba aberta."
+    />
+    {#if growing}
+      <button type="button" class="btn wide stop" data-testid="export-upscale-cancel" onclick={cancelUpscale}>Cancelar</button>
+    {/if}
   {:else if done}
     <div class="done" in:reveal>
       <p class="serif big">Prontinho. Tá na sua pasta.</p>
       <p class="meta">
-        {size.w} × {size.h} px, {sizeLabel(done.file.size)}, em {(done.ms / 1000).toFixed(1)} s
+        {outW} × {outH} px, {sizeLabel(done.file.size)}, em {(done.ms / 1000).toFixed(1)} s
       </p>
       <div class="actions">
         {#if canShare}
@@ -177,7 +238,28 @@
     {#if format !== 'image/png'}
       <Slider label="Qualidade" value={quality} min={40} max={100} oninput={(v) => (quality = v)} />
     {/if}
-    <p class="meta">{size.w} × {size.h} px, resolução total</p>
+    <div class="grow" data-testid="export-upscale" data-on={grow ? 'yes' : 'no'}>
+      {#if toolGrow.state === 'running'}
+        <p class="meta" data-testid="export-upscale-note">A ferramenta Aumentar resolução está trabalhando. Quando ela acabar, dá para aumentar aqui também.</p>
+      {:else if scales.length}
+        <Switch label="Aumentar resolução" checked={grow} testid="export-upscale-switch" onchange={(on) => (grow = on)} />
+        {#if grow}
+          {#if scales.length > 1}
+            <Segment label="Quanto" value={String(scale)} options={scales.map((s) => ({ value: String(s), label: `${s}×` }))} onchange={(v) => (scale = Number(v) as Scale)} />
+          {/if}
+          <p class="meta" data-testid="export-upscale-note">
+            Um modelo refaz os detalhes aqui no aparelho{upscaleReady() ? '' : `, baixado uma vez${onPhone() ? `, cerca de ${UPSCALE_DOWNLOAD_MB} MB: melhor no Wi-Fi` : ''}`}. Deve levar {timeLeft(expectedMs(size.w * size.h))}.
+            {capWords}
+          </p>
+        {/if}
+      {:else}
+        <p class="meta" data-testid="export-upscale-note">{capWords}</p>
+      {/if}
+    </div>
+    <p class="meta" data-testid="export-size">{outW} × {outH} px{enlarge ? `, aumentada ${scale}×` : ', resolução total'}</p>
+    {#if stoppedNote}
+      <p class="meta" role="status">Parou. Nada foi salvo.</p>
+    {/if}
     {#if failed}
       <p class="meta error" role="alert">Não deu certo dessa vez. Tenta de novo, ou tenta PNG ou JPG.</p>
     {/if}
@@ -240,6 +322,20 @@
   .wide {
     width: 100%;
     min-height: 50px;
+  }
+
+  .stop {
+    margin-top: 12px;
+  }
+
+  .grow {
+    display: grid;
+    gap: 4px;
+    margin-top: 8px;
+  }
+
+  .grow .meta {
+    margin: 0 0 4px;
   }
 
   .print {

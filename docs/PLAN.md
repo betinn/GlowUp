@@ -223,6 +223,20 @@ adesivos (S7), que trabalham em paralelo, cada efeito e cada adesivo no seu arqu
 - [ ] Adesivo preso a um rosto ainda não mostra de qual rosto é, numa foto de grupo; ele vai para o rosto escolhido no menu
 - [ ] Moldura do adesivo pelo teclado: hoje Delete tira, e mover ou girar pede mouse ou toque
 
+## M23. Aumentar resolução
+
+- [x] Real-ESRGAN x4plus convertido para ONNX por script, em float16, medido contra o float32 nas seis fotos reais
+- [x] Servido pelo site, baixado só no primeiro uso, fora do precache, com a licença registrada
+- [x] Worker com WebGPU e, sem ele, o processador; tiles com emenda suave e memória por fileira de tiles
+- [x] Ferramenta em Quadro: aumenta a foto com os retoques e abre a foto maior como foto nova
+- [x] Chave na exportação, desligada por padrão, que aumenta só o arquivo
+- [x] Limite de 20 MP, 8 MP no celular, e o painel diz em palavras o que cabe e por quê
+- [x] Progresso com tempo que falta e cancelar, no download e no processamento; tamanho do download só no celular
+- [x] Conferido nas seis fotos reais: sem emenda nos cruzamentos de tiles, borda, fio e cílio mais nítidos que o bicúbico
+- [x] Com o Brincar: caretas e adesivos entram na foto maior, na ferramenta e na exportação, conferido nas seis fotos reais e no e2e
+- [ ] Sem WebGPU leva cerca de 40 min por megapixel: threads pediriam isolamento de origem no servidor
+- [ ] A pele sai mais lisa que a da foto: o modelo tira o bloco do JPEG e junto um pouco do poro
+
 ## Metas medidas
 
 Foto gerada de 12 MP (4000 x 3000), Chromium com aceleração, em uma placa dedicada (`node scripts/perf.mjs`):
@@ -240,6 +254,21 @@ Foto gerada de 12 MP (4000 x 3000), Chromium com aceleração, em uma placa dedi
 A primeira abertura é mais lenta porque compila os shaders. Pincel oscilou entre 57 e 60 fps entre medições.
 
 Notebook comum e celular médio não foram medidos: não havia esses aparelhos no ambiente de desenvolvimento.
+
+### Aumentar resolução
+
+Seis fotos reais de 0,2 a 1,2 MP, aumentadas 4×, no Chrome com RTX 3070 Ti. Tempo do toque à foto nova aberta, com o
+modelo já ligado; ligar leva de 2 a 3,5 s na primeira vez depois que a página abre.
+
+| Caso | Medido |
+| --- | --- |
+| WebGPU, por megapixel de foto | 10 a 12 s |
+| WebGPU, 0,2 MP (399 × 501 para 1596 × 2004) | 4,8 s na ferramenta, 5,4 s na exportação |
+| WebGPU, 1,2 MP (774 × 1600 para 3096 × 6400) | 16,8 s na ferramenta, 16 s na exportação |
+| WebGPU com o processador da página 4 vezes mais lento | 14 a 15 s por megapixel |
+| 2× no lugar de 4× | o mesmo tempo: o modelo sempre faz 4× |
+| Sem WebGPU, no processador, num fio só | cerca de 40 min por megapixel; 8,4 min para 0,2 MP |
+| Maior intervalo entre quadros durante o aumento | 10 ms, 50 ms com o processador 4 vezes mais lento |
 
 ### Detector de rostos
 
