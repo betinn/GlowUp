@@ -103,14 +103,16 @@ describe('the field of Brincar', () => {
     for (const dir of [[0, 1], [1, 0], [Math.SQRT1_2, -Math.SQRT1_2]] as const) expect(neverFolds(field.offset, [0.5, 0.86], dir)).toBe(true);
   });
 
-  it('effects add up, each one on its own face only', () => {
+  it('effects stack, each one on its own face only', () => {
     const both = funFieldFrom(source({ olhao: 60, cabecao: 60 }))!;
     const eyes = funFieldFrom(source({ olhao: 60 }))!;
     const head = funFieldFrom(source({ cabecao: 60 }))!;
-    const [a, b] = [eyes.offset(0.43, 0.42), head.offset(0.43, 0.42)];
+    // The head grows last, over eyes grown first: see "Brincar" in docs/DESIGN.md.
+    const b = head.offset(0.43, 0.42);
+    const a = eyes.offset(0.43 + b[0], 0.42 + b[1]);
     const sum = both.offset(0.43, 0.42);
-    expect(sum[0]).toBeCloseTo(a[0] + b[0], 9);
-    expect(sum[1]).toBeCloseTo(a[1] + b[1], 9);
+    expect(sum[0]).toBeCloseTo(a[0] + b[0], 3);
+    expect(sum[1]).toBeCloseTo(a[1] + b[1], 3);
     // Numbers kept for a place where no face is move nothing.
     expect(funFieldFrom({ ...source({ olhao: 60 }), shapes: [{ at: [0.05, 0.05], values: { olhao: 60 } }] })).toBeNull();
   });

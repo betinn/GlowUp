@@ -5,13 +5,14 @@
    * limits never meet these.
    */
   import { onDestroy, onMount } from 'svelte';
+  import { FUN_COMBOS } from '../core/fun/combos';
   import { FUN_EFFECTS } from '../core/fun/effects/index';
   import { STICKERS } from '../core/fun/stickers/index';
   import type { FunEffect } from '../core/fun/types';
   import { selectTool } from './actions';
   import { lockState } from './facepick.svelte';
   import FillCard from './FillCard.svelte';
-  import { closeFun, funHeld, funPick, funValueOf, openFun, putSticker, removeSelected, resetFun, setFunValue } from './funpick.svelte';
+  import { applyCombo, closeFun, funComboOn, funHeld, funPick, funValueOf, openFun, putSticker, removeSelected, resetFun, setFunValue } from './funpick.svelte';
   import Icon from './Icon.svelte';
   import ProgressCard from './ProgressCard.svelte';
   import Slider from './Slider.svelte';
@@ -25,6 +26,7 @@
   const ready = $derived(funPick.state === 'on');
   const held = $derived((ui.rev, funHeld(e)));
   const layeredOn = $derived((ui.rev, FUN_EFFECTS.some((f) => f.layered && funValueOf(e, f.id) > 0)));
+  const comboOn = $derived((ui.rev, funPick.chosen, funComboOn(e)?.id ?? null));
   const selected = $derived((ui.rev, funPick.selected !== null && !!e.doc.fun?.stickers?.some((s) => s.id === funPick.selected)));
 
   onMount(() => {
@@ -78,6 +80,12 @@
 
   {#if ready}
     <h3>Caretas</h3>
+    <div class="combos" role="group" aria-label="Caretas prontas">
+      {#each FUN_COMBOS as combo (combo.id)}
+        <button type="button" data-testid="fun-combo" data-combo={combo.id} aria-pressed={comboOn === combo.id} class:on={comboOn === combo.id}
+          onclick={() => applyCombo(e, combo)}>{combo.label}</button>
+      {/each}
+    </div>
     {#key funPick.chosen}
       {#each FUN_EFFECTS as effect (effect.id)}
         <div class="effect" data-effect={effect.id}>
@@ -206,6 +214,27 @@
     .grid {
       grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
     }
+  }
+
+  .combos {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 2px 0 6px;
+  }
+
+  .combos button {
+    min-height: 36px;
+    padding: 0 14px;
+    border-radius: 999px;
+    font-size: 13px;
+    color: var(--paper);
+    background: var(--ink-3);
+  }
+
+  .combos button.on {
+    color: var(--ink);
+    background: var(--safe);
   }
 
   .faces {
