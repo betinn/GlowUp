@@ -206,7 +206,18 @@ adesivos (S7), que trabalham em paralelo, cada efeito e cada adesivo no seu arqu
 - [x] S5: camada de adesivos na tela e na exportação em resolução total, presa ao rosto, com arrastar, dois dedos, alça e rodinha
 - [x] S5: Óculos redondos, desenhados no projeto
 - [x] S5: conferido nas seis fotos reais: cada careta, os óculos e tudo junto, na tela e na exportação
-- [ ] S6: mais caretas (boca pequena, nariz, queixo, olhos de inseto e outras), cada uma no seu arquivo
+- [x] S6: doze caretas novas, cada uma no seu arquivo: Olhinhos, Narigão, Narizinho, Bocão, Boquinha, Sorrisão,
+  Bochechas de esquilo, Cara de peixe, Queixão, Testão, Esticado e Achatado
+- [x] S6: caretas uma depois da outra, na ordem do menu, cada uma lendo o rosto como as de antes deixaram
+- [x] S6: caretas prontas num toque (Caricatura, Bebê, Alien, Palhaço), uma etapa do desfazer, segundo toque tira
+- [x] S6: teste de cada careta sem dobra, de frente e inclinada, e e2e das prontas com desfazer e projeto salvo
+- [x] S6: conferido nas seis fotos reais, cada careta a 50 e a 100 e cada pronta, com barba, óculos e cabeça inclinada
+- [ ] Queixão e Testão esticam a pele do queixo e da testa até umas duas vezes: barba e espinhas ficam riscadas no
+  comprido
+- [ ] Achatado e Esticado não medem o cabelo: cabelo curto baixa um pouco e as placas preenchem, e cabelo muito
+  volumoso dos lados encolhe junto com o rosto
+- [ ] Prontas com a cabeça inteira levam até três vezes o tempo do Cabeção sozinho para refazer o campo (o rascunho
+  fica em torno de 0,1 s num grid de 768 x 1024)
 - [ ] S7: catálogo de adesivos (óculos, chapéus, bigodes e outros), cada um no seu arquivo
 - [ ] Cabeção com uma mão na frente do rosto: a mão fica atrás da cabeça que cresce, porque a separação não diz o que está na frente
 - [ ] Adesivo preso a um rosto ainda não mostra de qual rosto é, numa foto de grupo; ele vai para o rosto escolhido no menu

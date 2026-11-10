@@ -65,8 +65,9 @@ completado por um modelo de preenchimento, em segundo plano, com progresso, temp
 **Filtros:** 40 filtros em 10 categorias, com intensidade, favoritos e uma sugestão pelo tom da foto. Cada filtro é um
 arquivo de dados, com cor, grão, vinheta e ajustes, e nunca muda o desenho do rosto.
 
-**Brincar:** caretas de brincadeira, cada uma num controle de 0 a 100 (Olhão aumenta os olhos, Cabeção aumenta a
-cabeça e deixa corpo e fundo onde estão), e adesivos desenhados no projeto, que seguem o rosto e se arrastam, giram e
+**Brincar:** caretas de brincadeira, cada uma num controle de 0 a 100 (Olhão e Olhinhos, Narigão e Narizinho, Bocão
+e Boquinha, Sorrisão, Bochechas de esquilo, Cara de peixe, Queixão, Testão, Esticado, Achatado e Cabeção, que aumenta
+a cabeça e deixa corpo e fundo onde estão), caretas prontas num toque (Caricatura, Bebê, Alien e Palhaço), e adesivos desenhados no projeto, que seguem o rosto e se arrastam, giram e
 mudam de tamanho com o dedo ou o mouse. Fica num caminho próprio, longe do retoque: nada daqui mexe nos controles
 do Formato do rosto.
 
