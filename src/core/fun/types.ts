@@ -69,13 +69,21 @@ export interface StickerPlace {
   angle: number;
 }
 
+/** The tabs of the grid of stickers in the menu. Their names and order are in `stickers/index.ts`. */
+export type StickerGroup = 'oculos' | 'cabeca' | 'rosto' | 'volta';
+
 /** A sticker: art made in the project, and where it goes on a face. */
 export interface StickerDef {
   /** Saved in projects. Never change it once shipped. */
   id: string;
   /** Its name, in pt-BR, for the grid of the menu. */
   label: string;
-  /** A whole SVG document, with a `viewBox`. No text, no fonts, nothing from outside the file. */
+  /** The tab of the grid it shows in. */
+  group: StickerGroup;
+  /**
+   * A whole SVG document, with a `viewBox`. No text, no fonts, nothing from outside the file: a `url(#…)` may
+   * name a gradient of the same file, and nothing else.
+   */
   svg: string;
   /** Height over width of the art, as its `viewBox` says. */
   aspect: number;

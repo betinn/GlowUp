@@ -400,3 +400,23 @@ constroem. Conferido nas seis fotos reais de teste, na tela e na exportação.
 | 273 | O projeto salvo leva `doc.fun` no documento e o campo em `fun` no registro, e um projeto só com Brincar reabre no Brincar | Abre sem detector, como o Formato do rosto. Um projeto antigo abre sem nada de Brincar |
 | 274 | "Voltar ao original" tira o Brincar também, e o menu tem "Zerar Brincar" | É o que a foto original é. O Zerar dos grupos do retoque não toca no Brincar |
 | 275 | Os rostos do Brincar ficam em `funFaces`, separados dos do Formato do rosto | Abrir o Brincar não muda como o Formato do rosto refaz o campo de um projeto reaberto |
+
+### Catálogo de adesivos (S7)
+
+Conferido nas seis fotos reais de teste, com cabeça inclinada, barba e óculos de verdade, com e sem Cabeção e Olhão,
+na exportação em resolução total, e a linha dos olhos com zoom.
+
+| # | Decisão | Motivo |
+| --- | --- | --- |
+| 276 | 24 adesivos em quatro abas: Óculos (6), Cabeça (8), Rosto (7) e Em volta (3), com nomes em pt-BR | As abas cabem na folha curta do celular; a grade inteira passava da tela |
+| 277 | Toda a arte desenhada no projeto, em SVG, e montada em código onde a forma se repete (coração, estrela, brilho, anel, um lado espelhado) | Nada de banco de imagens, marca, personagem ou emoji pronto; a arte segue a licença do código |
+| 278 | O SVG de um adesivo pode usar `url(#…)` e `href="#…"` para um gradiente do mesmo arquivo, e nada mais | Lentes, coroa e nariz ficam melhores com gradiente, e um endereço interno não sai do arquivo. O teste do registro barra qualquer outro |
+| 279 | Os adesivos giram pela linha dos olhos, e o contorno do rosto só entra sem os dois olhos | A linha dos olhos segue a inclinação mesmo com a cabeça virada para o lado |
+| 280 | O topo do crânio fica 0,3 comprimento do rosto acima do começo do contorno, sobre o meio do contorno de lado a lado, e a cabeça tem no mínimo 0,78 do comprimento de largura | O contorno do detector começa na testa. Com a cabeça virada o nariz sai do meio e o crânio não, e um rosto de lado parece estreito, uma cabeça não |
+| 281 | O topo da cabeça não olha o cabelo | A máscara de cabelo não está pronta quando o menu abre e custaria mais um modelo. Com cabelo alto a coroa fica um pouco dentro dele, e arrastar acerta |
+| 282 | Bigodes entre a base do nariz e o topo do lábio, a 58% do caminho para o lábio, na largura da boca | Nas fotos reais com barba, o bigode cobre o buço e deixa o lábio aparecer. O clássico desceu sobre o lábio na primeira versão e subiu 16% da altura dele |
+| 283 | A lágrima vai para o olho da esquerda da foto | Um lado fixo é previsível; arrastar leva para o outro |
+| 284 | Vários adesivos desenham na ordem da lista: o último posto fica por cima. "Trazer para frente" leva o escolhido ao fim da lista, numa etapa do desfazer | A ordem já fica no projeto salvo, sem campo novo |
+| 285 | A fila "Na foto" do menu mostra os adesivos de baixo para cima, e um toque escolhe | Um adesivo coberto por outro maior não se pega na foto; a fila alcança qualquer um |
+| 286 | Testes e partes comuns dos adesivos em arquivos próprios: `tests/unit/stickers.test.ts`, `tests/e2e/adesivos.spec.ts`, `stickers/spots.ts`, `stickers/shapes.ts` | A sessão das caretas mexe em paralelo nos arquivos comuns do Brincar |
+| 287 | As abas da grade usam `data-tab`, não `data-group` | `data-group` marca os grupos do retoque, e o e2e confere que o Brincar não tem nenhum |

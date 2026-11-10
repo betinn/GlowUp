@@ -66,9 +66,12 @@ completado por um modelo de preenchimento, em segundo plano, com progresso, temp
 arquivo de dados, com cor, grão, vinheta e ajustes, e nunca muda o desenho do rosto.
 
 **Brincar:** caretas de brincadeira, cada uma num controle de 0 a 100 (Olhão aumenta os olhos, Cabeção aumenta a
-cabeça e deixa corpo e fundo onde estão), e adesivos desenhados no projeto, que seguem o rosto e se arrastam, giram e
-mudam de tamanho com o dedo ou o mouse. Fica num caminho próprio, longe do retoque: nada daqui mexe nos controles
-do Formato do rosto.
+cabeça e deixa corpo e fundo onde estão), e 24 adesivos desenhados no projeto, em quatro abas: Óculos, Cabeça
+(coroa, chapéus, orelhas, auréola, chifrinhos), Rosto (bigodes, nariz de palhaço, bochechas, lágrima, sardas) e Em
+volta (corações, estrelas e brilhos em volta da cabeça). Cada um entra no seu lugar no rosto escolhido, segue a
+inclinação e o Cabeção, e se arrasta, gira e muda de tamanho com o dedo ou o mouse. Vários ficam juntos na foto, o
+último por cima, e qualquer um pode vir para a frente. Fica num caminho próprio, longe do retoque: nada daqui mexe
+nos controles do Formato do rosto.
 
 **Geral:** 11 ajustes, desfoque radial e tilt-shift, recorte com rotação, espelho, endireitar e proporções,
 antes/depois (segurar ou dividir, com a foto original ou só sem o filtro), exportação em JPG, PNG e WebP.
@@ -199,7 +202,8 @@ navegador saber codificar o formato: quando não sabe, a opção não aparece.
 ## Licença
 
 Código sob [MIT](LICENSE). Fontes Instrument Serif e Instrument Sans sob SIL Open Font License,
-distribuídas via Fontsource.
+distribuídas via Fontsource. A arte dos adesivos do Brincar foi desenhada no projeto, em SVG, e segue a licença do
+código: nenhuma vem de banco de imagens, marca, personagem ou conjunto de emojis.
 
 ## Licenças de terceiros
 

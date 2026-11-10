@@ -207,9 +207,14 @@ adesivos (S7), que trabalham em paralelo, cada efeito e cada adesivo no seu arqu
 - [x] S5: Óculos redondos, desenhados no projeto
 - [x] S5: conferido nas seis fotos reais: cada careta, os óculos e tudo junto, na tela e na exportação
 - [ ] S6: mais caretas (boca pequena, nariz, queixo, olhos de inseto e outras), cada uma no seu arquivo
-- [ ] S7: catálogo de adesivos (óculos, chapéus, bigodes e outros), cada um no seu arquivo
+- [x] S7: catálogo de 24 adesivos em quatro abas (Óculos, Cabeça, Rosto, Em volta), cada um no seu arquivo, desenhados no projeto
+- [x] S7: cada adesivo preso ao seu lugar no rosto (olhos, topo da cabeça, lábio, nariz, bochechas, em volta da cabeça), com a inclinação e o tamanho do rosto
+- [x] S7: vários adesivos na foto, fila "Na foto" no menu para escolher cada um, o último por cima e "Trazer para frente"
+- [x] S7: miniaturas da grade feitas do próprio SVG
+- [x] S7: conferido nas seis fotos reais: cada adesivo, com cabeça inclinada, barba e óculos de verdade, com Cabeção e Olhão, na exportação em resolução total
+- [ ] Topo da cabeça estimado pelo rosto: com muito cabelo para cima, coroa e chapéus ficam um pouco dentro do cabelo; arrastar resolve
 - [ ] Cabeção com uma mão na frente do rosto: a mão fica atrás da cabeça que cresce, porque a separação não diz o que está na frente
-- [ ] Adesivo preso a um rosto ainda não mostra de qual rosto é, numa foto de grupo; ele vai para o rosto escolhido no menu
+- [ ] Adesivo preso a um rosto ainda não mostra de qual rosto é, numa foto de grupo; ele vai para o rosto escolhido no menu. Nenhuma das seis fotos reais tem mais de um rosto: o grupo foi conferido só na foto gerada do e2e
 - [ ] Moldura do adesivo pelo teclado: hoje Delete tira, e mover ou girar pede mouse ou toque
 
 ## Metas medidas

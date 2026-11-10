@@ -51,8 +51,9 @@ describe('the registry of Brincar', () => {
   it('ships stickers made in the project: plain SVG, nothing from outside, the shape its viewBox says', () => {
     for (const s of STICKERS) {
       expect(s.svg.startsWith('<svg ')).toBe(true);
-      // No text, no fonts, no pictures inside, no scripts, and no address but the name of SVG itself.
-      expect(s.svg).not.toMatch(/<text|<image|<script|<foreignObject|@import|url\(/i);
+      // No text, no fonts, no pictures inside, no scripts, and no address but the name of SVG itself. A url() may
+      // only name a gradient of the same file, and an href only a part of it.
+      expect(s.svg).not.toMatch(/<text|<image|<script|<foreignObject|<style|@import|url\((?!#)|href="(?!#)/i);
       expect(s.svg.replace('http://www.w3.org/2000/svg', '')).not.toMatch(/https?:/);
       const box = /viewBox="0 0 ([\d.]+) ([\d.]+)"/.exec(s.svg);
       expect(box).not.toBeNull();

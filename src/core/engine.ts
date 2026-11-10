@@ -869,6 +869,20 @@ export class Engine {
     this.requestRender();
   }
 
+  /** Puts a sticker over all the others, as one undo step. Stickers draw in the order of their list. */
+  raiseSticker(id: number): void {
+    const list = this.doc.fun?.stickers;
+    const at = list?.findIndex((s) => s.id === id) ?? -1;
+    if (!list || at < 0 || at === list.length - 1) return;
+    this.commit();
+    this.track('Trazer adesivo para frente');
+    const [sticker] = list.splice(at, 1);
+    list.push(sticker);
+    this.commit();
+    this.ctx?.invalidate('global');
+    this.requestRender();
+  }
+
   /** How far away a point shown at `u, v` reads the head under it: Brincar first, then the realistic field. */
   headLookup(): Lookup | null {
     const fun = this.fun && !this.fun.isEmpty() ? this.fun : null;
