@@ -88,6 +88,7 @@
 - [x] Clarear dividido em Dentes, em Make, e Branco do olho, em Olhos
 - [x] Marca do pincel como opção, com estado claro, e foto sempre com o resultado real
 - [x] Traço limitado à íris, ao branco do olho ou aos dentes, em todos os rostos achados
+- [x] Íris como forma fechada, com o reflexo da luz dentro, e o reflexo branco em cima da cor nova
 - [x] Pincel livre sem rosto, sem região, sem detector ou pelo interruptor
 - [x] Nada do rosto no projeto salvo
 
@@ -260,6 +261,15 @@ gzip, e o detector continua fora do precache.
 | Contorno interno dos lábios, 45 sorrisos | mais de 20% dos dentes de fora em 9 |
 | Contorno levado 40% rumo ao externo, os mesmos 45 | mais de 20% dos dentes de fora em 5 |
 | Bocas com abertura abaixo de 3%, 20 olhadas | nenhum dente à mostra |
+
+| Reflexo da luz dentro da máscara da íris, os 4 olhos nítidos com reflexo, de 2 fotos reais | de 42% para 97% |
+| Íris que a máscara deixava de fora, 6 olhos nítidos de 3 fotos reais | de 13% para 4% |
+| Buracos dentro da máscara, os mesmos 6 | de 2,2% da íris para zero |
+
+A íris foi medida contra um contorno feito à mão, certo a cerca de 1 px, que nesses olhos é 10% da área. Em
+mais 4 olhos pequenos ou borrados o contorno à mão é só uma ideia. Ficam de fora do alcance: olho atrás de
+óculos escuros, que recebe o círculo do modelo em cima da lente; cílios pretos por cima de uma íris castanha,
+que entram até a folga do contorno; e um reflexo largo e pouco claro num close, que pega um pouco da cor.
 
 A cobertura dos dentes usa uma estimativa por brilho e cor, não um contorno feito à mão. Rosto muito virado
 leva o contorno do olho mais distante para fora do lugar. Isto também é teste de fumaça, com poucas fotos e

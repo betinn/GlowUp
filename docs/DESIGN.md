@@ -203,9 +203,12 @@ rostos achados.
 
 - **Primeira vez.** Ao abrir a ferramenta, o cartão de progresso aparece no topo do painel com o aviso do
   download, e no celular o tamanho, 6 MB. O traço espera e um aviso explica. "Pintar livre" pula a espera.
-- **Íris.** A íris sai da própria foto, não só do desenho do modelo: o que é escuro como o meio da íris, perto
-  do círculo que o modelo dá, sem a pele, o branco, os cílios e o brilho da luz. A cor fica dentro da íris
-  mesmo com a cabeça inclinada ou o olho virado de lado.
+- **Íris.** A íris sai da própria foto, não só do desenho do modelo: o que é escuro como o meio da íris e não
+  mais vermelho que ela, perto do círculo que o modelo dá, fechado numa forma só, sem buraco. A pupila e o
+  reflexo da luz ficam dentro; a pele, o branco e os cílios ficam fora. A cor fica dentro da íris mesmo com a
+  cabeça inclinada ou o olho virado de lado. O branco do olho acaba onde essa íris começa.
+- **Reflexo da luz.** Na Cor dos olhos o reflexo continua branco e claro, em cima da cor nova, sem borda da
+  cor antiga. A pupila continua preta. Brilho no olhar realça o reflexo, e Olho vermelho não mexe nele.
 - **Interruptor.** "Só na íris", "Só no branco do olho" ou "Só nos dentes". Desligado vale para aquela
   ferramenta enquanto a foto estiver aberta.
 - **Traço fora.** A parte de fora some sem erro. Se o traço inteiro cair fora, um aviso aponta o

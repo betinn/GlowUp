@@ -35,12 +35,19 @@ export type FaceRegion = LandmarkRegion | 'hair';
 /** The contour of the eye runs on the lash line, so the iris gets a little room past it. */
 const EYE_ROOM = 1.12;
 /**
- * With the photo at hand, the iris is what is as dark as it inside a circle a little larger than the
- * one the model gives, and inside a contour with more room, since on a tilted head the contour of the
- * model can cut the iris. Skin and the white of the eye are brighter and stay out.
+ * With the photo at hand, the iris is looked for inside a circle a little larger than the one the model
+ * gives, and inside a contour with more room, since on a tilted head the contour of the model can cut
+ * the iris.
  */
 const IRIS_REACH = 1.05;
-const OPEN_ROOM = 1.35;
+/**
+ * Room past the contour of the model, as shares of the radius of the iris. Below and at the corners the
+ * photo tells iris from skin and white, so the room is wide. Above, the lashes and the shadow of the lid
+ * are as dark as the iris and touch it, so the contour itself is the limit, with little room.
+ */
+const LASH_ROOM = 0.12;
+const LID_ROOM = 0.45;
+const CORNER_ROOM = 0.5;
 /** Where the iris and its surroundings are sampled, as shares of the radius. */
 const IRIS_CORE = 0.7;
 const AROUND_FROM = 1.2;
@@ -49,15 +56,23 @@ const AROUND_TO = 1.8;
 const MIN_CONTRAST = 0.06;
 const SHARP_FEATHER = 0.05;
 /**
- * Lashes and the shadow of the lid are as dark as the iris but redder, as skin is. Redness here is red
- * minus green over the sum of the channels; past the iris by the first step it starts to leave, past the
- * second it is gone. A brown iris is red too, and its reference moves with it.
+ * Skin, lashes and the shadow of the lid can be as dark as the iris, but they are redder. Redness here is
+ * red minus green over the sum of the channels; past the iris by the first step it starts to leave, past the
+ * second it is gone. A brown iris is red too, and its reference moves with it. The reference is the redness
+ * a share of the middle stays under, so skin that the circle of the model caught does not set it.
  */
 const REDDER_FROM = 0.055;
 const REDDER_TO = 0.1;
-/** Lashes and lids only reach the edge of the iris. A red pupil, in the middle, stays in. */
-const REDDER_EDGE_FROM = 0.55;
-const REDDER_EDGE_TO = 0.75;
+const BODY_RED = 0.35;
+/** A piece of iris this much smaller than the largest one is a lash or a shadow apart from it. */
+const SMALL_PIECE = 0.2;
+/**
+ * Under the upper lid the iris is in shadow, and the shadow is redder than the iris in the light. What is
+ * at least this dark, of the way from the surroundings to the iris, and lies between the iris and the upper
+ * lid, is iris, unless it is redder than the iris by more than a shadow makes it: then it is lashes.
+ */
+const SHADOW_DEPTH = 0.75;
+const SHADOW_RED = 0.2;
 /**
  * The circle of the model can sit off the iris when the eye looks aside. It is moved, by up to this
  * share of the radius, to where it holds the most iris and leaves the least around it.
@@ -81,6 +96,30 @@ function around(points: readonly Point[], factor: number): Point[] {
   return points.map(([x, y]): Point => [cx + (x - cx) * factor, cy + (y - cy) * factor]);
 }
 
+/**
+ * The contour of an eye with room for the iris the model cut. The contour starts at a corner, runs along the
+ * lower lid to the other corner and comes back along the upper lid, as `EYES` lists it.
+ */
+function withRoom(contour: readonly Point[], radius: number): { shape: Point[]; up: Point } {
+  const half = contour.length >> 1;
+  const [ax, ay] = contour[0];
+  const [bx, by] = contour[half];
+  const length = Math.hypot(bx - ax, by - ay) || 1;
+  const ux = (bx - ax) / length;
+  const uy = (by - ay) / length;
+  // Across the eye, toward the upper lid.
+  let side = 0;
+  for (let i = half + 1; i < contour.length; i++) side += (contour[i][0] - ax) * -uy + (contour[i][1] - ay) * ux;
+  const up: Point = side < 0 ? [uy, -ux] : [-uy, ux];
+  const shape = contour.map(([x, y], i): Point => {
+    if (i === 0) return [x - ux * radius * CORNER_ROOM, y - uy * radius * CORNER_ROOM];
+    if (i === half) return [x + ux * radius * CORNER_ROOM, y + uy * radius * CORNER_ROOM];
+    const room = radius * (i > half ? LASH_ROOM : -LID_ROOM);
+    return [x + up[0] * room, y + up[1] * room];
+  });
+  return { shape, up };
+}
+
 /** A circle through points on its edge. The photo may have any proportions, so this runs on the grid. */
 function circleThrough(ring: readonly Point[]): { outline: Point[]; radius: number } {
   const x = ring.reduce((sum, p) => sum + p[0], 0) / ring.length;
@@ -93,14 +132,10 @@ function circleThrough(ring: readonly Point[]): { outline: Point[]; radius: numb
   return { outline, radius };
 }
 
-const median = (list: number[]) => list.sort((a, b) => a - b)[list.length >> 1];
+/** The value a share of the list stays under. */
+const quantile = (list: number[], share: number) => list.sort((a, b) => a - b)[Math.min(list.length - 1, Math.floor(list.length * share))];
+const median = (list: number[]) => quantile(list, 0.5);
 
-/**
- * The iris as the photo shows it, over `area`: the pixels inside a slightly larger circle and a roomy
- * contour that are as dark as the middle of the iris, against the skin and white around it. Small bright
- * flecks in the iris are closed; the glint of light stays mostly out. Null when the photo cannot tell
- * the iris from its surroundings, as with dark skin and dark eyes, or when the area is too small.
- */
 /** Where the disc of `radius` over `like` holds the most and leaves the least in a ring around it. */
 function bestCenter(like: Float32Array, area: Area, center: Point, radius: number): Point {
   const score = ([cx, cy]: Point) => {
@@ -136,6 +171,12 @@ function bestCenter(like: Float32Array, area: Area, center: Point, radius: numbe
   return best;
 }
 
+/**
+ * The iris as the photo shows it, over `area`. First what is iris for sure: as dark as the middle of the
+ * iris, against the skin and white around it, and not redder than it. The circle of the model moves to
+ * where that is. Then the shape is closed: see `closed` and `raised`. Null when the photo cannot tell the
+ * iris from its surroundings, as with dark skin and dark eyes, or when the area is too small.
+ */
 export function irisFromPhoto(
   luma: Float32Array,
   rgba: Uint8ClampedArray | undefined,
@@ -144,17 +185,15 @@ export function irisFromPhoto(
   radius: number,
   contour: readonly Point[],
 ): Float32Array | null {
-  let center = given;
-  const opening = cover(around(contour, OPEN_ROOM), area);
+  const { shape, up } = withRoom(contour, radius);
+  const opening = cover(shape, area);
   const inside: number[] = [];
   const outside: number[] = [];
-  const dist = new Float32Array(luma.length);
   const red = new Float32Array(luma.length);
   for (let y = 0; y < area.h; y++) {
     for (let x = 0; x < area.w; x++) {
       const i = y * area.w + x;
-      const d = Math.hypot(x + area.x + 0.5 - center[0], y + area.y + 0.5 - center[1]) / radius;
-      dist[i] = d;
+      const d = Math.hypot(x + area.x + 0.5 - given[0], y + area.y + 0.5 - given[1]) / radius;
       if (rgba) red[i] = (rgba[i * 4] - rgba[i * 4 + 1]) / (rgba[i * 4] + rgba[i * 4 + 1] + rgba[i * 4 + 2] + 1);
       if (opening[i] < 0.5) continue;
       if (d < IRIS_CORE) inside.push(i);
@@ -167,21 +206,16 @@ export function irisFromPhoto(
   if (light - dark < MIN_CONTRAST) return null;
   // The color of the iris, left of the pupil and of the glint, which are both gray.
   const body = inside.filter((i) => luma[i] > dark * 0.7 && luma[i] < (dark + light) / 2);
-  const reference = rgba && body.length >= 8 ? median(body.map((i) => red[i])) : null;
-  let like: Float32Array = new Float32Array(luma.length);
-  for (let i = 0; i < like.length; i++) {
-    like[i] = smooth(0.3, 0.6, (light - luma[i]) / (light - dark));
-    if (reference !== null) {
-      const edge = smooth(REDDER_EDGE_FROM, REDDER_EDGE_TO, dist[i]);
-      like[i] *= 1 - edge * smooth(reference + REDDER_FROM, reference + REDDER_TO, red[i]);
-    }
+  const reference = rgba && body.length >= 8 ? quantile(body.map((i) => red[i]), BODY_RED) : null;
+  const shade = new Float32Array(luma.length);
+  const sure = new Float32Array(luma.length);
+  for (let i = 0; i < sure.length; i++) {
+    const depth = (light - luma[i]) / (light - dark);
+    shade[i] = depth >= SHADOW_DEPTH && (reference === null || red[i] <= reference + SHADOW_RED) ? opening[i] : 0;
+    sure[i] = smooth(0.35, 0.65, depth) * opening[i];
+    if (reference !== null) sure[i] *= 1 - smooth(reference + REDDER_FROM, reference + REDDER_TO, red[i]);
   }
-  const held = new Float32Array(like.length);
-  for (let i = 0; i < like.length; i++) held[i] = like[i] * opening[i];
-  center = bestCenter(held, area, center, radius);
-  for (let y = 0; y < area.h; y++) {
-    for (let x = 0; x < area.w; x++) dist[y * area.w + x] = Math.hypot(x + area.x + 0.5 - center[0], y + area.y + 0.5 - center[1]) / radius;
-  }
+  const center = bestCenter(sure, area, given, radius);
   const big = cover(
     Array.from({ length: CIRCLE_SIDES }, (_, i): Point => {
       const a = (i / CIRCLE_SIDES) * Math.PI * 2;
@@ -189,14 +223,131 @@ export function irisFromPhoto(
     }),
     area,
   );
-  // Flecks and grain inside the iris come back: iris all around brings a pixel back.
-  const near = softBlur(like, area.w, area.h, Math.max(0.6, radius * 0.12));
-  for (let i = 0; i < like.length; i++) {
-    if (dist[i] < 0.9) like[i] = Math.max(like[i], smooth(0.45, 0.75, near[i]));
+  for (let i = 0; i < sure.length; i++) {
+    sure[i] *= big[i];
+    shade[i] *= big[i];
   }
-  like = softBlur(like, area.w, area.h, Math.max(0.5, radius * SHARP_FEATHER));
-  for (let i = 0; i < like.length; i++) like[i] *= opening[i] * big[i];
-  return like;
+  const outline = closed(sure, area);
+  if (!outline) return null;
+  const whole = feather(cover(raised(outline, shade, area, up), area), area.w, area.h, radius * SHARP_FEATHER);
+  for (let i = 0; i < whole.length; i++) whole[i] *= opening[i] * big[i];
+  return whole;
+}
+
+/**
+ * A soft edge of about `sigma` pixels. Three box blurs only come close to it from two pixels on, and on a
+ * small iris they would spread the edge over the white of the eye, so below that it is done in small steps.
+ */
+function feather(src: Float32Array, w: number, h: number, sigma: number): Float32Array {
+  if (sigma >= 2) return softBlur(src, w, h, sigma);
+  let from = src;
+  // Each pass of 1 2 1 adds half a pixel of variance.
+  for (let pass = Math.round(2 * sigma * sigma); pass > 0; pass--) {
+    const across = new Float32Array(from.length);
+    const out = new Float32Array(from.length);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = y * w + x;
+        across[i] = (from[x > 0 ? i - 1 : i] + 2 * from[i] + from[x < w - 1 ? i + 1 : i]) / 4;
+      }
+    }
+    for (let i = 0; i < out.length; i++) out[i] = (across[i >= w ? i - w : i] + 2 * across[i] + across[i + w < out.length ? i + w : i]) / 4;
+    from = out;
+  }
+  return from;
+}
+
+/** The convex outline around points, by the monotone chain. */
+export function hull(points: Point[]): Point[] {
+  const sorted = [...points].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  if (sorted.length < 3) return sorted;
+  const cross = (o: Point, a: Point, b: Point) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const half = (list: Point[]) => {
+    const out: Point[] = [];
+    for (const p of list) {
+      while (out.length >= 2 && cross(out[out.length - 2], out[out.length - 1], p) <= 0) out.pop();
+      out.push(p);
+    }
+    out.pop();
+    return out;
+  };
+  return [...half(sorted), ...half(sorted.reverse())];
+}
+
+/**
+ * The corners of a pixel of `area`, on the grid. A pixel on the edge of the iris is part iris and part
+ * white: one that is half iris has the edge through its middle, so it counts as its middle alone, and
+ * `share` goes from there to the whole pixel.
+ */
+function corners(i: number, area: Area, share = 1): Point[] {
+  const x = (i % area.w) + area.x + 0.5;
+  const y = Math.floor(i / area.w) + area.y + 0.5;
+  const half = share / 2;
+  return [
+    [x - half, y - half],
+    [x + half, y - half],
+    [x - half, y + half],
+    [x + half, y + half],
+  ];
+}
+
+/**
+ * The iris the lids leave to see is one shape with no dents: a disc cut by two lids that curve away from it.
+ * So what the photo shows of it is closed into its convex outline, and whatever lies inside counts as iris:
+ * the glint of a light, the pupil, a fleck. Pieces much smaller than the largest are lashes and shadows
+ * apart from the iris, and stay out so they do not pull the outline. Null when nothing is iris.
+ */
+function closed(sure: Float32Array, area: Area): Point[] | null {
+  const { w, h } = area;
+  const piece = new Int32Array(sure.length).fill(-1);
+  const pieces: number[][] = [];
+  for (let start = 0; start < sure.length; start++) {
+    if (sure[start] < 0.5 || piece[start] >= 0) continue;
+    const list = [start];
+    piece[start] = pieces.length;
+    for (let at = 0; at < list.length; at++) {
+      const i = list[at];
+      const x = i % w;
+      for (const n of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, i - w, i + w]) {
+        if (n < 0 || n >= w * h || piece[n] >= 0 || sure[n] < 0.5) continue;
+        piece[n] = pieces.length;
+        list.push(n);
+      }
+    }
+    pieces.push(list);
+  }
+  if (pieces.length === 0) return null;
+  const largest = Math.max(...pieces.map((list) => list.length));
+  return hull(pieces.filter((list) => list.length >= largest * SMALL_PIECE).flatMap((list) => list.flatMap((i) => corners(i, area, 2 * sure[i] - 1))));
+}
+
+/**
+ * Raises the outline to the upper lid. The lid throws a shadow on the top of the iris, and the shadow is
+ * redder than the iris, so the color leaves it out. What is in `shade` from the outline on, going across the
+ * eye toward the upper lid, is that shadow on the iris. The room over the contour of the model is where it ends.
+ */
+function raised(outline: Point[], shade: Float32Array, area: Area, up: Point): Point[] {
+  const { w, h } = area;
+  const within = cover(outline, area);
+  const added: Point[] = [];
+  const reach = w + h;
+  for (let i = 0; i < shade.length; i++) {
+    if (shade[i] < 0.5 || within[i] >= 0.5) continue;
+    const x = i % w;
+    const y = (i - x) / w;
+    for (let step = 1; step < reach; step++) {
+      const nx = Math.round(x - up[0] * step);
+      const ny = Math.round(y - up[1] * step);
+      if (nx < 0 || ny < 0 || nx >= w || ny >= h) break;
+      const n = ny * w + nx;
+      if (within[n] >= 0.5) {
+        added.push(...corners(i, area));
+        break;
+      }
+      if (shade[n] < 0.5) break;
+    }
+  }
+  return added.length ? hull([...outline, ...added]) : outline;
 }
 
 function addEye(out: Uint8Array, target: MaskTarget, region: 'iris' | 'sclera', eye: readonly Point[], ring: readonly Point[]): void {
@@ -204,22 +355,25 @@ function addEye(out: Uint8Array, target: MaskTarget, region: 'iris' | 'sclera', 
   const { outline, radius } = circleThrough(toGrid(ring, target));
   const sigma = radius * IRIS_FEATHER;
   const roomy = around(contour, EYE_ROOM);
-  const area = areaAround([...around(contour, OPEN_ROOM), ...outline], radius * (AROUND_TO - 1) + sigma * 3 + 2, target);
+  const area = areaAround([...withRoom(contour, radius).shape, ...outline], radius * (AROUND_TO - 1) + sigma * 3 + 2, target);
   if (area.w < 1 || area.h < 1) return;
-  if (region === 'iris') {
-    const luma = target.luma?.(area);
-    const box = bounds(outline);
-    const found = luma ? irisFromPhoto(luma, target.color?.(area), area, [box.x + box.w / 2, box.y + box.h / 2], radius, contour) : null;
-    if (found) {
-      place(out, target, area, found);
-      return;
-    }
+  const luma = target.luma?.(area);
+  const box = bounds(outline);
+  const found = luma ? irisFromPhoto(luma, target.color?.(area), area, [box.x + box.w / 2, box.y + box.h / 2], radius, contour) : null;
+  if (found && region === 'iris') {
+    place(out, target, area, found);
+    return;
   }
   const disc = cover(outline, area);
   const opening = cover(region === 'iris' ? roomy : contour, area);
+  // The white ends where the iris of the photo begins, which the circle of the model can miss.
+  const iris = found ?? disc;
   const shape = new Float32Array(disc.length);
-  for (let i = 0; i < shape.length; i++) shape[i] = opening[i] * (region === 'iris' ? disc[i] : 1 - disc[i]);
-  place(out, target, area, softBlur(shape, area.w, area.h, sigma));
+  for (let i = 0; i < shape.length; i++) shape[i] = opening[i] * (region === 'iris' ? disc[i] : 1 - iris[i]);
+  const soft = softBlur(shape, area.w, area.h, sigma);
+  // The soft edge of the white must not reach over the iris.
+  if (found) for (let i = 0; i < soft.length; i++) soft[i] *= 1 - found[i];
+  place(out, target, area, soft);
 }
 
 function addTeeth(out: Uint8Array, target: MaskTarget, { innerLips, outerLips }: FaceParts): void {
