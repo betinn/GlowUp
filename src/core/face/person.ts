@@ -3,8 +3,9 @@
  * face menu. Plain arrays and no browser APIs, so every step can be tested: the models come in as functions.
  *
  * The segmenter names each pixel: background, hair, skin of the face, skin of the body, clothes, or something
- * worn. A head is hair, the skin of the face and what is worn on it. That split is what lets a jaw move
- * without the neck, the shoulders or a pillow beside them going along.
+ * worn. A head is hair, the skin of the face and what is worn on it. Bare skin of the body goes where the head
+ * goes, as a neck does under a jaw, and what covers a body stays: a collar, a necklace, a seat belt. That
+ * split is what lets a jaw move with its neck and without the shirt or a pillow beside them going along.
  *
  * The segmenter sees its input at 256 px, so it looks at the whole photo once, for bodies and for people with
  * no face found, and twice at each head, wide and close, where the edge is what matters. The hair segmenter
@@ -14,6 +15,7 @@
  */
 
 import { faceSize, sampleCut, type HairCut } from './hair';
+import { COVER_SPAN } from '../doc';
 import { boxBlur, fillPolygon, guidedFilter, type Area, type MaskTarget } from './mask';
 import { nearestCells } from './plate';
 import { CHIN, type Face } from './scan';
@@ -37,6 +39,11 @@ const HAIR_NEAR = 0.2;
 const WORN_ROOM = 1.75;
 const WORN_BELOW = 1.12;
 /**
+ * A thing worn is of the head only when this share of it is inside that outline. A necklace passes close under
+ * a jaw, and the part of it there would go with the head while the rest stayed: one chain in two pieces.
+ */
+const WORN_MOSTLY = 0.7;
+/**
  * Hair has no clean edge: loose ends and a soft halo go a little past what the models call hair. They have to
  * leave with the head, or they stay behind as a drawing of where it was. So around hair the matte of the head
  * goes this share of the face size further, and fades over the last part of it.
@@ -56,6 +63,18 @@ const LOOSE_ENDS = 0.1;
  */
 export const TRACE = 8;
 export const TRACE_FULL = 4;
+/**
+ * Stubble, the down on a cheek and the fuzz of a sweater go a little past what the models call a person. When
+ * the person moves, they must not stay behind as a thin drawing of where the edge was. So up to this share of
+ * the face size from any edge of the person, what stands out from the background gets a trace too.
+ */
+const FRINGE = 0.035;
+/**
+ * Only thin things count there. A soft shadow of a neck on a pillow also differs from the pillow around it,
+ * and it is no fringe: cleared, it would leave a pale band. So what stands out is measured against the
+ * background this share of the reach around, which a shadow fills and a hair does not.
+ */
+const FRINGE_THIN = 0.3;
 /** The middle of a face is a head whatever the models say, inside its outline shrunk to this. */
 const SURE_FACE = 0.86;
 /** Confidence between these becomes the soft edge before the photo refines it. */
@@ -75,12 +94,13 @@ const PARTS_LEVEL = 96;
 const MAX_HOLE = 0.01;
 /** A matte with less than this share of the photo found no person at all. */
 const MIN_PERSON = 0.002;
+/** Where two collars are as near, the distance to them has a crease. It is rounded over this share of the long side, and at least a cell. */
+const COVER_SOFT = 0.002;
 /**
- * A head casts a shadow on the neck right under the jaw, and that shadow has to go where the jaw goes, or it
- * stays behind as a second jawline. So over the body the matte of the head does not stop at the jaw: it fades
- * out across this share of the face size. Over the background it stops dead, as it must.
+ * The edge of a collar is soft, and it casts a thin shadow on the skin next to it. That much belongs to the
+ * collar and stays with it: this share of the face size, past what the models call clothes.
  */
-const SHADOW_REACH = 0.1;
+const COVER_EDGE = 0.012;
 /** Size given to the refinement when the photo has no face to measure. */
 const NO_FACE_SIZE = 0.3;
 
@@ -147,6 +167,10 @@ export interface PersonSeen {
   /** Bare skin, of the face or of the body. */
   skin: Float32Array;
   hair: Float32Array;
+  /** What covers a body: clothes, and what is worn or held away from the head. */
+  covered: Float32Array;
+  /** What is worn or held, wherever it is. */
+  worn: Float32Array;
 }
 
 /** The confidence that each cell of `target` is a person, and a head, before the photo refines it. Null when stopped. */
@@ -165,14 +189,24 @@ export async function personConfidence(
   const head = new Float32Array(n);
   const skin = new Float32Array(n);
   const hair = new Float32Array(n);
+  const covered = new Float32Array(n);
+  const wornAll = new Float32Array(n);
   const steps = faces.length * 2 + 1;
   let done = 0;
   const whole = models.parts({ x: 0, y: 0, w: size.w, h: size.h });
   const part = (cut: PartsCut, data: Float32Array): HairCut => ({ data, w: cut.w, h: cut.h });
   {
     const back = part(whole, whole.back);
+    const clothes = part(whole, whole.clothes);
+    const other = part(whole, whole.other);
     for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) person[y * w + x] = 1 - sampleCut(back, (x + 0.5) / w, (y + 0.5) / h);
+      for (let x = 0; x < w; x++) {
+        const fx = (x + 0.5) / w;
+        const fy = (y + 0.5) / h;
+        person[y * w + x] = 1 - sampleCut(back, fx, fy);
+        wornAll[y * w + x] = sampleCut(other, fx, fy);
+        covered[y * w + x] = Math.min(1, sampleCut(clothes, fx, fy) + wornAll[y * w + x]);
+      }
     }
   }
   report(++done / steps);
@@ -188,7 +222,7 @@ export async function personConfidence(
       const parts = models.parts(area);
       // The hair segmenter looks at more pixels, and only the wide square holds all the hair.
       const strands = close ? null : models.hair(area);
-      const cuts = { back: part(parts, parts.back), hair: part(parts, parts.hair), face: part(parts, parts.face), other: part(parts, parts.other), body: part(parts, parts.body) };
+      const cuts = { back: part(parts, parts.back), hair: part(parts, parts.hair), face: part(parts, parts.face), other: part(parts, parts.other), body: part(parts, parts.body), clothes: part(parts, parts.clothes) };
       const x0 = Math.max(0, Math.floor(area.x * kx));
       const y0 = Math.max(0, Math.floor(area.y * ky));
       const x1 = Math.min(w, Math.ceil((area.x + area.w) * kx));
@@ -204,7 +238,10 @@ export async function personConfidence(
           const faceSkin = sampleCut(cuts.face, fx, fy);
           skin[at] += (Math.min(1, faceSkin + sampleCut(cuts.body, fx, fy)) - skin[at]) * k;
           let fur = sampleCut(cuts.hair, fx, fy);
-          let top = fur + faceSkin + sampleCut(cuts.other, fx, fy) * worn[at];
+          const other = sampleCut(cuts.other, fx, fy);
+          wornAll[at] += (other - wornAll[at]) * k;
+          covered[at] += (Math.min(1, sampleCut(cuts.clothes, fx, fy) + other * (1 - worn[at])) - covered[at]) * k;
+          let top = fur + faceSkin + other * worn[at];
           if (strands) {
             const fine = smooth(sampleCut(strands, fx, fy), HAIR_LOW, HAIR_HIGH) * smooth(all, 0, HAIR_NEAR);
             fur = Math.max(fur, fine);
@@ -220,7 +257,46 @@ export async function personConfidence(
       report(++done / steps);
     }
   }
-  return { person, head, skin, hair };
+  return { person, head, skin, hair, covered, worn: wornAll };
+}
+
+/**
+ * Gives back to the body what is worn mostly below a head: each thing worn, as one piece, is of the head or it
+ * is not. See `WORN_MOSTLY`. Changes the confidence of the heads and of what covers the body, in place.
+ */
+export function wornWhole(seen: PersonSeen, faces: readonly Face[], w: number, h: number): void {
+  const n = w * h;
+  const near = new Float32Array(n);
+  for (const face of faces) {
+    const inside = fillPolygon(grownOutline(face, WORN_ROOM, w, h, WORN_BELOW), w, h);
+    for (let i = 0; i < n; i++) if (inside[i] > near[i]) near[i] = inside[i];
+  }
+  const label = new Uint8Array(n);
+  const stack: number[] = [];
+  const cells: number[] = [];
+  for (let start = 0; start < n; start++) {
+    if (label[start] || seen.worn[start] <= 0.5) continue;
+    cells.length = 0;
+    let inside = 0;
+    label[start] = 1;
+    stack.push(start);
+    while (stack.length) {
+      const at = stack.pop()!;
+      cells.push(at);
+      inside += near[at];
+      const x = at % w;
+      for (const next of [x > 0 ? at - 1 : -1, x < w - 1 ? at + 1 : -1, at >= w ? at - w : -1, at < n - w ? at + w : -1]) {
+        if (next < 0 || label[next] || seen.worn[next] <= 0.5) continue;
+        label[next] = 1;
+        stack.push(next);
+      }
+    }
+    if (inside >= cells.length * WORN_MOSTLY) continue;
+    for (const at of cells) {
+      seen.head[at] = Math.max(0, seen.head[at] - seen.worn[at] * near[at]);
+      seen.covered[at] = Math.max(seen.covered[at], seen.worn[at]);
+    }
+  }
 }
 
 /**
@@ -246,6 +322,8 @@ function grownOutline(face: Face, by: number, w: number, h: number, below = by):
 export interface Mattes {
   person: Uint8Array;
   head: Uint8Array;
+  /** How far each cell is from what covers the body. See `coverMatte`. */
+  cover: Uint8Array;
 }
 
 /**
@@ -282,6 +360,7 @@ export function finishMattes(seen: PersonSeen, faces: readonly Face[], target: M
     fillInnerHoles(matte, w, h);
     return matte;
   };
+  wornWhole(seen, faces, w, h);
   const person = finish(seen.person);
   let total = 0;
   for (let i = 0; i < n; i++) total += person[i];
@@ -289,8 +368,123 @@ export function finishMattes(seen: PersonSeen, faces: readonly Face[], target: M
   const head = finish(seen.head);
   hairHalo(head, seen.hair, w, h, size * HAIR_HALO, size * LOOSE_ENDS, person, guide);
   for (let i = 0; i < n; i++) if (head[i] > person[i]) person[i] = head[i];
-  castShadow(head, person, seen.skin, w, h, size * SHADOW_REACH);
-  return { person, head };
+  if (guide) fringe(person, head, w, h, size * FRINGE, guide);
+  return { person, head, cover: coverMatte(person, head, seen.covered, w, h, size * COVER_EDGE) };
+}
+
+/**
+ * Leaves a trace on the background up to `reach` cells from the edge of the person, where something thin stands
+ * out from the background: the tips of a beard, mostly. See `FRINGE`. Next to a head the trace goes into the
+ * matte of the heads as well.
+ */
+export function fringe(person: Uint8Array, head: Uint8Array, w: number, h: number, reach: number, luma: Float32Array): void {
+  if (reach < 1) return;
+  const solid = new Uint8Array(person.length);
+  for (let i = 0; i < person.length; i++) solid[i] = person[i] > 127 ? 1 : 0;
+  const near = nearestCells(solid, w, h);
+  const zone = new Uint8Array(person.length);
+  const far = new Float32Array(person.length);
+  let any = false;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const at = y * w + x;
+      const from = near[at];
+      if (from < 0 || person[at]) continue;
+      const fx = from % w;
+      const d = Math.hypot(fx - x, (from - fx) / w - y);
+      if (d >= reach) continue;
+      zone[at] = 1;
+      far[at] = d;
+      any = true;
+    }
+  }
+  if (!any) return;
+  const ends = looseEnds(luma, zone, person, w, h, reach * FRINGE_THIN);
+  // Between an end and the edge it comes from there is the rest of that hair, seen or not: the ground is
+  // cleared from the edge out to the end, with no holes.
+  const out = new Float32Array(person.length);
+  for (let at = 0; at < zone.length; at++) {
+    if (zone[at] && ends[at] > 0.5 && far[at] > out[near[at]]) out[near[at]] = far[at];
+  }
+  for (let at = 0; at < zone.length; at++) {
+    if (!zone[at]) continue;
+    const strength = far[at] <= out[near[at]] ? 1 : ends[at];
+    const value = Math.round(TRACE_FULL * (1 - smooth(far[at], reach * 0.8, reach)) * strength);
+    if (value <= 0) continue;
+    person[at] = value;
+    if (head[near[at]] > 127 && value > head[at]) head[at] = value;
+  }
+}
+
+/**
+ * How far each cell is from what covers the body: clothes, a necklace, a seat belt. Bare skin goes along with
+ * the face it is attached to, as a neck does under a jaw, and what covers the body stays where it is, so the
+ * skin between the two has to take up the difference. How much room it has for that is this distance. It is
+ * kept up to `COVER_SPAN` of the long side, as the square root of its share of that, so that the short
+ * distances, which are the ones that count, keep their detail in a byte. A photo with nothing covered is 255
+ * all over. The background counts like the skin beside it, because the edge of a neck moves whole. `edge` is
+ * how many cells past what covers the body still count as that. See `COVER_EDGE`.
+ */
+export function coverMatte(person: Uint8Array, head: Uint8Array, covered: Float32Array, w: number, h: number, edge = 0): Uint8Array {
+  const n = w * h;
+  const out = new Uint8Array(n).fill(255);
+  const held = new Uint8Array(n);
+  let any = false;
+  for (let i = 0; i < n; i++) {
+    if (person[i] > 127 && head[i] <= 127 && covered[i] > 0.5) {
+      held[i] = 1;
+      any = true;
+    }
+  }
+  if (!any) return out;
+  const long = Math.max(w, h);
+  const span = long * COVER_SPAN;
+  const near = nearestCells(held, w, h);
+  const far = new Float32Array(n);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const at = y * w + x;
+      const from = near[at];
+      const fx = from % w;
+      far[at] = Math.min(span, Math.max(0, Math.hypot(fx - x, (from - fx) / w - y) - edge));
+    }
+  }
+  const soft = boxBlur(far, w, h, Math.max(1, Math.round(long * COVER_SOFT)));
+  for (let i = 0; i < n; i++) out[i] = held[i] ? 0 : Math.round(Math.sqrt(Math.min(1, Math.max(0, soft[i]) / span)) * 255);
+  return out;
+}
+
+/** The distance of `coverMatte` is evened out over this share of the long side, and at least 2 cells, before its slope is read. */
+const WAY_SOFT = 0.004;
+
+/**
+ * Which way what covers the body is, for each cell: the slope of the distance in `coverMatte`, as two numbers
+ * per cell. Its length is about 1 where one cover is the nearest by far, and less between two covers, where no
+ * way is the way. The matte keeps the distance in a byte, and read straight from it the slope changes from one
+ * cell to the next by a few degrees: enough to move what is read by a pixel, which showed as a chessboard along
+ * the edge of a neck. So the distance is evened out first, across the steps of the byte.
+ */
+export function coverWay(cover: Uint8Array, w: number, h: number): Float32Array {
+  const n = w * h;
+  const long = Math.max(w, h);
+  const span = long * COVER_SPAN;
+  const far = new Float32Array(n);
+  for (let i = 0; i < n; i++) far[i] = (cover[i] / 255) ** 2 * span;
+  const r = Math.max(2, Math.round(long * WAY_SOFT));
+  const soft = boxBlur(boxBlur(far, w, h, r), w, h, r);
+  const out = new Float32Array(n * 2);
+  for (let y = 0; y < h; y++) {
+    const up = Math.max(0, y - 1);
+    const down = Math.min(h - 1, y + 1);
+    for (let x = 0; x < w; x++) {
+      const left = Math.max(0, x - 1);
+      const right = Math.min(w - 1, x + 1);
+      const at = (y * w + x) * 2;
+      out[at] = (soft[y * w + right] - soft[y * w + left]) / Math.max(1, right - left);
+      out[at + 1] = (soft[down * w + x] - soft[up * w + x]) / Math.max(1, down - up);
+    }
+  }
+  return out;
 }
 
 /** A loose end stands out from the background around it by this much brightness, out of 1, and by this many times what is usual there. */
@@ -375,31 +569,6 @@ export function hairHalo(head: Uint8Array, hair: Float32Array, w: number, h: num
     if (!zone[at]) continue;
     const value = Math.round(TRACE_FULL * (1 - smooth(far[at], loose * 0.8, loose)) * (ends ? ends[at] : 1));
     if (value > head[at]) head[at] = value;
-  }
-}
-
-/**
- * Lets the matte of the heads fade out over the bare skin next to them, across `reach` cells. See
- * `SHADOW_REACH`. Only over skin: a collar or a necklace has edges of its own, which a guess would blur.
- */
-export function castShadow(head: Uint8Array, person: Uint8Array, skin: Float32Array, w: number, h: number, reach: number): void {
-  if (reach < 1) return;
-  const solid = new Uint8Array(head.length);
-  for (let i = 0; i < head.length; i++) solid[i] = head[i] > 127 ? 1 : 0;
-  const near = nearestCells(solid, w, h);
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const at = y * w + x;
-      const from = near[at];
-      if (from < 0 || solid[at] || !person[at]) continue;
-      const fx = from % w;
-      const fy = (from - fx) / w;
-      const d = Math.hypot(fx - x, fy - y);
-      if (d >= reach) continue;
-      const fade = 1 - smooth(d, 0, reach);
-      const value = Math.round(fade * fade * person[at] * smooth(skin[at], EDGE_LOW, EDGE_HIGH));
-      if (value > TRACE && value > head[at]) head[at] = value;
-    }
   }
 }
 

@@ -74,7 +74,7 @@
     {/if}
 
     {#if lockState.state === 'on'}
-      <p class="note lock" role="status" data-testid="lock-note">Fundo travado: só a cabeça se mexe. Pescoço, ombros e fundo ficam onde estão.</p>
+      <p class="note lock" role="status" data-testid="lock-note">Fundo travado: o rosto se mexe e o pescoço acompanha. Roupa, colar e fundo ficam onde estão.</p>
       <FillCard />
     {:else if lockState.state === 'finding'}
       <p class="note lock" role="status" data-testid="lock-note">Separando a pessoa do fundo…</p>

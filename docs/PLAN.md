@@ -180,6 +180,11 @@
 - [x] Quem usa decidiu: ficam os dois modelos, cerca de 44 MB no primeiro uso do menu
 - [x] Aviso do tamanho só no celular, e tempo que falta em todo download e em todo passo demorado
 - [x] O aviso de 6 MB do detector, nas outras ferramentas, também só no celular
+- [x] O pescoço acompanha a mandíbula e o queixo, sem degrau, e volta à largura que tinha; ombros ficam
+- [x] Roupa, colar e cinto ficam parados, pixel por pixel, e a pele entre eles e o rosto absorve a diferença
+- [x] Limites medidos nas seis fotos: mandíbula 9%, maxilar 10%, queixo e comprimento 6%, e o lado largo de um rosto virado contido
+- [x] Preenchimento a partir de fundo limpo: sombra de contato e pontas de barba saem com a pessoa, e a faixa nova encontra a foto sem degrau de tom
+- [x] Conferido nas seis fotos reais: mandíbula em -100, -50, +50 e +100 e queixo em -100, com linhas finas
 - [ ] Placa na resolução da foto: hoje ela tem a da prévia, e numa foto de 12 MP o que aparece atrás sai mais suave
 - [ ] Retoques de pele chegarem à placa: o pescoço que aparece vem da foto sem Suavizar nem Tom de pele
 
@@ -263,21 +268,36 @@ poucos tons de pele.
 ### Formato do rosto
 
 As fotos reais da pasta de testes, na exportação inteira, pixel a pixel. Conta todo pixel fora da pessoa, sem deixar
-faixa nenhuma de fora. A medida anterior deixava de fora uma faixa de 0,6% do lado maior e o que a pessoa cobria, e
-por isso dava zero. O que muda é a borda que a cabeça deixou e o chão das pontas soltas do cabelo, completados pelo
-modelo. Entre parênteses, quantos mudaram mais de 8 níveis.
+faixa nenhuma de fora. O que muda é a borda que a cabeça e o pescoço deixaram, o que ela largava no chão ao lado,
+como a sombra de contato, e o chão das pontas soltas do cabelo, completados pelo modelo. Entre parênteses, quantos
+mudaram mais de 8 níveis. A mandíbula muda mais fundo do que na medida anterior porque agora o pescoço vai junto e
+a borda dele também se afasta. Os limites são os da decisão 237.
 
-| Foto | Pixels fora da pessoa | Mudaram com a cabeça em -100 | Mudaram com a mandíbula em -100 |
-| --- | --- | --- | --- |
-| Close na cama, travesseiro claro, 675 x 1200 | 272 mil | 8.643 (3.178) | 2.948 (808) |
-| Selfie na rua, asfalto, 827 x 1351 | 374 mil | 13.469 (5.071) | 14 (0) |
-| Close no carro, 399 x 501 | 64 mil | 3.596 (2.053) | 402 (211) |
-| Retrato com parede clara, 800 x 993 | 336 mil | 5.090 (1.899) | 664 (179) |
-| Selfie de óculos, calçada, 774 x 1600 | 548 mil | 14.575 (6.523) | 3.077 (1.193) |
-| Retrato com fundo claro e mão na cabeça, 758 x 1341 | 419 mil | 3.018 (812) | 385 (91) |
+| Foto | Pixels fora da pessoa | Cabeça em -100 | Mandíbula em -100 | Queixo em -100 |
+| --- | --- | --- | --- | --- |
+| Close na cama, travesseiro claro, 675 x 1200 | 272 mil | 14.286 (6.010) | 6.093 (2.408) | 641 (80) |
+| Selfie na rua, asfalto, 827 x 1351 | 374 mil | 17.971 (6.496) | 86 (5) | 0 |
+| Close no carro, 399 x 501 | 64 mil | 5.246 (2.988) | 1.319 (757) | 0 |
+| Retrato com parede clara, 800 x 993 | 336 mil | 9.284 (2.719) | 2.768 (853) | 0 |
+| Selfie de óculos, calçada, 774 x 1600 | 548 mil | 22.878 (9.782) | 5.948 (2.227) | 0 |
+| Retrato com fundo claro e mão na cabeça, 758 x 1341 | 419 mil | 6.557 (1.366) | 1.238 (576) | 1.410 (345) |
 
-No retrato gerado dos testes, de 1500 x 1875: até 4.176 de 1,14 milhão de pixels de fundo, 0,4%, todos a menos de
-5% do lado maior da cabeça, e no corpo só os que encostam nela, a 7 células.
+No retrato gerado dos testes, de 1500 x 1875, com o palpite rápido: 8.243 de 1,14 milhão de pixels de fundo com a
+cabeça em -100, 0,7%, e 5.922 com a mandíbula, todos a menos de 35% do comprimento do rosto da cabeça. No corpo,
+só o que fica a menos disso: mais longe ele sai igual, pixel por pixel.
+
+O pescoço, nas mesmas seis fotos, cada uma com a mandíbula em -100, -50, +50 e +100 e o queixo em -100, olhadas
+ampliadas com os mattes em linhas finas. Deslize é quanto a cabeça escorrega sobre a pele do corpo no pior ponto,
+onde uma gola não deixa a pele acompanhar: é o degrau que sobra.
+
+| Foto | Rosto | Borda da mandíbula em -100 | Deslize, mandíbula em -100 | Deslize, queixo em -100 |
+| --- | --- | --- | --- | --- |
+| Close na cama, alça e corrente fina | 535 px | 16,0 px | 0 | 20,3 px |
+| Selfie na rua, blusa escura | 428 px | 12,3 px | 7,7 px | 10,6 px |
+| Close no carro, cinto encostado no queixo | 294 px | 9,1 px | 2,2 px | 17,5 px |
+| Retrato com parede clara, gola logo abaixo | 512 px | 15,1 px | 6,0 px | 9,7 px |
+| Selfie de óculos, corrente grossa | 476 px | 14,3 px | 7,1 px | 0 |
+| Retrato com fundo claro, blusa preta | 341 px | 10,7 px | 2,5 px | 0 |
 
 Download e tempo, medidos nesta máquina, com os arquivos `.br` do build:
 
@@ -292,6 +312,14 @@ Download e tempo, medidos nesta máquina, com os arquivos `.br` do build:
 O que ficou limitado, visto nas fotos: óculos na frente do nariz ou dos olhos entortam com os controles dessas
 partes. Em fundo com textura, o chão das pontas soltas do cabelo volta com textura parecida e não igual. Com a
 cabeça em -100, um ou outro risco fino pode aparecer no fundo liso ao lado do rosto, visto só com zoom.
+
+No pescoço: com a gola encostada no canto da mandíbula, a pele não tem para onde ir e o rosto desliza sobre ela.
+No limite isso é um pedaço de pescoço a mais ao lado da barba, sem corte. No close no carro o cinto passa por cima
+do queixo, e ali o queixo sobe sobre o cinto, que fica. Com o queixo em -100 e uma alça a 30 px dele, a borda do
+pescoço faz uma quina pequena logo abaixo do queixo, vista com zoom de 5 vezes. A faixa de fundo que aparece ao lado
+do pescoço vem do modelo: num travesseiro com dobras ela continua as dobras parecidas, não iguais. Para ir além
+disso seria preciso completar também a roupa atrás da pele, com um terceiro plano e outra passada do modelo, e
+medir o pescoço como parte própria em vez de pele nua em geral.
 
 ### Automático de Forma e Luz
 

@@ -19,6 +19,12 @@ export interface ShapeField {
    * without this share, so teeth are never stretched. Absent when nothing shapes the lips.
    */
   over?(u: number, v: number): readonly [number, number];
+  /**
+   * The share of `offset` that moves a head alone, as a change of its size does away from the neck. The body is
+   * read without it, so shoulders stay where they are. Absent when head and body go together everywhere, as one
+   * surface: that is what the neck does under a jaw.
+   */
+  alone?(u: number, v: number): readonly [number, number];
   area: { u0: number; v0: number; u1: number; v1: number };
 }
 
@@ -36,6 +42,17 @@ const JAW_FROM = [0.42, 0.7] as const;
 const JAW_UNTIL = [0.98, 1.22] as const;
 /** Past this height the outline closes on the chin, and its width would no longer say the width of the jaw. */
 const WIDTH_HELD_FROM = 0.86;
+/**
+ * A neck goes with the jaw above it: where they meet it moves as much as the jaw, and from there down it takes
+ * less and less, until this share of the length of the face below the outline, where it is as wide as it was.
+ * Shorter than this the neck shows a kink, and longer the collar moves with it.
+ */
+export const NECK_TAPER = 0.3;
+/** Between these heights the taper comes in. Beside the cheeks there is no neck, and what is there goes as before. */
+const NECK_FROM = [0.5, 0.78] as const;
+/** The grid that holds how far below the outline a point is: its side, and the heights it covers. */
+const BELOW_SIDE = 48;
+const BELOW_HEIGHTS = [0.45, 1.75] as const;
 /** Radius of the area around an eye that grows with it, as a share of the width of the eye. */
 const EYE_REACH = 1.15;
 /** Past this many radii the bell of the eye is too small to matter. */
@@ -46,6 +63,13 @@ const EDGE_FADE = 0.03;
 const LEVELS = 64;
 /** The narrower side of a turned head still counts as at least this share of the wider one. */
 const MIN_SIDE = 0.25;
+/**
+ * On a turned head the near side looks wide, up to the whole width of the face, and a share of that would move
+ * its jaw twice as far as on a face seen from the front. A real jaw seen from the side moves less, not more.
+ * So a side counts for the move as no wider than this share of the length of the face, which is about the half
+ * width of a face seen from the front.
+ */
+const SIDE_MOST = 0.38;
 
 const smooth = (a: number, b: number, x: number) => {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
@@ -104,6 +128,31 @@ function softened(table: Float32Array): Float32Array {
   return out;
 }
 
+/** Signed distance from a point to a closed outline: negative inside. */
+export function distanceToOutline(x: number, y: number, points: readonly (readonly [number, number])[]): number {
+  let best = Infinity;
+  let inside = false;
+  for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+    const [ax, ay] = points[j];
+    const [bx, by] = points[i];
+    if (ay <= y !== by <= y && x < ax + ((y - ay) / (by - ay)) * (bx - ax)) inside = !inside;
+    const ex = bx - ax;
+    const ey = by - ay;
+    const t = Math.min(1, Math.max(0, ((x - ax) * ex + (y - ay) * ey) / (ex * ex + ey * ey || 1)));
+    const d = Math.hypot(x - ax - ex * t, y - ay - ey * t);
+    if (d < best) best = d;
+  }
+  return inside ? -best : best;
+}
+
+/** How far outside the outline of a face each point is, on a grid in the axes of the face. Zero inside. */
+interface Below {
+  data: Float32Array;
+  /** Sideways position of the first column, and the distance between columns. */
+  side0: number;
+  sideStep: number;
+}
+
 /** A face, measured in its own frame. Lengths are shares of the long side of the photo. */
 export interface FaceFrame {
   ox: number;
@@ -123,6 +172,62 @@ export interface FaceFrame {
   /** Sideways position of the middle of the face, and half its width at the widest. */
   mid: number;
   halfWidth: number;
+  /** How far below the outline a point is. See `neckShare`. */
+  below: Below;
+  /** What the move of each side is cut to, on the side of positive and of negative sideways positions. See `SIDE_MOST`. */
+  most: readonly [number, number];
+}
+
+/** The grid of `Below` for an outline, out to `reach` on each side of the axis of the face. */
+function belowGrid(outline: readonly (readonly [number, number])[], ox: number, oy: number, dx: number, dy: number, length: number, reach: number): Below {
+  const n = BELOW_SIDE;
+  const data = new Float32Array(n * n);
+  const sideStep = (2 * reach) / (n - 1);
+  const tStep = (BELOW_HEIGHTS[1] - BELOW_HEIGHTS[0]) / (n - 1);
+  for (let row = 0; row < n; row++) {
+    const along = (BELOW_HEIGHTS[0] + row * tStep) * length;
+    for (let col = 0; col < n; col++) {
+      const side = -reach + col * sideStep;
+      data[row * n + col] = Math.max(0, distanceToOutline(ox + along * dx - side * dy, oy + along * dy + side * dx, outline));
+    }
+  }
+  return { data, side0: -reach, sideStep };
+}
+
+/** How far below the outline of the face a point is, zero inside it. `side` and `t` are the position in the axes of the face. */
+function depthBelow(f: FaceFrame, side: number, t: number): number {
+  const n = BELOW_SIDE;
+  const { data, side0, sideStep } = f.below;
+  const col = Math.min(n - 1, Math.max(0, (side - side0) / sideStep));
+  const row = Math.min(n - 1, Math.max(0, ((t - BELOW_HEIGHTS[0]) / (BELOW_HEIGHTS[1] - BELOW_HEIGHTS[0])) * (n - 1)));
+  const c0 = Math.floor(col);
+  const r0 = Math.floor(row);
+  const c1 = Math.min(n - 1, c0 + 1);
+  const r1 = Math.min(n - 1, r0 + 1);
+  const top = lerp(data[r0 * n + c0], data[r0 * n + c1], col - c0);
+  const bottom = lerp(data[r1 * n + c0], data[r1 * n + c1], col - c0);
+  return lerp(top, bottom, row - r0);
+}
+
+/**
+ * How much of a move of the outline a point takes, by how far below the outline it is: all of it on the face
+ * and where the neck meets the jaw, and nothing `NECK_TAPER` further down. This is what lets a neck follow a jaw
+ * and still end as wide as it was. Beside the cheeks, where there is no neck, everything takes all of it.
+ */
+export function neckShare(f: FaceFrame, side: number, t: number): number {
+  const gate = smooth(NECK_FROM[0], NECK_FROM[1], t);
+  if (gate <= 0) return 1;
+  return 1 - gate * smooth(0, NECK_TAPER * f.length, depthBelow(f, side, t));
+}
+
+/**
+ * How much of a move of the whole head the body under it takes: the neck all of it where it meets the jaw, and
+ * nothing `NECK_TAPER` further down. Beside the cheeks, nothing: a shoulder stays where it is.
+ */
+export function neckFollow(f: FaceFrame, side: number, t: number): number {
+  const gate = smooth(NECK_FROM[0], NECK_FROM[1], t);
+  if (gate <= 0) return 0;
+  return gate * (1 - smooth(0, NECK_TAPER * f.length, depthBelow(f, side, t)));
 }
 
 export function faceFrame(face: Face, kx: number, ky: number): FaceFrame | null {
@@ -173,7 +278,10 @@ export function faceFrame(face: Face, kx: number, ky: number): FaceFrame | null 
   const widest = Math.max(...plus, ...minus);
   const mid = nose.reduce((sum, v) => sum + v, 0) / LEVELS;
   const halfWidth = (Math.max(...plus) + Math.max(...minus)) / 2;
-  return { ox: top[0], oy: top[1], dx, dy, length, nose, plus, minus, reach: length * JAW_UNTIL[1] + widest * (1 + JAW_FADE), eyes, mid, halfWidth };
+  const most = [Math.min(1, (length * SIDE_MOST) / Math.max(...plus)), Math.min(1, (length * SIDE_MOST) / Math.max(...minus))] as const;
+  // Wide enough for whatever moves with a head, and past it the last value stands.
+  const below = belowGrid(outline, top[0], top[1], dx, dy, length, Math.max(...nose.map(Math.abs)) + widest * 2.8);
+  return { ox: top[0], oy: top[1], dx, dy, length, nose, plus, minus, reach: length * JAW_UNTIL[1] + widest * (1 + JAW_FADE), eyes, mid, halfWidth, below, most };
 }
 
 /** How far, in shares of the long side, to read away from a point for the jaw of this face. */
@@ -189,8 +297,8 @@ export function jawMove(f: FaceFrame, x: number, y: number, strength: number): [
   const s = Math.abs(from) / half;
   const shape = s < 1 ? s ** JAW_INNER_POWER : 1 - smooth(1, 1 + JAW_FADE, s);
   if (shape <= 0) return [0, 0];
-  // Reading from further out is what brings the jaw in.
-  const move = Math.sign(from) * strength * JAW_MOVE * half * height * shape;
+  // Reading from further out is what brings the jaw in. The neck below goes with it, less and less.
+  const move = Math.sign(from) * strength * JAW_MOVE * half * f.most[from >= 0 ? 0 : 1] * height * shape * neckShare(f, side, t);
   return [move * -f.dy, move * f.dx];
 }
 

@@ -127,13 +127,22 @@ O menu que era Forma. Quatro ferramentas na fila: Rosto, Olhos, Nariz e boca, e 
 duas linhas, em 84 px no computador e em 44 px no celular.
 
 - **Camadas.** A foto é lida em camadas: o fundo, o corpo, a cabeça e o interior da boca. Ao abrir a primeira
-  ferramenta o app separa tudo no aparelho, e o painel avisa "Fundo travado: só a cabeça se mexe". Os controles
-  movem a cabeça: cabelo, rosto, orelhas, óculos e brincos. Pescoço, ombros e fundo ficam onde estão, pixel por
-  pixel. A sombra do queixo no pescoço vai com a cabeça.
-- **O que aparece atrás.** Quando a cabeça cresce, cobre o que está atrás. Quando encolhe, aparece o que ela
-  escondia: pescoço onde escondia pescoço, fundo onde escondia fundo. Isso é completado por um modelo de
-  preenchimento, que continua a dobra do travesseiro ou o grão do chão. Um palpite liso entra na hora, para ninguém
-  esperar, e o completo chega depois.
+  ferramenta o app separa tudo no aparelho, e o painel avisa "Fundo travado: o rosto se mexe e o pescoço
+  acompanha. Roupa, colar e fundo ficam onde estão." Os controles movem a cabeça, que é cabelo, rosto, orelhas,
+  óculos e brincos, e junto dela a pele nua do corpo.
+- **O pescoço.** Vai aonde a mandíbula e o queixo vão, para os dois lados e com a cabeça inclinada, e daí para
+  baixo acompanha cada vez menos, até voltar à largura que tinha a 30% do comprimento do rosto abaixo do contorno.
+  Não há degrau nem emenda entre os dois, porque leem o mesmo movimento.
+- **O que cobre o corpo.** Gola, alça, colar e cinto de segurança ficam onde estão, pixel por pixel. A pele entre
+  eles e o rosto absorve a diferença, sem nunca ficar espremida a menos da metade. Se a gola encosta na
+  mandíbula e a pele não tem para onde ir, o rosto desliza por cima dela.
+- **Tamanho da cabeça e comprimento do rosto.** Movem a cabeça sozinha: ombros ficam, e do corpo só o pescoço
+  acompanha, onde encosta nela.
+- **O que aparece atrás.** Quando o rosto ou o pescoço encolhem, aparece o fundo que escondiam. Isso é
+  completado por um modelo de preenchimento, que continua a dobra do travesseiro ou o grão do chão, a partir de
+  fundo limpo, sem a cor da beira da pessoa. A sombra de contato e as pontas de barba saem junto com quem as fez,
+  e a faixa nova encontra a foto sem degrau de tom. Um palpite liso entra na hora, para ninguém esperar, e o
+  completo chega depois.
 - **O cartão de preenchimento.** Enquanto o modelo trabalha, o painel mostra a porcentagem, o passo e quanto
   falta, "cerca de 8 s" ou "cerca de 2 min", medido neste aparelho. Os controles funcionam durante. "Cancelar"
   para e deixa o palpite liso, com um botão "Completar com mais qualidade". Se o modelo não baixou, "Tentar de
@@ -141,8 +150,11 @@ duas linhas, em 84 px no computador e em 44 px no celular.
 - **Download.** A primeira vez baixa os modelos, e todo cartão de download mostra a porcentagem real e quanto
   falta, pela velocidade que a rede teve até ali. Só num celular o cartão diz o tamanho, "cerca de 22 MB: melhor
   no Wi-Fi" na separação e "cerca de 29 MB" no preenchimento. No computador não há aviso de tamanho.
-- **O que muda no fundo.** Junto da cabeça que se afastou, uns pixels de borda, e em volta do cabelo o chão onde
-  havia pontas soltas, até 10% do tamanho do rosto. Tudo o mais sai igual ao original.
+- **O que muda no fundo.** Junto de quem se afastou, a borda, o que ela deixava no chão ao lado, e em volta do
+  cabelo o chão onde havia pontas soltas, até 10% do tamanho do rosto. Tudo o mais sai igual ao original.
+- **Limites.** A mandíbula vai até 9% da meia largura do rosto de cada lado, o maxilar até 10%, e o queixo e o
+  comprimento até 6% do comprimento do rosto. São o máximo que saiu limpo nas fotos reais. Num rosto virado, o
+  lado largo não anda mais que o de um rosto de frente.
 - **Sem separar.** O painel diz o motivo e o que acontece: o fundo perto do rosto mexe junto, e o tamanho da
   cabeça some. Se o modelo não baixou, há um botão para tentar de novo.
 - **Controles.** Cada um começa no zero e vai para os dois lados, menos a papada, que só diminui. Mexer é uma

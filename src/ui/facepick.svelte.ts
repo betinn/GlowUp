@@ -291,7 +291,8 @@ export async function findLock(e: Engine, faces: readonly Face[], task: Task | n
   const { source, masks } = e;
   if (!source || !masks) return false;
   const known = locks.get(source);
-  if (known || e.locking) {
+  // The layers of a project saved before the body went along with the face are worked out again.
+  if (known || (e.locking && e.following)) {
     lockState.state = known ?? 'on';
     if (e.locking) startFill(e, 'tool');
     return true;

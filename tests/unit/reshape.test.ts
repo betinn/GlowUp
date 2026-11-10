@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { CHIN_WORDS, readChin } from '../../src/core/face/chin';
-import { faceAt, hasValues, reshapeField, SHAPE_SLIDERS, sliderById } from '../../src/core/face/reshape';
+import { AT_LIMIT, faceAt, hasValues, reshapeField, SHAPE_SLIDERS, sliderById } from '../../src/core/face/reshape';
+import { NECK_TAPER } from '../../src/core/face/shape';
 import { makeFace, type Face } from '../../src/core/face/scan';
 import { createField } from '../../src/tools/liquify/index';
 import type { GLContext } from '../../src/core/gl/context';
@@ -308,18 +309,218 @@ describe('the field with the brush and the sliders', () => {
 
   it('saves the share of the lips with the field, and brings both back', () => {
     const f = createField(fakeGl(), 512, 512);
-    f.setShape(source({ lips: 80, head: 20 }));
+    f.setShape(source({ lips: 80, jawline: 20 }));
     const data = f.shapeData()!.slice();
     expect(data.length).toBe(f.serialize().length * 2);
     const other = createField(fakeGl(), 512, 512);
     other.restoreShape(data);
     expect(other.lipTex).not.toBeNull();
+    expect(other.headTex).toBeNull();
     expect(other.lookup(0.5, 0.62)).toEqual(f.lookup(0.5, 0.62));
     // A project saved before the lips had a share of their own still opens.
     const old = createField(fakeGl(), 512, 512);
     old.restoreShape(data.subarray(0, data.length / 2));
     expect(old.lipTex).toBeNull();
     expect(old.isEmpty()).toBe(false);
+  });
+
+  it('has a texture for what moves a head alone only while the size of the head or the length of the face asks for it', () => {
+    const f = createField(fakeGl(), 512, 512);
+    expect(f.headTex).toBeNull();
+    for (const id of ['jawline', 'jawShape', 'chin', 'cheeks', 'eyeSize', 'lips']) {
+      f.setShape(source({ [id]: 60 }));
+      expect(f.headTex, id).toBeNull();
+    }
+    for (const id of ['head', 'length']) {
+      f.setShape(source({ [id]: 60 }));
+      expect(f.headTex, id).not.toBeNull();
+    }
+    f.setShape(null);
+    expect(f.headTex).toBeNull();
+  });
+
+  it('saves the share that moves a head alone after the one of the lips, and brings each back to its place', () => {
+    const size = createField(fakeGl(), 512, 512).serialize().length;
+    const f = createField(fakeGl(), 512, 512);
+    f.setShape(source({ head: 60 }));
+    const data = f.shapeData()!.slice();
+    // With no lips shaped, their place holds zeros.
+    expect(data.length).toBe(size * 3);
+    expect(data.subarray(size, size * 2).every((v) => v === 0)).toBe(true);
+    expect(data.subarray(size * 2).some((v) => v !== 0)).toBe(true);
+    const other = createField(fakeGl(), 512, 512);
+    other.restoreShape(data);
+    expect(other.headTex).not.toBeNull();
+    expect(other.lipTex).toBeNull();
+    expect(other.lookup(0.5, 0.25)).toEqual(f.lookup(0.5, 0.25));
+    // And with both.
+    f.setShape(source({ head: 60, lips: 50 }));
+    const both = createField(fakeGl(), 512, 512);
+    both.restoreShape(f.shapeData()!.slice());
+    expect(both.headTex).not.toBeNull();
+    expect(both.lipTex).not.toBeNull();
+  });
+});
+
+/**
+ * Reported on real photos: a narrower jaw left the neck at its old width, with a step where the two meet, and a
+ * shorter chin left a seam under it. The neck now goes where the jaw goes.
+ */
+describe('the neck goes with the face', () => {
+  // The fixture: chin at v = 0.8, the face 0.6 long, 0.22 wide at the most on each side.
+  const LENGTH = 0.6;
+  const HALF = 0.22;
+  /** The edge of the outline at a height, on the right. */
+  const edge = (v: number) => 0.5 + HALF * Math.sqrt(Math.max(0, 1 - ((v - 0.5) / 0.3) ** 2));
+
+  it('under the jaw line the move of the jaw goes on down the neck, and is gone a third of a face below', () => {
+    const { offset } = field({ jawline: -100 });
+    // On the jaw line itself, low on the face.
+    const v = 0.74;
+    const u = edge(v);
+    const onJaw = offset(u, v)[0];
+    expect(onJaw).toBeGreaterThan(0.004);
+    // Straight down from there, outside the outline: the same way, less and less.
+    const down = [0.02, 0.05, 0.09, 0.14].map((d) => offset(u, v + d)[0]);
+    expect(down[0]).toBeGreaterThan(onJaw * 0.6);
+    for (let i = 1; i < down.length; i++) expect(down[i]).toBeLessThan(down[i - 1]);
+    expect(down[1]).toBeGreaterThan(0);
+    // Past the taper, the neck is as wide as it was.
+    expect(offset(u, v + NECK_TAPER * LENGTH + 0.03)).toEqual([0, 0]);
+  });
+
+  it('there is no step between jaw and neck: the move changes little by little across the jaw line', () => {
+    const { offset } = field({ jawline: -100 });
+    for (const v of [0.7, 0.74, 0.77]) {
+      const u = edge(v) - 0.01;
+      let last = offset(u, v)[0];
+      for (let d = 0.004; d <= 0.2; d += 0.004) {
+        const now = offset(u, v + d)[0];
+        // Never more than a sixth of the whole move from one step to the next.
+        expect(Math.abs(now - last)).toBeLessThan(AT_LIMIT.jawline * HALF * 0.17);
+        last = now;
+      }
+    }
+  });
+
+  it('beside the cheeks, where there is no neck, the jaw moves what it always did', () => {
+    const { offset } = field({ jawline: -100 });
+    // Halfway up the fade of the jaw, a little outside the outline.
+    const v = 0.2 + LENGTH * 0.48;
+    expect(offset(edge(v) + 0.03, v)[0]).toBeGreaterThan(0);
+  });
+
+  it('both ways and on both sides: a wider jaw takes the neck out as far as a narrower one takes it in', () => {
+    const v = 0.76;
+    const below = 0.04;
+    const narrow = field({ jawline: -100 }).offset;
+    const wide = field({ jawline: 100 }).offset;
+    const right = narrow(edge(v), v + below)[0];
+    const left = narrow(1 - edge(v), v + below)[0];
+    expect(right).toBeGreaterThan(0);
+    expect(left).toBeCloseTo(-right, 6);
+    expect(wide(edge(v), v + below)[0]).toBeCloseTo(-right, 6);
+  });
+
+  it('on a tilted head the neck follows along the axis of the face, not down the photo', () => {
+    // The same face turned a quarter: its chin points to the left of the photo.
+    const turn = ([x, y]: readonly [number, number]): [number, number] => [0.5 - (y - 0.5), 0.5 + (x - 0.5)];
+    const parts = FRONT.parts;
+    const tilted = makeFace(FRONT.outline.map(turn), {
+      ...parts,
+      eyes: parts.eyes.map((eye) => eye.map(turn)),
+      midline: parts.midline!.map(turn),
+      marks: undefined,
+      brows: undefined,
+    });
+    const { offset } = reshapeField([tilted], place({ jawline: -100 }), [], 1000, 1000);
+    const front = field({ jawline: -100 }).offset;
+    // A point under the jaw of the front face, and the same point of the tilted one.
+    const p: [number, number] = [edge(0.76), 0.8];
+    const q = turn(p);
+    const a = front(p[0], p[1]);
+    const b = offset(q[0], q[1]);
+    expect(Math.hypot(a[0], a[1])).toBeGreaterThan(0.002);
+    // The move turns with the face: what was sideways is now up and down.
+    expect(b[1]).toBeCloseTo(a[0], 4);
+    expect(Math.abs(b[0])).toBeLessThan(1e-4);
+  });
+
+  it('a shorter chin takes the skin under it up with it, and the collar bone stays', () => {
+    const { offset } = field({ chin: -100 });
+    const chin = offset(0.5, 0.8)[1];
+    // Reading from below is what moves the chin up.
+    expect(chin).toBeGreaterThan(0.02);
+    const under = offset(0.5, 0.84)[1];
+    expect(under).toBeGreaterThan(0);
+    expect(under).toBeLessThan(chin);
+    expect(offset(0.5, 0.8 + LENGTH * 0.4)).toEqual([0, 0]);
+  });
+
+  it('every slider but two moves head and body as one: only the size of the head and the length of the face move a head alone', () => {
+    for (const s of SHAPE_SLIDERS) {
+      if (s.id === 'doubleChin') continue;
+      const { alone } = field({ [s.id]: s.min === 0 ? 50 : -100 });
+      if (s.id === 'head' || s.id === 'length') expect(alone, s.id).toBeDefined();
+      else expect(alone, s.id).toBeUndefined();
+    }
+  });
+
+  it('a smaller head leaves the shoulders, and takes the neck where it meets the jaw', () => {
+    const { offset, alone } = field({ head: -100 });
+    // The top of the hair, far from any neck: all of the move is the head alone.
+    const top = offset(0.5, 0.12);
+    expect(Math.hypot(...top)).toBeGreaterThan(0.005);
+    expect(alone!(0.5, 0.12)[1]).toBeCloseTo(top[1], 6);
+    // Beside the cheek, where a raised shoulder would be: the head alone too.
+    const beside = offset(0.5 + HALF * 1.2, 0.45);
+    expect(alone!(0.5 + HALF * 1.2, 0.45)[0]).toBeCloseTo(beside[0], 6);
+    // On the jaw line the body takes the whole move, so nothing comes apart there.
+    const v = 0.76;
+    const jaw = offset(edge(v), v);
+    expect(Math.hypot(...jaw)).toBeGreaterThan(0.001);
+    expect(Math.hypot(...alone!(edge(v), v))).toBeLessThan(Math.hypot(...jaw) * 0.02);
+    // A little down the neck the body takes part of it, and the rest is the head alone.
+    const neck = offset(edge(v), v + 0.06);
+    const share = Math.hypot(...alone!(edge(v), v + 0.06)) / Math.hypot(...neck);
+    expect(share).toBeGreaterThan(0.05);
+    expect(share).toBeLessThan(0.95);
+  });
+});
+
+describe('the limits measured on the real photos', () => {
+  it('a narrower jaw brings each side in by 9% of the half width of the face, and no more', () => {
+    expect(AT_LIMIT.jawline).toBe(0.09);
+    const { offset } = field({ jawline: -100 });
+    let most = 0;
+    for (let v = 0.2; v <= 1; v += 0.004) for (let u = 0.5; u <= 0.9; u += 0.004) most = Math.max(most, offset(u, v)[0]);
+    expect(most).toBeLessThanOrEqual(0.09 * 0.22 + 1e-6);
+    expect(most).toBeGreaterThan(0.09 * 0.22 * 0.85);
+  });
+
+  it('the chin and the length of the face move the chin by 6% of the length of the face', () => {
+    expect(AT_LIMIT.chin).toBe(0.06);
+    expect(AT_LIMIT.length).toBe(0.06);
+    expect(field({ chin: -100 }).offset(0.5, 0.8)[1]).toBeCloseTo(0.06 * 0.6, 4);
+    expect(field({ length: -100 }).offset(0.5, 0.8)[1]).toBeCloseTo(0.06 * 0.6, 4);
+  });
+
+  it('the corners of the jaw move by a tenth of the half width', () => {
+    expect(AT_LIMIT.jawShape).toBe(0.1);
+    const [u, v] = FRONT.parts.marks!.jawCorners[1];
+    expect(Math.abs(field({ jawShape: -100 }).offset(u, v)[0])).toBeLessThanOrEqual(0.1 * 0.22 + 1e-6);
+  });
+
+  it('on a turned head the wide side moves no more than a side of a face seen from the front', () => {
+    // The nose far to the left: the right side looks almost as wide as the whole face.
+    const midline = FRONT.parts.midline!.map(([, y]) => [0.34, y] as const);
+    const turned = makeFace(FRONT.outline, { ...FRONT.parts, midline });
+    const { offset } = reshapeField([turned], place({ jawline: -100 }), [], 1000, 1000);
+    let most = 0;
+    for (let v = 0.2; v <= 1; v += 0.004) for (let u = 0.3; u <= 0.95; u += 0.004) most = Math.max(most, Math.abs(offset(u, v)[0]));
+    // 9% of 38% of the length of the face, not 9% of the 0.38 of the photo that the side seems to be wide.
+    expect(most).toBeLessThanOrEqual(0.09 * 0.38 * 0.6 + 1e-6);
+    expect(most).toBeGreaterThan(0.09 * 0.22 * 0.85);
   });
 });
 

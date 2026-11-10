@@ -5,13 +5,14 @@
 
 import { GLContext, type Tex } from './gl/context';
 import { DEFAULT_BRUSH, StrokeInterpolator, type BrushSettings, type Dab } from './brush';
-import { clone, createDoc, DEFAULT_ADJUST, DEFAULT_BLUR, FILTER_MASK, HEAD_MASK, MOUTH_MASK, PERSON_MASK, PHOTO_MASKS, type Adjustments, type BlurSettings, type EditDoc, type FaceShape, type FilterState, type HealOp, type LayerId, type ParamValue } from './doc';
+import { clone, createDoc, DEFAULT_ADJUST, COVER_MASK, DEFAULT_BLUR, FILTER_MASK, HEAD_MASK, MOUTH_MASK, PERSON_MASK, PHOTO_MASKS, type Adjustments, type BlurSettings, type EditDoc, type FaceShape, type FilterState, type HealOp, type LayerId, type ParamValue } from './doc';
 import type { Face } from './face/scan';
 import { applyMat3, defaultCrop, imageToOutput, outputSize, outputToImage, rotatedBounds, type Crop } from './geometry';
 import { decodeTile, encodeTile } from './history/codec';
 import { History, type HistoryEntry } from './history/history';
 import { MaskStore, type MaskTile } from './masks';
 import { Pipeline, shader } from './pipeline/pipeline';
+import { coverWay } from './face/person';
 import { buildPlate, extendMouth } from './face/plate';
 import { RenderContext } from './pipeline/context';
 import type { ToolPass } from './pipeline/types';
@@ -62,6 +63,8 @@ export interface PhotoMattes {
   person: Uint8Array;
   head: Uint8Array;
   mouth: Uint8Array | null;
+  /** How far each cell is from what covers the body. Null when nothing says, and the body then stays where it is. */
+  cover: Uint8Array | null;
 }
 
 /** How far around a mouth its lips can move, as a share of the span of the heads. */
@@ -108,10 +111,12 @@ export interface ShapeSource {
 /** What the liquify module provides once loaded. */
 export interface FieldController {
   tex: Tex;
-  /** The brush alone: what moves a body, which the sliders leave where it is. */
+  /** The brush alone: what may move a background, which no slider moves. */
   readonly brushTex: Tex;
   /** The share of the sliders that shapes the lips, while there is one. */
   readonly lipTex: Tex | null;
+  /** The share of the sliders that moves a head alone, while there is one. A body is read without it. */
+  readonly headTex: Tex | null;
   lookup(u: number, v: number): [number, number];
   begin(mode: string, radius: number, strength: number): void;
   stroke(u: number, v: number): void;
@@ -185,7 +190,7 @@ export class Engine {
   /** The faces the sliders hold on to. Empty on a reopened project until the menu looks for them. */
   shapeFaces: readonly Face[] = [];
   /** The photo with nobody in it and with no head in it, while the mattes exist. */
-  private plates: { w: number; h: number; span: number; back: { data: Uint8Array; tex: Tex }; head: { data: Uint8Array; tex: Tex }; mattes: { person: Uint8Array; head: Uint8Array } } | null = null;
+  private plates: { w: number; h: number; span: number; back: { data: Uint8Array; tex: Tex }; head: { data: Uint8Array; tex: Tex }; way: Tex | null; mattes: { person: Uint8Array; head: Uint8Array } } | null = null;
   /** Counts the times the layers were set, so work done for older ones is not taken for these. */
   private layersRev = 0;
   /** Id of the filter whose LUT is on the GPU. */
@@ -357,9 +362,14 @@ export class Engine {
       masks.write(HEAD_MASK, mattes.head);
       if (mattes.mouth) masks.write(MOUTH_MASK, mattes.mouth);
       else masks.clear(MOUTH_MASK);
+      if (mattes.cover) masks.write(COVER_MASK, mattes.cover);
+      else masks.clear(COVER_MASK);
       const photo = source.draw(0, 0, source.w, source.h, w, h).getContext('2d')!.getImageData(0, 0, w, h).data;
       const back = buildPlate(photo, mattes.person, w, h);
-      const head = buildPlate(photo, mattes.head, w, h);
+      // Beside a head there is background, and under it a body, whose shadows are its own.
+      const open = new Uint8Array(w * h);
+      for (let i = 0; i < open.length; i++) open[i] = mattes.person[i] ? 0 : 1;
+      const head = buildPlate(photo, mattes.head, w, h, open);
       const span = headSpan(mattes.head);
       if (mattes.mouth) extendMouth(head, photo, mattes.mouth, w, h, span * MOUTH_REACH);
       const tex = (data: Uint8Array) => {
@@ -367,11 +377,19 @@ export class Engine {
         glc.upload(t, { x: 0, y: 0, w, h }, data);
         return t;
       };
-      this.plates = { w, h, span, back: { data: back, tex: tex(back) }, head: { data: head, tex: tex(head) }, mattes: { person: mattes.person, head: mattes.head } };
+      // Which way what covers the body is. Worked out from its matte each time, so a project saves the matte alone.
+      let way: Tex | null = null;
+      if (mattes.cover) {
+        way = glc.createTex(w, h, 'rg16f', { noTarget: true });
+        glc.upload(way, { x: 0, y: 0, w, h }, coverWay(mattes.cover, w, h));
+      }
+      this.plates = { w, h, span, back: { data: back, tex: tex(back) }, head: { data: head, tex: tex(head) }, way, mattes: { person: mattes.person, head: mattes.head } };
       pipeline.lock = {
         person: masks.get(PERSON_MASK)!,
         head: masks.get(HEAD_MASK)!,
         mouth: mattes.mouth ? masks.get(MOUTH_MASK) : null,
+        cover: mattes.cover ? masks.get(COVER_MASK) : null,
+        coverWay: way,
         plateBack: this.plates.back.tex,
         plateHead: this.plates.head.tex,
       };
@@ -392,7 +410,9 @@ export class Engine {
     if (!person || !person.some((v) => v > 0)) return;
     const head = masks.get(HEAD_MASK) ? await masks.read(HEAD_MASK) : null;
     const mouth = masks.get(MOUTH_MASK) ? await masks.read(MOUTH_MASK) : null;
-    this.setLayers({ person, head: head ?? person, mouth: mouth?.some((v) => v > 0) ? mouth : null });
+    // A project saved before the body went along with the face has no such matte, and opens as it was saved.
+    const cover = masks.get(COVER_MASK) ? await masks.read(COVER_MASK) : null;
+    this.setLayers({ person, head: head ?? person, mouth: mouth?.some((v) => v > 0) ? mouth : null, cover });
   }
 
   /** The plates as they stand, for the completion to work on. Null when the photo has no layers. */
@@ -416,6 +436,7 @@ export class Engine {
     if (this.plates) {
       this.glc.destroyTex(this.plates.back.tex);
       this.glc.destroyTex(this.plates.head.tex);
+      if (this.plates.way) this.glc.destroyTex(this.plates.way);
     }
     this.plates = null;
     if (this.pipeline) this.pipeline.lock = null;
@@ -424,6 +445,11 @@ export class Engine {
   /** The matte is on, and warps leave the background where it is. */
   get locking(): boolean {
     return !!this.pipeline?.lock;
+  }
+
+  /** The layers know what of the body goes along with a face. False for the layers of an older project. */
+  get following(): boolean {
+    return !!this.pipeline?.lock?.cover;
   }
 
   /** The brush may move the background too, as one undo step. Takes effect at once, for what is already there. */

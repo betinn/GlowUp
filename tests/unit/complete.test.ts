@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { completePlates, distanceTo, FILL_TILE, growFill, keptPart, planFill, runFill, shrinkPlate, type Inpaint, type PlateSet } from '../../src/core/face/complete';
+import { completePlates, distanceTo, FILL_TILE, growFill, keptPart, planFill, runFill, settle, shrinkPlate, type Inpaint, type PlateSet } from '../../src/core/face/complete';
 import { buildPlate, nearestCells } from '../../src/core/face/plate';
 
 /**
@@ -109,6 +109,49 @@ describe('running the tiles', () => {
   });
 });
 
+describe('where a filled plate meets the photo', () => {
+  const W = 48;
+  /** A plate whose left half is covered, as RGBA with one gray per cell. */
+  const plateOf = (gray: (x: number, y: number) => number) => {
+    const out = new Uint8Array(W * W * 4);
+    for (let y = 0; y < W; y++) for (let x = 0; x < W; x++) out.set([gray(x, y), gray(x, y), gray(x, y), x < 24 ? 255 : 0], (y * W + x) * 4);
+    return out;
+  };
+  const covered = new Uint8Array(W * W);
+  for (let y = 0; y < W; y++) for (let x = 0; x < 24; x++) covered[y * W + x] = 1;
+
+  it('the plate takes the tone of the photo at the line, the cells the model only borrowed get the photo back, and alpha stays', () => {
+    // The photo is darker next to the layer, as a soft shadow leaves it. The model was not shown those cells,
+    // and put its own lighter tone there and in the hole.
+    const before = plateOf((x) => (x < 30 ? 100 : 140));
+    const plate = plateOf((x) => (x < 30 ? 140 : 140));
+    settle(plate, before, covered, W, W);
+    const at = (x: number, y: number) => (y * W + x) * 4;
+    // Where the plate ends, it now meets the photo: no step of 40 levels.
+    expect(Math.abs(plate[at(23, 20)] - before[at(24, 20)])).toBeLessThan(6);
+    // The borrowed cells are the photo again.
+    for (const x of [24, 27, 29, 40]) expect(plate[at(x, 20)]).toBe(before[at(x, 20)]);
+    expect(plate[at(10, 20) + 3]).toBe(255);
+    expect(plate[at(30, 20) + 3]).toBe(0);
+  });
+
+  it('a plate that already agrees with the photo is left exactly as it is', () => {
+    const before = plateOf(() => 120);
+    const plate = plateOf((x) => (x < 24 ? 90 + (x % 5) : 120));
+    const same = plate.slice();
+    settle(plate, before, covered, W, W);
+    expect(plate).toEqual(same);
+  });
+
+  it('the detail the model made stays: only the tone moves', () => {
+    const before = plateOf((x) => (x < 30 ? 100 : 140));
+    const plate = plateOf((x, y) => (x < 24 ? 140 + ((x + y) % 2 ? 6 : -6) : 140));
+    settle(plate, before, covered, W, W);
+    const at = (x: number, y: number) => (y * W + x) * 4;
+    expect(Math.abs(plate[at(20, 20)] - plate[at(21, 20)])).toBeGreaterThan(8);
+  });
+});
+
 describe('both plates of a photo', () => {
   const S = 240;
   const BACK = [200, 205, 210];
@@ -164,6 +207,12 @@ describe('both plates of a photo', () => {
     near(head, 68, 90, BACK);
     // Nothing of the head itself is left in what is behind it.
     for (const [x, y] of [[120, 150], [120, 48], [68, 90], [172, 90]]) expect(head[(y * S + x) * 4]).toBeGreaterThan(100);
+    // The side of the neck goes on up from where it is. Right above its edge the plate is about half neck and
+    // half wall, and a little further in, all neck: the wall takes no notch out of the side of the neck.
+    const neckAt = (x: number, y: number) => (BACK[0] - head[(y * S + x) * 4]) / (BACK[0] - NECK[0]);
+    expect(neckAt(95, 150)).toBeGreaterThan(0.4);
+    expect(neckAt(145, 150)).toBeGreaterThan(0.4);
+    expect(neckAt(84, 145)).toBeLessThan(0.1);
   });
 
   it('leaves every pixel that no layer covers exactly as the photo has it', async () => {

@@ -33,7 +33,8 @@ async function openShape(page: Page, tool = 'faceshape'): Promise<void> {
 /**
  * Exports a PNG and compares it with one taken before. Every pixel outside the person counts, with no band left
  * out: the result says how many of them changed, how far from the head the farthest one is, and how many of
- * the changed ones the head now covers, which is the head growing and not the background moving.
+ * the changed ones the head now covers, which is the head growing and not the background moving. Distances
+ * come with the length of the face, because what goes along with a face is measured in faces.
  */
 const COMPARE = `
   async function shot() {
@@ -66,7 +67,11 @@ const COMPARE = `
       }
       return false;
     };
-    const out = { background: 0, changed: 0, coveredByHead: 0, farthest: 0, body: 0, bodyChanged: 0, bodyFarthest: 0, headChanged: 0 };
+    const { chosenFace: faceNow } = await import(/* @vite-ignore */ '/src/ui/shapepick.svelte.ts');
+    const { CHIN } = await import(/* @vite-ignore */ '/src/core/face/scan.ts');
+    const outline = faceNow().outline;
+    const face = Math.hypot((outline[CHIN][0] - outline[0][0]) * a.width, (outline[CHIN][1] - outline[0][1]) * a.height);
+    const out = { background: 0, changed: 0, coveredByHead: 0, farthest: 0, body: 0, bodyChanged: 0, bodyFarthest: 0, headChanged: 0, face };
     for (let y = 0; y < a.height; y++) {
       for (let x = 0; x < a.width; x++) {
         const o = (y * a.width + x) * 4;
@@ -80,14 +85,13 @@ const COMPARE = `
           if (covered(u, v)) out.coveredByHead++;
           else {
             out.changed++;
-            out.farthest = Math.max(out.farthest, toHead[cell]);
+            out.farthest = Math.max(out.farthest, toHead[cell] * (a.width / mw));
           }
         } else if (head[cell] === 0) {
-          // The body, past the shadow of the head.
           out.body++;
           if (changed && !covered(u, v)) {
             out.bodyChanged++;
-            out.bodyFarthest = Math.max(out.bodyFarthest, toHead[cell]);
+            out.bodyFarthest = Math.max(out.bodyFarthest, toHead[cell] * (a.width / mw));
           }
         } else if (changed) {
           out.headChanged++;
@@ -107,6 +111,7 @@ interface Compared {
   bodyChanged: number;
   bodyFarthest: number;
   headChanged: number;
+  face: number;
 }
 
 test.describe('o menu Formato do rosto', () => {
@@ -131,13 +136,13 @@ test.describe('o menu Formato do rosto', () => {
 
 test.describe('o fundo travado', () => {
   for (const [name, id, value] of [
-    ['estreitar a mandíbula', 'jawline', 100],
-    ['alargar a mandíbula', 'jawline', -100],
+    ['alargar a mandíbula', 'jawline', 100],
+    ['estreitar a mandíbula', 'jawline', -100],
     ['subir o queixo', 'chin', -100],
     ['diminuir a cabeça', 'head', -100],
     ['aumentar a cabeça', 'head', 100],
   ] as const) {
-    test(`${name} mexe na cabeça e em mais nada: o fundo e o corpo ficam, pixel por pixel`, async ({ page }) => {
+    test(`${name} mexe na cabeça e no que vai com ela: o fundo e o corpo mais longe ficam, pixel por pixel`, async ({ page }) => {
       const errors = watch(page);
       await openEditor(page);
       await openShape(page);
@@ -154,14 +159,17 @@ test.describe('o fundo travado', () => {
       );
       expect(result.background).toBeGreaterThan(1000);
       expect(result.headChanged).toBeGreaterThan(100);
-      // No band is left out of the count. What changes outside the person is the edge the head left: a few
-      // cells next to it, and around hair the ground its loose ends reach. Nothing far from the head changes.
-      const long = Math.max(PORTRAIT.w, PORTRAIT.h);
-      expect(result.farthest).toBeLessThan(long * 0.06);
-      expect(result.changed).toBeLessThan(result.background * 0.01);
-      // The body is where it was, to the pixel, but for the few cells right against the head.
+      // No band is left out of the count. What changes outside the person is the edge the head left, around
+      // hair the ground its loose ends reach, and beside the neck what its edge covers or uncovers when it goes
+      // along with the jaw. None of it is further from the head than a neck follows, and it is little.
+      expect(result.face).toBeGreaterThan(PORTRAIT.h * 0.3);
+      expect(result.farthest).toBeLessThan(result.face * 0.35);
+      expect(result.changed).toBeLessThan(result.background * 0.03);
+      // Past where a neck goes along with a face, a third of a face from the head, the body is where it was,
+      // to the pixel. The fixture has bare shoulders right under the jaw, and most of them are past that.
       expect(result.body).toBeGreaterThan(1000);
-      expect(result.bodyFarthest).toBeLessThan(long * 0.006);
+      expect(result.bodyFarthest).toBeLessThan(result.face * 0.35);
+      expect(result.bodyChanged).toBeLessThan(result.body * 0.08);
       expectNoErrors(errors);
     });
   }
@@ -233,6 +241,152 @@ test.describe('o fundo travado', () => {
     await expect(page.getByTestId('lock-retry')).toBeVisible();
     // The console error of the aborted file is the point of this test.
     expect(errors.filter((text) => !text.includes('download-failed') && !text.includes('Failed to fetch') && !text.includes('ERR_FAILED'))).toEqual([]);
+  });
+});
+
+/**
+ * Reported on real photos: a narrower jaw left the neck at its old width, with a step where the two meet. The
+ * fixture has no neck to show, so these tests say which part of it is one: the lower part of the face becomes
+ * bare skin of the body, and the layers are built from that.
+ */
+test.describe('o pescoço acompanha o rosto', () => {
+  /** Builds the layers by hand: the person as found, a head that ends at a row of the face, and what covers the body from another row down. */
+  const LAYERS = `
+    let chosen;
+    async function layers(headUntil, coveredFrom) {
+      const { PERSON_MASK } = await import(/* @vite-ignore */ '/src/core/doc.ts');
+      const { coverMatte } = await import(/* @vite-ignore */ '/src/core/face/person.ts');
+      const { chosenFace } = await import(/* @vite-ignore */ '/src/ui/shapepick.svelte.ts');
+      chosen = chosenFace;
+      const person = await e.masks.read(PERSON_MASK);
+      const w = e.masks.w;
+      const h = e.masks.h;
+      const box = chosenFace().box;
+      const row = (share) => Math.round((box.y + box.h * share) * h);
+      const head = new Uint8Array(w * h);
+      const covered = new Float32Array(w * h);
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const at = y * w + x;
+          if (y < row(headUntil)) head[at] = person[at];
+          if (coveredFrom !== null && y >= row(coveredFrom) && person[at] > 127) covered[at] = 1;
+        }
+      }
+      e.setLayers({ person, head, mouth: null, cover: coverMatte(person, head, covered, w, h) });
+      return { w, h, rows: [row(headUntil), coveredFrom === null ? h : row(coveredFrom)], box };
+    }
+    /**
+     * The largest difference between two pictures over some rows, and how many pixels differ at all. Only the
+     * middle half of the face counts: skin from side to side, away from the edge of the person, where a soft
+     * matte and the ground behind it have a say of their own.
+     */
+    function apart(a, b, y0, y1) {
+      const box = chosen().box;
+      const x0 = Math.round((box.x + box.w * 0.25) * a.width);
+      const x1 = Math.round((box.x + box.w * 0.75) * a.width);
+      let most = 0;
+      let count = 0;
+      for (let y = Math.max(0, y0); y < Math.min(a.height, y1); y++) {
+        for (let x = x0; x < x1; x++) {
+          const o = (y * a.width + x) * 4;
+          const d = Math.max(Math.abs(a.data[o] - b.data[o]), Math.abs(a.data[o + 1] - b.data[o + 1]), Math.abs(a.data[o + 2] - b.data[o + 2]));
+          if (d > most) most = d;
+          if (d > 0) count++;
+        }
+      }
+      return { most, count };
+    }
+  `;
+
+  for (const [name, value] of [['mais estreita', -100], ['mais larga', 100]] as const) {
+    test(`com a mandíbula ${name}, a pele do corpo logo abaixo vai junto, sem degrau entre as duas`, async ({ page }) => {
+      const errors = watch(page);
+      await openEditor(page);
+      await openShape(page);
+      const result = await inPage<{ seam: { most: number; count: number }; moved: { most: number; count: number }; head: boolean }>(
+        page,
+        `${COMPARE}${LAYERS}
+        const { placeOf, chosenFace } = await import(/* @vite-ignore */ '/src/ui/shapepick.svelte.ts');
+        const before = await shot();
+        const at = placeOf(e, chosenFace());
+        // The head ends above the jaw, and all below it is bare skin of the body.
+        const { h, rows } = await layers(0.7, null);
+        e.setShapeValue(at, 'jawline', ${value});
+        e.commit();
+        const split = await shot();
+        const head = !!e.field.headTex;
+        await e.undo();
+        // The same move with the whole person as one head: what no layer could tear.
+        await layers(2, null);
+        e.setShapeValue(at, 'jawline', ${value});
+        e.commit();
+        const whole = await shot();
+        const k = before.height / h;
+        const y0 = Math.round((rows[0] - 40) * k);
+        const y1 = Math.round((rows[0] + 220) * k);
+        return { seam: apart(split, whole, y0, y1), moved: apart(split, before, y0, y1), head };`,
+      );
+      // The jaw moved there, a lot of it.
+      expect(result.moved.count).toBeGreaterThan(5000);
+      expect(result.moved.most).toBeGreaterThan(40);
+      // And where the head ends and the body starts, the picture is what it would be with no line between them.
+      expect(result.seam.most).toBeLessThanOrEqual(2);
+      // The jaw asks for no share of its own: head and body read the same field.
+      expect(result.head).toBe(false);
+      expectNoErrors(errors);
+    });
+  }
+
+  test('o que cobre o corpo fica onde está, pixel por pixel, e a pele acima dele acompanha', async ({ page }) => {
+    const errors = watch(page);
+    await openEditor(page);
+    await openShape(page);
+    const result = await inPage<{ covered: { most: number; count: number }; skin: { most: number; count: number }; follows: boolean }>(
+      page,
+      `${COMPARE}${LAYERS}
+      const { placeOf, chosenFace } = await import(/* @vite-ignore */ '/src/ui/shapepick.svelte.ts');
+      const before = await shot();
+      // A collar across the lower face: skin of the body above it, and cloth from there down.
+      const { h, rows } = await layers(0.7, 0.88);
+      e.setShapeValue(placeOf(e, chosenFace()), 'jawline', -100);
+      e.commit();
+      const after = await shot();
+      const k = before.height / h;
+      // A few cells into the collar, past its soft edge.
+      return {
+        covered: apart(after, before, Math.round((rows[1] + 4) * k), before.height),
+        skin: apart(after, before, Math.round(rows[0] * k), Math.round((rows[1] - 30) * k)),
+        follows: e.following,
+      };`,
+    );
+    expect(result.follows).toBe(true);
+    expect(result.covered.count).toBe(0);
+    expect(result.skin.count).toBeGreaterThan(2000);
+    expectNoErrors(errors);
+  });
+
+  test('o tamanho da cabeça mexe só na cabeça, e leva o pescoço onde ele encosta nela', async ({ page }) => {
+    const errors = watch(page);
+    await openEditor(page);
+    await openShape(page);
+    const result = await inPage<{ head: boolean; far: { most: number; count: number }; near: { most: number; count: number } }>(
+      page,
+      `${COMPARE}${LAYERS}
+      const { placeOf, chosenFace } = await import(/* @vite-ignore */ '/src/ui/shapepick.svelte.ts');
+      const before = await shot();
+      const { h, rows, box } = await layers(0.7, null);
+      e.setShapeValue(placeOf(e, chosenFace()), 'head', -100);
+      e.commit();
+      const after = await shot();
+      const k = before.height / h;
+      // Just under where the head ends the body goes along. A face further down it is where it was.
+      const below = Math.round((box.y + box.h * 1.45) * before.height);
+      return { head: !!e.field.headTex, near: apart(after, before, Math.round(rows[0] * k), Math.round((rows[0] + 60) * k)), far: apart(after, before, below, before.height) };`,
+    );
+    expect(result.head).toBe(true);
+    expect(result.near.count).toBeGreaterThan(2000);
+    expect(result.far.count).toBe(0);
+    expectNoErrors(errors);
   });
 });
 

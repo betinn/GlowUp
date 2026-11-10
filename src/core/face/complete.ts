@@ -12,7 +12,7 @@
  */
 
 import type { Area } from './mask';
-import { blurKnown, nearestCells, spreadKnown } from './plate';
+import { blurKnown, clearOf, flowIn, nearestCells, spreadKnown } from './plate';
 
 /** Side of a tile, in cells: the size the model works at. */
 export const FILL_TILE = 512;
@@ -307,6 +307,41 @@ const BODY_WIDE = 0.05;
 /** Where background and body are about as near, the plate of the head goes from one to the other over this many cells. */
 const SEAM = 5;
 
+/** The difference to the photo is evened out over this many cells before it is carried in, so a speck does not become a streak. */
+const SETTLE_SOFT = 3;
+
+/**
+ * Makes a filled plate meet the photo around it with no step, in place. The model is not shown the cells right
+ * next to a layer, so what it puts there is its own, and where the plate ends and the photo starts the two may
+ * differ: a soft shadow beside a neck, or the fold of a pillow, comes out a little lighter or darker. The
+ * difference is measured on the photo side of that line and carried into the plate as a membrane, so it is all
+ * there at the line and fades inward. The detail the model made stays. `before` is the plate as it was, with
+ * the photo in every cell that `covered` leaves out, and those cells get the photo back.
+ */
+export function settle(plate: Uint8Array, before: Uint8Array, covered: Uint8Array, w: number, h: number): void {
+  const n = w * h;
+  const apart = new Float32Array(n * 3);
+  const known = new Uint8Array(n);
+  let any = false;
+  for (let i = 0; i < n; i++) {
+    if (covered[i]) continue;
+    known[i] = 1;
+    for (let c = 0; c < 3; c++) {
+      const d = before[i * 4 + c] - plate[i * 4 + c];
+      apart[i * 3 + c] = d;
+      if (d !== 0) any = true;
+    }
+  }
+  if (!any) return;
+  const even = blurKnown(apart, known, w, h, SETTLE_SOFT);
+  flowIn(even, known, w, h);
+  for (let i = 0; i < n; i++) {
+    for (let c = 0; c < 3; c++) {
+      plate[i * 4 + c] = covered[i] ? Math.max(0, Math.min(255, Math.round(plate[i * 4 + c] + even[i * 3 + c]))) : before[i * 4 + c];
+    }
+  }
+}
+
 /** The rings of a hole, from the photo inward. `reach` is how far each cell is from the photo. */
 function ringsOf(hole: Uint8Array, reach: Float32Array, w: number, h: number): FillPlan[] {
   let deepest = 0;
@@ -361,14 +396,20 @@ export async function completePlates(plates: PlateSet, inpaint: Inpaint, events:
   const band = Math.max(6, face * scale * BAND_SHARE);
   const coveredBack = coveredOf(back);
   const coveredHead = coveredOf(head);
-  // What the model is shown as background is what no plate covers. Where the background really is goes
-  // further: the ground around hair that a plate clears is background too, with nothing of the person on it.
+  // What the model is shown as background is what no plate covers, and well clear of the person: right next to
+  // one, the color of its edge is still in the pixels, and the model would carry it on. Where the background
+  // really is goes further: the ground around hair that a plate clears is background too, with nothing of the
+  // person on it.
   const isBack = new Uint8Array(n);
   const backIsHere = new Uint8Array(n);
   const isBody = new Uint8Array(n);
   const bodyIsHere = new Uint8Array(n);
+  const solid = new Uint8Array(n);
+  for (let i = 0; i < n; i++) solid[i] = personMatte[i] > SOLID ? 1 : 0;
+  const toSolid = distanceTo(solid, sw, sh);
+  const clear = clearOf(sw, sh);
   for (let i = 0; i < n; i++) {
-    isBack[i] = coveredBack[i] ? 0 : 1;
+    isBack[i] = !coveredBack[i] && toSolid[i] > clear ? 1 : 0;
     backIsHere[i] = personMatte[i] <= TRACE ? 1 : 0;
   }
   const toShown = distanceTo(isBack, sw, sh);
@@ -390,12 +431,18 @@ export async function completePlates(plates: PlateSet, inpaint: Inpaint, events:
     bodyIsHere[i] = !notBody[i] && toCore[i] <= wide + 2 ? 1 : 0;
     isBody[i] = bodyIsHere[i] && !coveredHead[i] ? 1 : 0;
   }
-  const toBody = distanceTo(bodyIsHere, sw, sh);
+  // Where the body really is goes out to the edge of the person, though the model is not shown those last
+  // cells. The line between neck and background under a head starts where the two meet: measured from the body
+  // as it is shown, the background won a notch out of the side of every neck, as wide as the rim.
+  const toShownBody = distanceTo(bodyIsHere, sw, sh);
+  const bodyWhole = new Uint8Array(n);
+  for (let i = 0; i < n; i++) bodyWhole[i] = personMatte[i] > SOLID && headMatte[i] <= SOLID && toShownBody[i] <= rim + 1 ? 1 : 0;
+  const toBody = distanceTo(bodyWhole, sw, sh);
   const toSeen = distanceTo(isBody, sw, sh);
   const holeBack = new Uint8Array(n);
   const holeBody = new Uint8Array(n);
   for (let i = 0; i < n; i++) {
-    if (coveredBack[i] && toShown[i] <= band) holeBack[i] = 1;
+    if (!isBack[i] && toShown[i] <= band) holeBack[i] = 1;
     if (coveredHead[i] && toBody[i] <= band && toBody[i] <= toBack[i] + SEAM) holeBody[i] = 1;
   }
   const plansBack = ringsOf(holeBack, toShown, sw, sh);
@@ -405,7 +452,9 @@ export async function completePlates(plates: PlateSet, inpaint: Inpaint, events:
   // Before the first tile, so the wait can be told from the start.
   events.tile(0, total);
   const count = { tile: () => events.tile(++done, total), stopped: events.stopped };
+  const backBefore = back.slice();
   for (const plan of plansBack) if (!(await runFill(back, plan, sw, sh, inpaint, count))) return false;
+  settle(back, backBefore, coveredBack, sw, sh);
   // The body alone, with the smooth guess of its own colors everywhere else, for the model to carry on from.
   const body = spreadKnown(head, isBody, sw, sh);
   for (const plan of plansBody) if (!(await runFill(body, plan, sw, sh, inpaint, count))) return false;

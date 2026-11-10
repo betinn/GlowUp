@@ -18,6 +18,7 @@ function fieldFrom({ amount, shapes, off, faces, w, h }: ShapeSource): ShapeFiel
   if (!sliders) return auto;
   return {
     over: sliders.over,
+    alone: sliders.alone,
     area: {
       u0: Math.min(auto.area.u0, sliders.area.u0),
       v0: Math.min(auto.area.v0, sliders.area.v0),
@@ -38,9 +39,11 @@ function fieldFrom({ amount, shapes, off, faces, w, h }: ShapeSource): ShapeFiel
  * asks for (the automatic mode and the sliders) is worked out anew each time, so moving a slider adds no error.
  * The strokes were made on what the screen showed, so they go on top: a point reads the brush, then the shape.
  *
- * Two more textures say what part of that is whose, for the layers of the develop stage. The brush alone is
- * what moves a body, which the sliders leave where it is. The share of the sliders that shapes the lips is what
- * the inside of a mouth is read without, so lips slide over teeth.
+ * Three more textures say what part of that is whose, for the layers of the develop stage. The brush alone is
+ * what may move a background. The share of the sliders that moves a head alone is what a body is read without,
+ * so shoulders stay under a head that changes size, and with every other slider the body goes where the head
+ * goes, as a neck does under a jaw. The share that shapes the lips is what the inside of a mouth is read
+ * without, so lips slide over teeth.
  */
 export function createField(glc: GLContext, imageW: number, imageH: number): FieldController {
   const long = Math.max(imageW, imageH);
@@ -58,10 +61,15 @@ export function createField(glc: GLContext, imageW: number, imageH: number): Fie
   /** The brush alone. */
   const brushTex: Tex = glc.createTex(w, h, 'rg16f', { noTarget: true });
   glc.upload(brushTex, { x: 0, y: 0, w, h }, grid.data);
-  /** The share of `shape` that shapes the lips, and the same as the screen reads it. They exist while a slider shapes lips. */
-  let over: DisplacementGrid | null = null;
-  let lips: DisplacementGrid | null = null;
-  let lipTex: Tex | null = null;
+  /** A share of `shape`, the same as the screen reads it, and its texture. The last two exist while a slider asks for that share. */
+  interface Share {
+    asked: DisplacementGrid | null;
+    read: DisplacementGrid | null;
+    tex: Tex | null;
+  }
+  /** The share that shapes the lips, and the share that moves a head alone. */
+  const lips: Share = { asked: null, read: null, tex: null };
+  const head: Share = { asked: null, read: null, tex: null };
 
   let mode: LiquifyMode = 'push';
   let radius = 0;
@@ -96,33 +104,36 @@ export function createField(glc: GLContext, imageW: number, imageH: number): Fie
     if (rect.w <= 0 || rect.h <= 0) return;
     glc.upload(tex, rect, out.subarray((y0 * w + x0) * 2), w);
     glc.upload(brushTex, rect, m.subarray((y0 * w + x0) * 2), w);
-    if (!over) {
-      if (lipTex) glc.destroyTex(lipTex);
-      lipTex = null;
-      lips = null;
-      return;
-    }
-    const fresh = !lips || !lipTex;
-    lips ??= new DisplacementGrid(w, h);
-    lipTex ??= glc.createTex(w, h, 'rg16f', { noTarget: true });
-    const to = lips.data;
-    const a = fresh ? { x0: 0, y0: 0, x1: w, y1: h } : { x0, y0, x1, y1 };
-    for (let y = a.y0; y < a.y1; y++) {
-      for (let x = a.x0; x < a.x1; x++) {
-        const i = (y * w + x) * 2;
-        const du = m[i];
-        const dv = m[i + 1];
-        if (du === 0 && dv === 0) {
-          to[i] = over.data[i];
-          to[i + 1] = over.data[i + 1];
-          continue;
-        }
-        const [su, sv] = over.sample((x + 0.5) / w + du, (y + 0.5) / h + dv);
-        to[i] = su;
-        to[i + 1] = sv;
+    for (const share of [lips, head]) {
+      const { asked } = share;
+      if (!asked) {
+        if (share.tex) glc.destroyTex(share.tex);
+        share.tex = null;
+        share.read = null;
+        continue;
       }
+      const fresh = !share.read || !share.tex;
+      share.read ??= new DisplacementGrid(w, h);
+      share.tex ??= glc.createTex(w, h, 'rg16f', { noTarget: true });
+      const to = share.read.data;
+      const a = fresh ? { x0: 0, y0: 0, x1: w, y1: h } : { x0, y0, x1, y1 };
+      for (let y = a.y0; y < a.y1; y++) {
+        for (let x = a.x0; x < a.x1; x++) {
+          const i = (y * w + x) * 2;
+          const du = m[i];
+          const dv = m[i + 1];
+          if (du === 0 && dv === 0) {
+            to[i] = asked.data[i];
+            to[i + 1] = asked.data[i + 1];
+            continue;
+          }
+          const [su, sv] = asked.sample((x + 0.5) / w + du, (y + 0.5) / h + dv);
+          to[i] = su;
+          to[i + 1] = sv;
+        }
+      }
+      glc.upload(share.tex, { x: a.x0, y: a.y0, w: a.x1 - a.x0, h: a.y1 - a.y0 }, to.subarray((a.y0 * w + a.x0) * 2), w);
     }
-    glc.upload(lipTex, { x: a.x0, y: a.y0, w: a.x1 - a.x0, h: a.y1 - a.y0 }, to.subarray((a.y0 * w + a.x0) * 2), w);
   };
 
   /** Writes a field of the document into a grid, over `area`, and clears what it held in `before`. */
@@ -164,7 +175,10 @@ export function createField(glc: GLContext, imageW: number, imageH: number): Fie
     tex,
     brushTex,
     get lipTex() {
-      return lipTex;
+      return lips.tex;
+    },
+    get headTex() {
+      return head.tex;
     },
     lookup: (u, v) => whole.sample(u, v),
 
@@ -211,7 +225,8 @@ export function createField(glc: GLContext, imageW: number, imageH: number): Fie
       if (!next) {
         if (!shape) return;
         shape = null;
-        over = null;
+        lips.asked = null;
+        head.asked = null;
         compose(shapeArea.x0, shapeArea.y0, shapeArea.x1, shapeArea.y1);
         shapeArea = { x0: 0, y0: 0, x1: 0, y1: 0 };
         return;
@@ -224,12 +239,13 @@ export function createField(glc: GLContext, imageW: number, imageH: number): Fie
       const y1 = Math.min(h, Math.ceil(next.area.v1 * h));
       shapeArea = { x0, y0, x1: Math.max(x0, x1), y1: Math.max(y0, y1) };
       fill(shape.data, before, shapeArea, (u, v) => next.offset(u, v));
-      if (next.over) {
-        const lipsOf = next.over;
-        over ??= new DisplacementGrid(w, h);
-        fill(over.data, before, shapeArea, (u, v) => lipsOf(u, v));
-      } else {
-        over = null;
+      for (const [share, of] of [[lips, next.over], [head, next.alone]] as const) {
+        if (of) {
+          share.asked ??= new DisplacementGrid(w, h);
+          fill(share.asked.data, before, shapeArea, (u, v) => of(u, v));
+        } else {
+          share.asked = null;
+        }
       }
       const has = before.x1 > before.x0 && before.y1 > before.y0;
       const a = has ? before : shapeArea;
@@ -238,28 +254,35 @@ export function createField(glc: GLContext, imageW: number, imageH: number): Fie
 
     shapeData() {
       if (!shape) return null;
-      if (!over) return shape.data;
-      // The share of the lips goes after the whole, and the length says that it is there.
-      const both = new Float32Array(shape.data.length * 2);
-      both.set(shape.data);
-      both.set(over.data, shape.data.length);
-      return both;
+      if (!lips.asked && !head.asked) return shape.data;
+      // The shares go after the whole, the lips first, and the length says which are there. With the share of
+      // the head and none of the lips, the place of the lips holds zeros.
+      const size = shape.data.length;
+      const all = new Float32Array(size * (head.asked ? 3 : 2));
+      all.set(shape.data);
+      if (lips.asked) all.set(lips.asked.data, size);
+      if (head.asked) all.set(head.asked.data, size * 2);
+      return all;
     },
 
     restoreShape(data) {
       if (!data) {
         shape = null;
-        over = null;
+        lips.asked = null;
+        head.asked = null;
         shapeArea = { x0: 0, y0: 0, x1: 0, y1: 0 };
       } else {
         const size = w * h * 2;
         shape ??= new DisplacementGrid(w, h);
         shape.data.set(data.subarray(0, size));
-        if (data.length >= size * 2) {
-          over ??= new DisplacementGrid(w, h);
-          over.data.set(data.subarray(size, size * 2));
-        } else {
-          over = null;
+        for (const [share, at] of [[lips, size], [head, size * 2]] as const) {
+          const part = data.length >= at + size ? data.subarray(at, at + size) : null;
+          if (part?.some((v) => v !== 0)) {
+            share.asked ??= new DisplacementGrid(w, h);
+            share.asked.data.set(part);
+          } else {
+            share.asked = null;
+          }
         }
         shapeArea = { x0: 0, y0: 0, x1: w, y1: h };
       }
@@ -270,7 +293,8 @@ export function createField(glc: GLContext, imageW: number, imageH: number): Fie
     destroy: () => {
       glc.destroyTex(tex);
       glc.destroyTex(brushTex);
-      if (lipTex) glc.destroyTex(lipTex);
+      if (lips.tex) glc.destroyTex(lips.tex);
+      if (head.tex) glc.destroyTex(head.tex);
     },
   };
 }

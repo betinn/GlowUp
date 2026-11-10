@@ -152,7 +152,8 @@
       }
       if (record.shape && e.field) {
         const bytes = await unpack(record.shape);
-        if (bytes.byteLength !== e.field.serialize().byteLength) throw new InvalidProjectError('field size');
+        // The whole, and after it the shares of the lips and of the head, when the project has them.
+        if (![1, 2, 3].includes(bytes.byteLength / e.field.serialize().byteLength)) throw new InvalidProjectError('field size');
         e.field.restoreShape(new Float32Array(bytes.buffer as ArrayBuffer, bytes.byteOffset, bytes.byteLength / 4));
       }
       // Before this field, the automatic mode was written into the strokes, so there is no strength to move.

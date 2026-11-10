@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { makeFace } from '../../src/core/face/scan';
-import { castShadow, faceCrop, fillInnerHoles, finishMattes, hairHalo, headCrop, keepWhatTouchesFaces, personConfidence, TRACE, type PartsCut, type PersonSeen } from '../../src/core/face/person';
+import { COVER_SPAN } from '../../src/core/doc';
+import { coverMatte, coverWay, faceCrop, fillInnerHoles, finishMattes, fringe, hairHalo, headCrop, keepWhatTouchesFaces, personConfidence, TRACE, wornWhole, type PartsCut, type PersonSeen } from '../../src/core/face/person';
 import { buildPlate, extendMouth, nearestCells, spreadKnown } from '../../src/core/face/plate';
 import { oval } from './face-fixtures';
 
@@ -108,11 +109,28 @@ describe('what the models say', () => {
     expect(seen!.head[at(0.5, 0.64)]).toBeLessThan(0.1);
     expect(seen!.person[at(0.5, 0.64)]).toBeGreaterThan(0.9);
   });
+
+  it('says what covers the body: a shirt and a necklace do, bare skin and what is worn on the head do not', async () => {
+    const seen = await run({ parts: () => parts((_fx, fy) => (fy < 0.5 ? 'other' : fy < 0.7 ? 'body' : 'clothes')), hair: noHair });
+    const at = (v: number) => Math.floor(v * 60) * 60 + 30;
+    expect(seen!.covered[at(0.42)]).toBeLessThan(0.1);
+    expect(seen!.covered[at(0.52)]).toBeLessThan(0.1);
+    expect(seen!.covered[at(0.72)]).toBeGreaterThan(0.9);
+    // Worn is worn wherever it is: whose it is comes later, a whole thing at a time.
+    expect(seen!.worn[at(0.42)]).toBeGreaterThan(0.9);
+  });
 });
 
 describe('the mattes', () => {
   const seenFrom = (person: (x: number, y: number) => number, head: (x: number, y: number) => number, hair: (x: number, y: number) => number = () => 0): PersonSeen => {
-    const out = { person: new Float32Array(SIZE * SIZE), head: new Float32Array(SIZE * SIZE), skin: new Float32Array(SIZE * SIZE), hair: new Float32Array(SIZE * SIZE) };
+    const out = {
+      person: new Float32Array(SIZE * SIZE),
+      head: new Float32Array(SIZE * SIZE),
+      skin: new Float32Array(SIZE * SIZE),
+      hair: new Float32Array(SIZE * SIZE),
+      covered: new Float32Array(SIZE * SIZE),
+      worn: new Float32Array(SIZE * SIZE),
+    };
     for (let y = 0; y < SIZE; y++) {
       for (let x = 0; x < SIZE; x++) {
         const at = y * SIZE + x;
@@ -169,7 +187,15 @@ describe('the mattes', () => {
     // A soft model: confidence falls slowly away from the face.
     const soft = (x: number, y: number) => Math.max(0, 1 - Math.hypot((x - 100) / 60, (y - 90) / 70));
     const mattes = finishMattes(seenFrom(soft, soft), [FACE], target(rgba))!;
-    for (let i = 0; i < mattes.head.length; i++) expect(mattes.head[i] === 0 || mattes.head[i] > TRACE).toBe(true);
+    // What is at or below `TRACE` was put there on purpose, right next to the edge, and never far from it.
+    const solid = new Uint8Array(SIZE * SIZE);
+    for (let i = 0; i < solid.length; i++) solid[i] = mattes.head[i] > 127 ? 1 : 0;
+    const near = nearestCells(solid, SIZE, SIZE);
+    for (let i = 0; i < mattes.head.length; i++) {
+      if (mattes.head[i] === 0 || mattes.head[i] > TRACE) continue;
+      const from = near[i];
+      expect(Math.hypot((from % SIZE) - (i % SIZE), Math.floor(from / SIZE) - Math.floor(i / SIZE))).toBeLessThan(8);
+    }
   });
 
   it('takes out what does not touch a face', () => {
@@ -190,37 +216,137 @@ describe('the mattes', () => {
   });
 });
 
-describe('the shadow of a head and the halo of its hair', () => {
+describe('what goes along with a face, and what stays', () => {
   const blank = () => new Uint8Array(SIZE * SIZE);
-
-  it('the matte of the head fades out over the skin under it, and stops dead over the background', () => {
+  /** A head over the top half, a neck under it, and a shirt from row 140 down. */
+  const scene = () => {
     const head = blank();
     const person = blank();
-    const skin = new Float32Array(SIZE * SIZE);
+    const covered = new Float32Array(SIZE * SIZE);
+    for (let y = 0; y < SIZE; y++) {
+      for (let x = 40; x < 160; x++) {
+        const at = y * SIZE + x;
+        person[at] = 255;
+        if (y < 100) head[at] = 255;
+        if (y >= 140) covered[at] = 1;
+      }
+    }
+    return { head, person, covered };
+  };
+  /** The distance the matte holds at a cell, in cells. */
+  const far = (matte: Uint8Array, x: number, y: number) => (matte[y * SIZE + x] / 255) ** 2 * SIZE * COVER_SPAN;
+
+  it('a shirt holds still, and the skin above it has more room the further it is', () => {
+    const { head, person, covered } = scene();
+    const cover = coverMatte(person, head, covered, SIZE, SIZE);
+    expect(cover[150 * SIZE + 100]).toBe(0);
+    expect(cover[140 * SIZE + 100]).toBe(0);
+    // The neck, a few cells above the collar and then further: the distance, to within a cell or two.
+    expect(far(cover, 100, 134)).toBeGreaterThan(3);
+    expect(far(cover, 100, 134)).toBeLessThan(8);
+    expect(far(cover, 100, 125)).toBeGreaterThan(12);
+    expect(far(cover, 100, 125)).toBeLessThan(17);
+    // Past what the matte keeps, it is all the same: room to spare.
+    expect(cover[20 * SIZE + 100]).toBe(255);
+    // The background counts like the skin beside it, because the edge of a neck moves whole.
+    expect(far(cover, 30, 125)).toBeGreaterThan(12);
+  });
+
+  it('the soft edge of a collar and its thin shadow stay with the collar', () => {
+    const { head, person, covered } = scene();
+    const cover = coverMatte(person, head, covered, SIZE, SIZE, 4);
+    expect(cover[137 * SIZE + 100]).toBe(0);
+    expect(far(cover, 100, 125)).toBeLessThan(13);
+  });
+
+  it('a photo with nothing covered leaves every move whole, and a head never counts as a cover', () => {
+    const { head, person } = scene();
+    expect(coverMatte(person, head, new Float32Array(SIZE * SIZE), SIZE, SIZE).every((v) => v === 255)).toBe(true);
+    // Glasses, by what the models say, cover a face: they are of the head, and hold nothing.
+    const onHead = new Float32Array(SIZE * SIZE);
+    for (let x = 60; x < 140; x++) onHead[50 * SIZE + x] = 1;
+    expect(coverMatte(person, head, onHead, SIZE, SIZE).every((v) => v === 255)).toBe(true);
+  });
+
+  it('which way the cover is comes out even from cell to cell, and is no way at all between two covers', () => {
+    const { head, person, covered } = scene();
+    const way = coverWay(coverMatte(person, head, covered, SIZE, SIZE), SIZE, SIZE);
+    const at = (x: number, y: number) => [way[(y * SIZE + x) * 2], way[(y * SIZE + x) * 2 + 1]];
+    // Above the collar the distance grows upward, by one cell for each cell.
+    const [sx, sy] = at(100, 128);
+    expect(Math.abs(sx)).toBeLessThan(0.05);
+    expect(sy).toBeLessThan(-0.8);
+    expect(sy).toBeGreaterThan(-1.2);
+    // The matte keeps the distance in a byte. Its steps must not show: from a cell to the next the way turns
+    // by a fraction of a degree, where the slope read straight from the bytes jumps by several.
+    for (let x = 60; x < 140; x++) {
+      const a = at(x, 128);
+      const b = at(x + 1, 128);
+      expect(Math.hypot(a[0] - b[0], a[1] - b[1])).toBeLessThan(0.02);
+    }
+    // A necklace above the collar: halfway between the two, neither is the nearer, and the way has no length.
+    for (let x = 40; x < 160; x++) for (let y = 104; y < 108; y++) covered[y * SIZE + x] = 1;
+    const both = coverWay(coverMatte(person, head, covered, SIZE, SIZE), SIZE, SIZE);
+    const mid = Math.round((108 + 140) / 2);
+    expect(Math.hypot(both[(mid * SIZE + 100) * 2], both[(mid * SIZE + 100) * 2 + 1])).toBeLessThan(0.3);
+  });
+
+  it('a necklace is one thing: close under a jaw, it still stays whole on the body', () => {
+    const seen: PersonSeen = {
+      person: new Float32Array(SIZE * SIZE).fill(1),
+      head: new Float32Array(SIZE * SIZE),
+      skin: new Float32Array(SIZE * SIZE),
+      hair: new Float32Array(SIZE * SIZE),
+      covered: new Float32Array(SIZE * SIZE),
+      worn: new Float32Array(SIZE * SIZE),
+    };
+    // A chain from beside the jaw down to the chest, and an earring next to the cheek.
+    const chain = (x: number, y: number) => x >= 60 && x < 66 && y >= 110 && y < 190;
+    const earring = (x: number, y: number) => x >= 60 && x < 66 && y >= 84 && y < 96;
     for (let y = 0; y < SIZE; y++) {
       for (let x = 0; x < SIZE; x++) {
         const at = y * SIZE + x;
-        if (y < 100) head[at] = 255;
-        // Skin under the left half of the head, background under the right half.
-        if (y < 100 || x < 100) person[at] = 255;
-        if (x < 100) skin[at] = 1;
+        if (chain(x, y) || earring(x, y)) seen.worn[at] = 1;
+        // As the crops leave it: worn counts as head inside the outline grown around the face.
+        if (earring(x, y) || (chain(x, y) && y < 122)) seen.head[at] = 1;
       }
     }
-    castShadow(head, person, skin, SIZE, SIZE, 20);
-    const under = (x: number, down: number) => head[(100 + down) * SIZE + x];
-    expect(under(40, 2)).toBeGreaterThan(150);
-    expect(under(40, 10)).toBeGreaterThan(TRACE);
-    expect(under(40, 10)).toBeLessThan(under(40, 2));
-    expect(under(40, 25)).toBe(0);
-    expect(under(160, 2)).toBe(0);
+    wornWhole(seen, [FACE], SIZE, SIZE);
+    expect(seen.head[90 * SIZE + 62]).toBe(1);
+    expect(seen.head[114 * SIZE + 62]).toBe(0);
+    expect(seen.covered[114 * SIZE + 62]).toBe(1);
+    expect(seen.covered[90 * SIZE + 62]).toBe(0);
   });
+});
 
-  it('a shirt under the head gets no shadow: its edges are its own', () => {
+describe('the fringe of a person and the halo of its hair', () => {
+  const blank = () => new Uint8Array(SIZE * SIZE);
+
+  it('the tips of a beard past the edge are ground to clear, back to the edge, and a soft shadow is not', () => {
+    const person = blank();
     const head = blank();
-    const person = blank().fill(255);
-    for (let i = 0; i < 100 * SIZE; i++) head[i] = 255;
-    castShadow(head, person, new Float32Array(SIZE * SIZE), SIZE, SIZE, 20);
-    expect(head[104 * SIZE + 50]).toBe(0);
+    const luma = new Float32Array(SIZE * SIZE).fill(0.8);
+    for (let y = 0; y < SIZE; y++) {
+      for (let x = 0; x < 100; x++) {
+        person[y * SIZE + x] = 255;
+        head[y * SIZE + x] = 255;
+        luma[y * SIZE + x] = 0.4;
+      }
+    }
+    // Thin dark hairs that end four cells out, on the upper half.
+    for (let y = 20; y < 80; y += 6) for (let x = 100; x < 104; x++) luma[y * SIZE + x] = 0.3;
+    // A wide soft shadow beside the lower half: darker next to the edge, lighter away from it.
+    for (let y = 120; y < 180; y++) for (let x = 100; x < 112; x++) luma[y * SIZE + x] = 0.8 - 0.1 * (1 - (x - 100) / 12);
+    fringe(person, head, SIZE, SIZE, 7, luma);
+    const at = (x: number, y: number) => person[y * SIZE + x];
+    expect(at(103, 26)).toBeGreaterThan(0);
+    expect(at(103, 26)).toBeLessThanOrEqual(TRACE);
+    // Nothing is left out between an end and the edge it comes from.
+    expect(at(100, 26)).toBeGreaterThan(0);
+    expect(head[26 * SIZE + 103]).toBe(at(103, 26));
+    // Past the reach, and beside the shadow, the ground is as it was.
+    expect(at(112, 26)).toBe(0);
+    expect(at(104, 150)).toBe(0);
   });
 
   it('around hair the matte goes further, and past that the background is marked as ground to clear', () => {
@@ -244,6 +370,56 @@ describe('the shadow of a head and the halo of its hair', () => {
     expect(beside(40, 30)).toBe(0);
     // Next to skin, far from any hair: nothing at all.
     expect(beside(170, 3)).toBe(0);
+  });
+});
+
+describe('what a layer leaves on the ground beside it', () => {
+  /** A dark person on the left half of a pale wall, as RGBA and as a matte. */
+  const wall = (paint: (x: number, y: number) => number) => {
+    const rgba = new Uint8ClampedArray(SIZE * SIZE * 4);
+    const matte = new Uint8Array(SIZE * SIZE);
+    for (let y = 0; y < SIZE; y++) {
+      for (let x = 0; x < SIZE; x++) {
+        const o = (y * SIZE + x) * 4;
+        const v = x < 100 ? 60 : paint(x, y);
+        rgba.set([v, v, v, 255], o);
+        if (x < 100) matte[y * SIZE + x] = 255;
+      }
+    }
+    return { rgba, matte };
+  };
+
+  it('the dark line where a neck touches a pillow goes with the plate, and the plain wall stays the photo', () => {
+    // A contact shadow up to eight cells out, past the room every plate has, on the upper half only.
+    const { rgba, matte } = wall((x, y) => (y < 100 && x < 108 ? 150 : 220));
+    const plate = buildPlate(rgba, matte, SIZE, SIZE);
+    const at = (x: number, y: number) => (y * SIZE + x) * 4;
+    expect(plate[at(106, 50) + 3]).toBeGreaterThan(200);
+    // What shows there is the wall, not the shadow.
+    expect(plate[at(106, 50)]).toBeGreaterThan(205);
+    // Beside the lower half the wall is plain, and past the room the plate leaves it alone.
+    expect(plate[at(106, 150) + 3]).toBe(0);
+    expect(plate[at(106, 150)]).toBe(220);
+    // Far from the person nothing is ever a guess.
+    expect(plate[at(160, 50) + 3]).toBe(0);
+  });
+
+  it('the guess takes its colors from clear of the edge, so the glow next to it does not run in', () => {
+    // The six cells next to the person are darker, as the blur of an edge leaves them.
+    const { rgba, matte } = wall((x) => (x < 106 ? 150 : 220));
+    const plate = buildPlate(rgba, matte, SIZE, SIZE);
+    // Well inside the person, the guess is the wall as it is away from the edge.
+    for (const x of [60, 80, 95]) expect(plate[(100 * SIZE + x) * 4]).toBeGreaterThan(210);
+  });
+
+  it('under a head, the shadow on the body is the body\'s own: only the background is taken', () => {
+    const { rgba, matte } = wall((x) => (x < 108 ? 150 : 220));
+    // The lower half of what is beside the head is body, the upper half background.
+    const open = new Uint8Array(SIZE * SIZE);
+    for (let y = 0; y < 100; y++) for (let x = 0; x < SIZE; x++) open[y * SIZE + x] = 1;
+    const plate = buildPlate(rgba, matte, SIZE, SIZE, open);
+    expect(plate[(50 * SIZE + 106) * 4 + 3]).toBeGreaterThan(200);
+    expect(plate[(150 * SIZE + 106) * 4 + 3]).toBe(0);
   });
 });
 

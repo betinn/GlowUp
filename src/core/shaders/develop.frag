@@ -3,8 +3,10 @@
 //
 // The layers, from the back: the background, the body, the head, and the inside of the mouth. Each one is read
 // from where its own share of the warp says, and what a layer uncovers comes from a plate, the photo completed
-// as if the layer in front were not there. The sliders of the face move the head alone. The brush moves the
-// whole person, and the background too when its lock is off.
+// as if the layer in front were not there. The sliders of the face move a head and the bare skin attached to
+// it together, as one surface, so a neck goes where its jaw goes. What covers the body stays where it is, and
+// so does the body under a head that changes size, but for the neck. The brush moves the whole person, and the
+// background too when its lock is off.
 in vec2 vUv;
 out vec4 outColor;
 
@@ -23,8 +25,14 @@ uniform sampler2D uPlateBack;
 uniform sampler2D uPlateHead;
 uniform sampler2D uBrushField;
 uniform sampler2D uLipField;
+uniform sampler2D uHeadField;
+uniform sampler2D uCover;
+uniform sampler2D uCoverWay;
 uniform bool uBrushFree;
 uniform bool uHasLips;
+uniform bool uHeadAlone;
+uniform bool uFollows;
+uniform float uCoverSpan;
 uniform vec2 uPixels;
 uniform float uExposure;
 uniform float uContrast;
@@ -45,9 +53,57 @@ uniform float uFilterLod;
 const float SHADOW_GAIN = 2.0;
 // A matte at or below this holds none of its layer: such values only mark ground for the plates.
 const float TRACE = 8.0 / 255.0;
+// Bare skin goes along with a face that moves, and a collar stays. The skin between the two takes up the
+// difference over this many times the move, when the move goes toward the collar or away from it, so it is
+// never squeezed to less than about half its size, and a neck with a collar close under the jaw still follows a
+// small move whole.
+const float ROOM_PER_MOVE = 3.0;
+// A move along the edge of a collar squeezes nothing: the skin slides beside it, and needs much less room.
+const float ROOM_PER_SLIDE = 1.5;
 
 float layerAt(sampler2D matte, vec2 at) {
   return max(0.0, (textureLod(matte, at, 0.0).r - TRACE) / (1.0 - TRACE));
+}
+
+// How much of a plate shows at a point next to a layer, for a layer that moved `by` pixels away from what is
+// under it. `first` and `gone` are that move as a share from 0 to 1: with the first move, and only once the layer
+// has really gone from beside the point. Where the layer is most of the pixel, the plate comes with the first
+// move. Where it is not, the plate still comes early if the photo is not what the plate has there, because that
+// difference is the layer's own doing: the color of its edge, the line of its shadow. A move of less than a
+// pixel leaves it, so the far reaches of a warp change no ground. Where photo and plate say the same, the photo
+// stays for as long as it can. A trace is ground that loose ends reach, and it waits too: a hair that still
+// floats near a head is still hair.
+float shows(sampler2D matte, vec2 at, vec3 photo, vec3 plate, float by, float first, float gone) {
+  float raw = textureLod(matte, at, 0.0).r;
+  float trace = raw > 0.5 / 255.0 && raw <= TRACE ? 1.0 : 0.0;
+  float differs = smoothstep(0.03, 0.1, distance(photo, plate)) * (1.0 - trace);
+  float early = smoothstep(0.6, 2.0, by);
+  return max(mix(gone, first, smoothstep(TRACE, 0.5, raw)), mix(gone, early, differs));
+}
+
+// How far a point is from what covers the body, in pixels of the photo. The matte keeps the square root.
+float coverFar(vec2 at) {
+  float far = textureLod(uCover, at, 0.0).r;
+  return far * far * uCoverSpan;
+}
+
+// What the body takes of a move asked of it at a point, both in image UV: all of it with room enough, and
+// less of it next to what covers the body, always the same way the move goes. See `ROOM_PER_MOVE`.
+vec2 bodyMove(vec2 at, vec2 asked) {
+  vec2 move = asked * uPixels;
+  float moved = length(move);
+  float far = coverFar(at);
+  float least = max(uPixels.x, uPixels.y) * 0.002;
+  // Which way the cover is: the distance grows away from it, by one for each pixel. Between two covers it
+  // grows by less, and there no way is the way: the move then counts as one toward a cover.
+  vec2 slope = textureLod(uCoverWay, at, 0.0).xy;
+  float steep = length(slope);
+  float sure = smoothstep(0.45, 0.8, steep);
+  // How much of the move runs along the edge of the cover, from 0 to 1.
+  float across = steep > 1e-4 ? dot(move, slope / steep) : moved;
+  float beside = moved > 0.0 ? clamp(1.0 - (across * across) / (moved * moved), 0.0, 1.0) : 0.0;
+  float room = moved * mix(ROOM_PER_MOVE, ROOM_PER_SLIDE, sure * beside);
+  return asked * smoothstep(0.0, max(room, least), far);
 }
 
 vec3 sCurve(vec3 x, float k) {
@@ -67,23 +123,28 @@ void main() {
     uv = (iuv + d - uRegion.xy) / uRegion.zw;
     if (uLayered) {
       vec2 db = texture(uBrushField, iuv).xy;
-      // Where each layer is read from: the head from the whole field, the body from the brush alone, and the
-      // background from right here, unless the brush may move it too.
+      float longSide = max(uPixels.x, uPixels.y);
+      // Where each layer is read from. The head goes by the whole field. The body goes by the brush, and by
+      // the rest but for the share that moves a head alone, as far as it has room: all of it on bare skin, less
+      // next to what covers the body, and nothing on that. The background is read from right here, unless the
+      // brush may move it too.
+      vec2 da = uHeadAlone ? texture(uHeadField, iuv).xy : vec2(0.0);
+      vec2 asked = d - db - da;
       vec2 sh = iuv + d;
       vec2 sy = iuv + db;
-      vec2 sb = uBrushFree ? sy : iuv;
-      // How much the sliders moved the head against the body here, and the brush the body against the background.
-      // A plate only counts where something moved, so a warp at zero is the photo itself, down to the bit.
-      float shapedBy = length((d - db) * uPixels);
-      float heldBy = length(db * uPixels);
+      if (uFollows && asked != vec2(0.0)) sy += bodyMove(sy, asked);
+      vec2 sb = uBrushFree ? iuv + db : iuv;
+      // How much the head moved against the body here, and the body against the background. A plate only
+      // counts where something moved, so a warp at zero is the photo itself, down to the bit.
+      float shapedBy = length((sh - sy) * uPixels);
+      float heldBy = length((sy - sb) * uPixels);
       float shaped = smoothstep(0.0, 1.5, shapedBy);
-      float held = uBrushFree ? 0.0 : smoothstep(0.0, 1.5, heldBy);
+      float held = smoothstep(0.0, 1.5, heldBy);
       // Around a layer, a plate also covers ground the layer never stood on: the few cells its edge left a
       // trace of color on, and what loose ends of hair reach. That ground only needs replacing once the layer
       // has really gone from next to it, so a small move leaves the background as the photo has it.
-      float longSide = max(uPixels.x, uPixels.y);
-      float gone = smoothstep(longSide * 0.0012, longSide * 0.006, shapedBy);
-      float goneHeld = uBrushFree ? 0.0 : smoothstep(longSide * 0.0012, longSide * 0.006, heldBy);
+      float gone = smoothstep(longSide * 0.0012, longSide * 0.0035, shapedBy);
+      float goneHeld = smoothstep(longSide * 0.0012, longSide * 0.0035, heldBy);
       vec3 top = texture(uInput, uv).rgb;
       float topGuess = 0.0;
       if (uHasLips) {
@@ -105,21 +166,24 @@ void main() {
         vec2 yuv = (sy - uRegion.xy) / uRegion.zw;
         // The alpha of a plate says where its layer stood, and is zero on all the rest of the photo.
         vec4 plateHead = texture(uPlateHead, sy);
-        float bodyGuess = plateHead.a * (layerAt(uHead, sy) > 0.0 ? shaped : gone);
-        vec3 under = mix(texture(uInput, yuv).rgb, plateHead.rgb, bodyGuess);
+        vec3 seen = texture(uInput, yuv).rgb;
+        float bodyGuess = plateHead.a * shows(uHead, sy, seen, plateHead.rgb, shapedBy, shaped, gone);
+        vec3 under = mix(seen, plateHead.rgb, bodyGuess);
         float underGuess = bodyGuess;
         vec2 below = yuv;
         if (held > 0.0) {
-          // The brush moved the person and left the background: behind the body there is the other plate.
+          // The person moved and the background stayed: behind the body there is the other plate.
           float person = layerAt(uPerson, sy);
           vec2 buv = (sb - uRegion.xy) / uRegion.zw;
           vec4 plateBack = texture(uPlateBack, sb);
-          float backGuess = plateBack.a * (layerAt(uPerson, sb) > 0.0 ? held : goneHeld);
-          vec3 back = mix(texture(uInput, buv).rgb, plateBack.rgb, backGuess);
-          float body = mix(1.0, person, held);
-          under = mix(back, under, body);
-          underGuess = mix(backGuess, bodyGuess, body);
-          if (body < 0.5) below = buv;
+          vec3 ground = texture(uInput, buv).rgb;
+          float backGuess = plateBack.a * shows(uPerson, sb, ground, plateBack.rgb, heldBy, held, goneHeld);
+          vec3 back = mix(ground, plateBack.rgb, backGuess);
+          // Past the edge of the person there is only ground, read from where it is and never from where a warp
+          // points: a warp fades out far beyond the person, and the ground there must come out as it was.
+          under = mix(back, under, person);
+          underGuess = mix(backGuess, bodyGuess, person);
+          if (person < 0.5) below = buv;
         }
         layered = mix(under, top, head);
         guess = mix(underGuess, topGuess, head);

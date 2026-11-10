@@ -19,10 +19,37 @@ const SOLID_LEVEL = 127;
 const PERSON_LEVEL = 8;
 const TRACE_FULL = 4;
 /** Room kept around a layer, as a share of the long side and in cells. */
-const ROOM_SHARE = 0.0025;
-const ROOM_MIN = 2;
+const ROOM_SHARE = 0.0045;
+const ROOM_MIN = 3;
 /** Over this many cells at the outer side of that room, the plate gives way to the photo. */
 const SOFT_CELLS = 2;
+/**
+ * Past that room the photo shows, but the colors there are not yet the background alone: the dark of a beard,
+ * the glow of skin and the blur of the lens go a few cells further. So a guess takes its colors from further
+ * out still, by this share of the long side and at least this many cells. Without it, a fill carried the dark
+ * of a jaw on into the wall, and the model drew curls where it saw the tips of a beard.
+ */
+const CLEAR_SHARE = 0.006;
+const CLEAR_MIN = 4;
+
+/**
+ * A layer leaves more on the ground next to it than the color of its edge: the dark line where a neck touches a
+ * pillow, the soft shadow beside it. When the layer moves away, all of that has to go with it, or it stays as a
+ * drawing of where the edge was. It shows as a difference between the photo and the ground as the guess has it,
+ * so within the cells the guess does not go by, the plate also takes over where that difference is this many
+ * levels, or this many times the usual texture of the photo, and all of it at `CAST_FULL` times that.
+ */
+const CAST_LEVELS = 8;
+const CAST_TIMES = 2.5;
+const CAST_FULL = 2.2;
+/** Over this many cells at the outer side, that fades out, so the plate always ends on ground it agrees with. */
+const CAST_FADE = 3;
+
+/** How far from a layer, in cells, the photo is the background alone, for a guess to go by. */
+export function clearOf(w: number, h: number): number {
+  const long = Math.max(w, h);
+  return Math.max(ROOM_MIN, Math.round(long * ROOM_SHARE)) + SOFT_CELLS + Math.max(CLEAR_MIN, Math.round(long * CLEAR_SHARE));
+}
 /** Rounds of relaxation at the coarsest level and at each finer one. */
 const COARSE_ROUNDS = 60;
 const FINE_ROUNDS = 8;
@@ -189,6 +216,14 @@ function membrane(top: Level): void {
 }
 
 /**
+ * Carries the values of the known cells on into the others, as a membrane, in place. `values` holds three
+ * numbers per cell, of any sign.
+ */
+export function flowIn(values: Float32Array, known: Uint8Array, w: number, h: number): void {
+  if (known.some((v) => v > 0)) membrane({ w, h, color: values, known });
+}
+
+/**
  * A picture, as RGBA, with every cell that is not known replaced by the smooth guess of the known ones around
  * it. Alpha is 255 where it is a guess. For the model to carry on from one kind of thing only: what is not of
  * that kind is taken out first.
@@ -255,9 +290,11 @@ export function blurKnown(color: Float32Array, known: Uint8Array, w: number, h: 
 
 /**
  * The plate, as RGBA bytes on the grid of the matte. `rgba` is the photo on that same grid. A photo that is all
- * person has no background to go on, and its plate has no alpha anywhere: warps then show the photo.
+ * person has no background to go on, and its plate has no alpha anywhere: warps then show the photo. `open` is
+ * where the plate may also take what the layer casts on the ground beside it, when that is not everywhere: under
+ * a head there is a body, and its shadows are its own. See `CAST_LEVELS`.
  */
-export function buildPlate(rgba: ArrayLike<number>, matte: Uint8Array, w: number, h: number): Uint8Array {
+export function buildPlate(rgba: ArrayLike<number>, matte: Uint8Array, w: number, h: number, open?: Uint8Array): Uint8Array {
   const n = w * h;
   const out = new Uint8Array(n * 4);
   const person = new Uint8Array(n);
@@ -277,9 +314,13 @@ export function buildPlate(rgba: ArrayLike<number>, matte: Uint8Array, w: number
     return out;
   }
   const room = Math.max(ROOM_MIN, Math.round(Math.max(w, h) * ROOM_SHARE));
+  const clear = clearOf(w, h);
   const toPerson = nearestCells(person, w, h);
+  // What the guess goes by, and what the plate leaves as the photo has it. The second is more: see `CLEAR_SHARE`.
   const known = new Uint8Array(n);
+  const shown = new Uint8Array(n);
   const alpha = new Uint8Array(n);
+  const far = new Float32Array(n);
   let knownCount = 0;
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
@@ -288,12 +329,15 @@ export function buildPlate(rgba: ArrayLike<number>, matte: Uint8Array, w: number
       const fx = from % w;
       const fy = (from - fx) / w;
       const d = Math.hypot(fx - x, fy - y);
+      far[at] = d;
       // Past the room around the solid part, the plate counts as much as the matte still does.
       const t = Math.min(1, Math.max(0, (matte[at] - PERSON_LEVEL) / (SOLID_LEVEL - PERSON_LEVEL)));
       const faint = matte[at] > PERSON_LEVEL ? Math.round(255 * t * t * (3 - 2 * t)) : Math.round(255 * Math.min(1, matte[at] / TRACE_FULL));
       const near = d > room + SOFT_CELLS ? 0 : d <= room ? 255 : Math.round(255 * (1 - (d - room) / (SOFT_CELLS + 1)));
       alpha[at] = Math.max(faint, near);
-      if (!alpha[at]) {
+      if (alpha[at]) continue;
+      shown[at] = 1;
+      if (d > clear) {
         known[at] = 1;
         knownCount++;
       }
@@ -325,11 +369,69 @@ export function buildPlate(rgba: ArrayLike<number>, matte: Uint8Array, w: number
   for (let sum = 0; usual < 255 && sum + counts[usual] < seen / 2; usual++) sum += counts[usual];
   const hard = Math.min(DETAIL_MAX_LIMIT, Math.max(DETAIL_MIN_LIMIT, (usual + 0.5) * DETAIL_TIMES));
   const gentle = hard * DETAIL_SOFT;
+  // What the layer casts on the ground beside it. See `CAST_LEVELS`.
+  const low = Math.max(CAST_LEVELS, usual * CAST_TIMES);
+  const cast = new Float32Array(n);
+  let anyCast = false;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const at = y * w + x;
+      if (alpha[at] === 255 || known[at] || far[at] > clear || (open && !open[at])) continue;
+      // The photo over a cell and its neighbors, so that grain does not count and a thin line still does.
+      let apart = 0;
+      for (let c = 0; c < 3; c++) {
+        let sum = 0;
+        let count = 0;
+        for (let yy = Math.max(0, y - 1); yy <= Math.min(h - 1, y + 1); yy++) {
+          for (let xx = Math.max(0, x - 1); xx <= Math.min(w - 1, x + 1); xx++) {
+            sum += photo[(yy * w + xx) * 3 + c];
+            count++;
+          }
+        }
+        apart = Math.max(apart, Math.abs(sum / count - color[at * 3 + c]));
+      }
+      const t = Math.min(1, Math.max(0, (apart - low) / (low * (CAST_FULL - 1))));
+      const edge = Math.min(1, Math.max(0, (clear - far[at]) / CAST_FADE));
+      cast[at] = t * t * (3 - 2 * t) * edge;
+      if (cast[at] > 0) anyCast = true;
+    }
+  }
+  if (anyCast) {
+    // A cell around, for the soft sides of what was found, and then no hard line where it ends.
+    const wide = new Float32Array(n);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        let most = 0;
+        for (let yy = Math.max(0, y - 1); yy <= Math.min(h - 1, y + 1); yy++) {
+          for (let xx = Math.max(0, x - 1); xx <= Math.min(w - 1, x + 1); xx++) most = Math.max(most, cast[yy * w + xx]);
+        }
+        wide[y * w + x] = most;
+      }
+    }
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const at = y * w + x;
+        if (alpha[at] === 255 || known[at] || far[at] > clear || (open && !open[at])) continue;
+        let sum = 0;
+        let count = 0;
+        for (let yy = Math.max(0, y - 1); yy <= Math.min(h - 1, y + 1); yy++) {
+          for (let xx = Math.max(0, x - 1); xx <= Math.min(w - 1, x + 1); xx++) {
+            sum += wide[yy * w + xx];
+            count++;
+          }
+        }
+        const value = Math.round((255 * sum) / count);
+        if (value <= alpha[at]) continue;
+        alpha[at] = value;
+        shown[at] = 0;
+      }
+    }
+  }
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const at = y * w + x;
       const o = at * 4;
-      if (known[at]) {
+      if (shown[at]) {
         out[o] = rgba[o];
         out[o + 1] = rgba[o + 1];
         out[o + 2] = rgba[o + 2];

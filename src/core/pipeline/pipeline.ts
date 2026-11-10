@@ -1,5 +1,5 @@
 import { GLSL_HEADER, type GLContext, type Rect, type Tex, type Tex3D, type Uniforms } from '../gl/context';
-import { FILTER_MASK, LAYER_ORDER, type EditDoc, type LayerId } from '../doc';
+import { COVER_SPAN, FILTER_MASK, LAYER_ORDER, type EditDoc, type LayerId } from '../doc';
 import { imageToOutput, outputSize } from '../geometry';
 import COLOR_GLSL from '../shaders/color.glsl?raw';
 import DEVELOP_FRAG from '../shaders/develop.frag?raw';
@@ -53,6 +53,8 @@ export interface FieldSource {
   readonly brushTex?: Tex | null;
   /** The share of the field that shapes the lips. */
   readonly lipTex?: Tex | null;
+  /** The share of the field that moves a head alone. */
+  readonly headTex?: Tex | null;
 }
 
 /** The mattes of the photo and the plates behind them, in image UV, for warps in layers. */
@@ -61,6 +63,10 @@ export interface Layers {
   head: Tex;
   /** The opening of the mouths. Null when every mouth is closed. */
   mouth: Tex | null;
+  /** How far each point is from what covers the body. Null in a project saved before there was one: the body then stays. */
+  cover: Tex | null;
+  /** Which way that is, as the slope of the distance. See `coverWay` in `core/face/person.ts`. */
+  coverWay: Tex | null;
   /** The photo with nobody in it, and with no head in it. */
   plateBack: Tex;
   plateHead: Tex;
@@ -255,6 +261,12 @@ export class Pipeline {
         uPlateHead: lock?.plateHead ?? this.emptyField,
         uBrushField: (lock && this.field?.brushTex) || this.emptyField,
         uLipField: (lock?.mouth && this.field?.lipTex) || this.emptyField,
+        uHeadField: (lock && this.field?.headTex) || this.emptyField,
+        uHeadAlone: !!(lock && this.field?.headTex),
+        uCover: lock?.cover ?? this.emptyField,
+        uCoverWay: lock?.coverWay ?? this.emptyField,
+        uFollows: !!(lock?.cover && lock.coverWay),
+        uCoverSpan: COVER_SPAN * Math.max(doc.width, doc.height),
         uBrushFree: !!doc.unlocked,
         uHasLips: !!(lock?.mouth && this.field?.lipTex),
         uPixels: [doc.width, doc.height],

@@ -10,7 +10,7 @@
 import type { FaceShape } from '../doc';
 import type { Point } from './mask';
 import { CHIN, type ChinFold, type Face } from './scan';
-import { faceFrame, JAW_MOVE, jawMove, type FaceFrame, type ShapeField } from './shape';
+import { distanceToOutline, faceFrame, JAW_MOVE, jawMove, neckFollow, type FaceFrame, type ShapeField } from './shape';
 
 export type ShapeSection = 'face' | 'eyes' | 'nose';
 
@@ -57,15 +57,19 @@ export const sliderById = (id: string) => SHAPE_SLIDERS.find((s) => s.id === id)
 /** The sliders of a face, by id. A slider left out is at zero. */
 export type ShapeValues = Record<string, number>;
 
-/** Limits, at the end of each slider. Lengths are shares of the part they act on. */
-const AT_LIMIT = {
-  jawline: 0.12,
-  jawShape: 0.13,
-  chin: 0.075,
+/**
+ * Limits, at the end of each slider. Lengths are shares of the part they act on. The ones of the jaw, the chin
+ * and the length of the face were measured on the real photos, as the most that leaves no step where a neck
+ * with a collar close to it can no longer follow. See the decisions on the neck in `docs/DECISIONS.md`.
+ */
+export const AT_LIMIT = {
+  jawline: 0.09,
+  jawShape: 0.1,
+  chin: 0.06,
   cheeks: 0.09,
   temples: 0.1,
   forehead: 0.075,
-  length: 0.075,
+  length: 0.06,
   /** The head grows or shrinks by this share. */
   head: 0.09,
   eyeSize: 0.22,
@@ -99,6 +103,12 @@ interface Piece {
    * these pieces add apart, so the inside of the mouth can be read without it.
    */
   overMouth?: boolean;
+  /**
+   * The piece moves a head over the body behind it, and this is the share of it the body does not take at a
+   * point, from 0 to 1. Every other piece moves head and body together, as one surface, so that a neck goes
+   * where its jaw goes.
+   */
+  alone?(x: number, y: number): number;
 }
 
 const smooth = (a: number, b: number, x: number) => {
@@ -246,23 +256,6 @@ const roomAround = (in1: number, in2: number, room: number): ZoneShape => ({
 /** Room a zone needs past its inner ellipse so that the skin there is never folded, with some to spare. */
 const roomFor = (move: number) => Math.abs(move) * 1.7;
 
-/** Signed distance from a point to a closed outline: negative inside. */
-export function distanceToOutline(x: number, y: number, points: readonly Vec[]): number {
-  let best = Infinity;
-  let inside = false;
-  for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
-    const [ax, ay] = points[j];
-    const [bx, by] = points[i];
-    if (ay <= y !== by <= y && x < ax + ((y - ay) / (by - ay)) * (bx - ax)) inside = !inside;
-    const ex = bx - ax;
-    const ey = by - ay;
-    const t = Math.min(1, Math.max(0, ((x - ax) * ex + (y - ay) * ey) / (ex * ex + ey * ey || 1)));
-    const d = Math.hypot(x - ax - ex * t, y - ay - ey * t);
-    if (d < best) best = d;
-  }
-  return inside ? -best : best;
-}
-
 /** What a piece must leave alone: 0 on a part of the face and up to `near` from it, 1 from `far` on. */
 type Keep = (x: number, y: number) => number;
 
@@ -352,6 +345,17 @@ function alongAxis(f: FaceFrame, half: number, wide: number, move: (t: number) =
   };
 }
 
+/**
+ * The share of a move of the whole head that the body under it does not take. Hair and ears pass in front of
+ * shoulders, which stay. The neck is the one part of the body that goes along, where it meets the jaw, or the
+ * two would come apart there.
+ */
+const headAlone = (f: FaceFrame) => (x: number, y: number) => {
+  const rx = x - f.ox;
+  const ry = y - f.oy;
+  return 1 - neckFollow(f, rx * -f.dy + ry * f.dx, (rx * f.dx + ry * f.dy) / f.length);
+};
+
 /** Grows or shrinks a head with its hair, around a point of the neck, and fades before the shoulders. */
 function headScale(f: FaceFrame, half: number, amount: number): Piece {
   const k = 1 - 1 / (1 + amount);
@@ -369,6 +373,7 @@ function headScale(f: FaceFrame, half: number, amount: number): Piece {
     x: px,
     y: py,
     reach,
+    alone: headAlone(f),
     add(x, y, out) {
       const rx = x - f.ox;
       const ry = y - f.oy;
@@ -494,15 +499,18 @@ function heightPieces({ f, face, value }: Reading): Piece[] {
     // The line of the eyes stays. Below it the chin goes, above it the forehead goes a little.
     const eyes = 0.42;
     const amount = length * H;
-    pieces.push(
-      alongAxis(f, half, 1.25, (t) => {
+    // A longer face reaches down past the chin and out past the jaw, where shoulders are: of the body, only
+    // the neck goes along.
+    pieces.push({
+      ...alongAxis(f, half, 1.25, (t) => {
         if (t >= 1.4 || t <= -0.45) return 0;
         if (t >= 1) return amount * (1 - smooth(1, 1.4, t));
         if (t >= eyes) return (amount * (t - eyes)) / (1 - eyes);
         if (t >= 0) return (-amount * 0.4 * (eyes - t)) / eyes;
         return -amount * 0.4 * smooth(-0.45, 0, t);
       }),
-    );
+      alone: headAlone(f),
+    });
   }
   const head = value('head');
   if (head) pieces.push(headScale(f, half, head));
@@ -843,6 +851,7 @@ function fieldOf(pieces: readonly Piece[], kx: number, ky: number): ShapeField {
   const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
   const out: [number, number] = [0, 0];
   const lips = pieces.filter((p) => p.overMouth);
+  const alone = pieces.filter((p) => p.alone);
   const sum = (list: readonly Piece[], x: number, y: number) => {
     out[0] = 0;
     out[1] = 0;
@@ -851,6 +860,9 @@ function fieldOf(pieces: readonly Piece[], kx: number, ky: number): ShapeField {
       p.add(x, y, out);
     }
   };
+  // Toward an edge the read stops short of it, so what touches the edge stretches and leaves no streaks.
+  const short = (move: number, at: number, side: number) => (move < 0 ? Math.max(move, -at * EDGE_ROOM) : Math.min(move, (side - at) * EDGE_ROOM));
+  const part: [number, number] = [0, 0];
   return {
     area: { u0: clamp01(area.u0), v0: clamp01(area.v0), u1: clamp01(area.u1), v1: clamp01(area.v1) },
     offset(u, v) {
@@ -858,15 +870,36 @@ function fieldOf(pieces: readonly Piece[], kx: number, ky: number): ShapeField {
       const y = v * ky;
       sum(pieces, x, y);
       if (out[0] === 0 && out[1] === 0) return [0, 0];
-      // Toward an edge the read stops short of it, so what touches the edge stretches and leaves no streaks.
-      const mx = out[0] < 0 ? Math.max(out[0], -x * EDGE_ROOM) : Math.min(out[0], (kx - x) * EDGE_ROOM);
-      const my = out[1] < 0 ? Math.max(out[1], -y * EDGE_ROOM) : Math.min(out[1], (ky - y) * EDGE_ROOM);
-      return [mx / kx, my / ky];
+      return [short(out[0], x, kx) / kx, short(out[1], y, ky) / ky];
     },
     over: lips.length
       ? (u, v) => {
           sum(lips, u * kx, v * ky);
           return [out[0] / kx, out[1] / ky];
+        }
+      : undefined,
+    alone: alone.length
+      ? (u, v) => {
+          const x = u * kx;
+          const y = v * ky;
+          let ax = 0;
+          let ay = 0;
+          for (const p of alone) {
+            if (Math.abs(x - p.x) > p.reach || Math.abs(y - p.y) > p.reach) continue;
+            part[0] = 0;
+            part[1] = 0;
+            p.add(x, y, part);
+            if (part[0] === 0 && part[1] === 0) continue;
+            const k = p.alone!(x, y);
+            ax += part[0] * k;
+            ay += part[1] * k;
+          }
+          if (ax === 0 && ay === 0) return [0, 0];
+          // Cut short by as much as the whole was, so the body never reads past where the head does.
+          sum(pieces, x, y);
+          const cx = out[0] === 0 ? 1 : short(out[0], x, kx) / out[0];
+          const cy = out[1] === 0 ? 1 : short(out[1], y, ky) / out[1];
+          return [(ax * cx) / kx, (ay * cy) / ky];
         }
       : undefined,
   };
