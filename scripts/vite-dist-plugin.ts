@@ -6,10 +6,10 @@ import type { Plugin } from 'vite';
 
 const COMPRESSIBLE = /\.(js|mjs|css|html|svg|json|webmanifest|txt|wasm|task|tflite|onnx)$/;
 /**
- * The detector, the segmenters, the inpainting model and its runtime download only when someone asks for them,
- * so they stay out of the precache.
+ * The detector, the segmenters, the models that fill and upscale and their runtime download only when someone asks
+ * for them, so they stay out of the precache.
  */
-const ON_DEMAND = /(^|\/)(detector-|vision_wasm_internal|face_landmarker|hair_segmenter|selfie_multiclass|migan_inpaint|inpaint\.worker|ort-wasm)/;
+const ON_DEMAND = /(^|\/)(detector-|vision_wasm_internal|face_landmarker|hair_segmenter|selfie_multiclass|migan_inpaint|inpaint\.worker|realesrgan|upscale\.worker|ort-wasm)/;
 
 function walk(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {

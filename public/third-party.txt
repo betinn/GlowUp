@@ -1,6 +1,6 @@
-Glowup inclui, sem alterações, os componentes abaixo. Eles rodam só no aparelho de quem usa, para
-achar rostos, cabelo e o contorno de uma pessoa, e para completar o fundo atrás dela, quando quem usa pede.
-Não identificam ninguém.
+Glowup inclui os componentes abaixo, sem alterações salvo onde está dito. Eles rodam só no aparelho de
+quem usa, para achar rostos, cabelo e o contorno de uma pessoa, para completar o fundo atrás dela e para
+aumentar a resolução da foto, quando quem usa pede. Não identificam ninguém.
 
 MediaPipe Tasks Vision (@mediapipe/tasks-vision 1.2.2): biblioteca e WebAssembly.
 Copyright The MediaPipe Authors. Licença Apache 2.0.
@@ -21,7 +21,8 @@ abril de 2023): separa cabelo, pele do rosto, pele do corpo, roupa, acessórios 
 Licença Apache 2.0, conforme o cartão de modelo publicado pela Google.
 https://storage.googleapis.com/mediapipe-assets/Model%20Card%20Multiclass%20Segmentation.pdf
 
-ONNX Runtime Web (onnxruntime-web 1.31.1): biblioteca e WebAssembly que rodam o modelo de preenchimento.
+ONNX Runtime Web (onnxruntime-web 1.31.1): biblioteca e WebAssembly que rodam os modelos de preenchimento
+e de resolução.
 Copyright Microsoft Corporation. Licença MIT.
 https://github.com/microsoft/onnxruntime
 
@@ -29,6 +30,44 @@ MI-GAN (migan_inpaint.onnx, pipeline v2 de 512 px): completa o que fica atrás d
 controle do menu Formato do rosto move a cabeça. Copyright 2024 Picsart AI Research (PAIR). Licença MIT, para
 o código e para os pesos, conforme os arquivos LICENSE e LICENSE-WEIGHTS do projeto.
 https://github.com/Picsart-AI-Research/MI-GAN
+
+Real-ESRGAN (realesrgan_x4plus.onnx, a partir de RealESRGAN_x4plus.pth, versão 0.1.0): aumenta a
+resolução da foto 4 vezes, refazendo os detalhes. Copyright (c) 2021, Xintao Wang. Licença BSD de 3
+cláusulas. Alteração: a rede foi convertida para ONNX por scripts/superres/convert.py, com os pesos do
+arquivo publicado arredondados para float16.
+https://github.com/xinntao/Real-ESRGAN
+
+Texto da licença de Real-ESRGAN:
+
+   BSD 3-Clause License
+
+   Copyright (c) 2021, Xintao Wang
+   All rights reserved.
+
+   Redistribution and use in source and binary forms, with or without
+   modification, are permitted provided that the following conditions are met:
+
+   1. Redistributions of source code must retain the above copyright notice, this
+      list of conditions and the following disclaimer.
+
+   2. Redistributions in binary form must reproduce the above copyright notice,
+      this list of conditions and the following disclaimer in the documentation
+      and/or other materials provided with the distribution.
+
+   3. Neither the name of the copyright holder nor the names of its
+      contributors may be used to endorse or promote products derived from
+      this software without specific prior written permission.
+
+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+   AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+   IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+   DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+   FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+   DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+   SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+   CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+   OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Texto da licença MIT, de ONNX Runtime Web e de MI-GAN:
 

@@ -7,6 +7,7 @@
   import { readFile, SourceImage } from '../core/source';
   import { FILTER_MASK, PHOTO_MASKS, type LayerId } from '../core/doc';
   import { startFill } from './fill.svelte';
+  import { forgetGrow } from './upscaletool.svelte';
   import { syncFilter } from '../presets/apply';
   import { ensureDocTools } from '../tools/activate';
   import { GROUPS, TOOLS, toolById, type GroupId } from '../tools/catalog';
@@ -37,6 +38,7 @@
     filters: () => import('./panels/FiltersPanel.svelte'),
     blur: () => import('./panels/BlurPanel.svelte'),
     crop: () => import('./panels/CropPanel.svelte'),
+    upscale: () => import('./panels/UpscalePanel.svelte'),
   };
   const loadCropOverlay = () => import('./CropOverlay.svelte');
   const loadBlurOverlay = () => import('./BlurOverlay.svelte');
@@ -251,6 +253,7 @@
     setAutosave(null);
     clearEditorCloser(shutDown);
     dropToolLimit();
+    forgetGrow();
     ui.tool = null;
     ui.toolModule = null;
     ui.splitOn = false;
