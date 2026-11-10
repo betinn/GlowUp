@@ -193,6 +193,21 @@
     margin-top: 10px;
   }
 
+  /* On a phone the photo keeps most of the screen, and the menu scrolls under it. */
+  @media (max-width: 899px) {
+    .brincar {
+      max-height: 38dvh;
+    }
+
+    .intro {
+      font-size: 15px;
+    }
+
+    .grid {
+      grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+    }
+  }
+
   .faces {
     display: flex;
     flex-wrap: wrap;
