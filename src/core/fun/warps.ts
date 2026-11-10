@@ -31,30 +31,38 @@ export function toFrame(f: FaceFrame, x: number, y: number): [number, number] {
   return [(rx * f.dx + ry * f.dy) / f.length, rx * -f.dy + ry * f.dx];
 }
 
-/** An oval around `c`: its first half length `a` runs along `e1`, the second, `b`, across it. */
+/**
+ * An oval around `c`: its first half length `a` runs along `e1`, the second, `b`, across it. `back`, when given,
+ * is the half length across on the other side, against the turn of `e1` (above a mouth whose `e1` points to the
+ * right of the photo): an egg.
+ */
 export interface Oval {
   c: Vec;
   e1: Vec;
   a: number;
   b: number;
+  back?: number;
 }
 
 /**
  * A point shown at `r` of the way to the edge of the oval reads the photo from `r * read(r)` on the same ray.
  * It never folds while `read(r)` stays above zero and `r * read(r)` grows with `r`, and it fades out when
- * `read(1)` is 1. That holds for an oval as for a circle: the measure of the oval grows with `r` on every ray.
+ * `read(1)` is 1. That holds for an oval or an egg as for a circle: the measure grows in step with the distance
+ * on every ray.
  */
 function radial(o: Oval, read: (r: number) => number): FunPiece {
   const [ex, ey] = o.e1;
+  const back = o.back ?? o.b;
   return {
     x: o.c[0],
     y: o.c[1],
-    reach: Math.max(o.a, o.b),
+    reach: Math.max(o.a, o.b, back),
     add(x, y, out) {
       const px = x - o.c[0];
       const py = y - o.c[1];
       const p = (px * ex + py * ey) / o.a;
-      const q = (-px * ey + py * ex) / o.b;
+      const across = -px * ey + py * ex;
+      const q = across / (across < 0 ? back : o.b);
       const r2 = p * p + q * q;
       if (r2 >= 1) return;
       const k = read(Math.sqrt(r2)) - 1;
@@ -198,43 +206,100 @@ function headWeight(f: FaceFrame, t: number, side: number, band: number): number
 }
 
 /**
+ * A map of a line onto itself that never goes back. Before `bounds[0]` and past the last bound it leaves points
+ * where they are. Between two bounds a point shown reads the line at that stretch's slope, or, where the slope is
+ * null, at one worked out so the two ends stay where they are. Each slope eases into the next over `soft`. All
+ * slopes above zero make a map that never folds.
+ */
+export function lineMap(bounds: readonly number[], slopes: readonly (number | null)[], soft: number): (x: number) => number {
+  const A = bounds[0] - soft;
+  const B = bounds[bounds.length - 1] + soft;
+  const N = 1024;
+  const step = (B - A) / N;
+  const H = (z: number) => smooth(-soft, soft, z);
+  // The weight of each stretch at x, which add up to 1 with the two ends outside.
+  const weights = (x: number) => slopes.map((_, i) => H(x - bounds[i]) - H(x - bounds[i + 1]));
+  const outside = (x: number) => 1 - H(x - bounds[0]) + H(x - bounds[bounds.length - 1]);
+  let fixed = 0;
+  let free = 0;
+  for (let k = 0; k < N; k++) {
+    const x = A + (k + 0.5) * step;
+    const w = weights(x);
+    fixed += outside(x) * step;
+    for (const [i, slope] of slopes.entries()) {
+      if (slope === null) free += w[i] * step;
+      else fixed += slope * w[i] * step;
+    }
+  }
+  const freeSlope = free > 0 ? Math.max(0.05, (B - A - fixed) / free) : 1;
+  const table = new Float64Array(N + 1);
+  table[0] = A;
+  for (let k = 0; k < N; k++) {
+    const x = A + (k + 0.5) * step;
+    const w = weights(x);
+    let s = outside(x);
+    for (const [i, slope] of slopes.entries()) s += (slope ?? freeSlope) * w[i];
+    table[k + 1] = table[k] + s * step;
+  }
+  // Rounding leaves the far end a hair off: spread that over the line.
+  const off = table[N] - B;
+  return (x: number) => {
+    if (x <= A || x >= B) return x;
+    const at = (x - A) / step;
+    const k = Math.min(N - 1, Math.floor(at));
+    const v = table[k] + (table[k + 1] - table[k]) * (at - k);
+    return v - (off * (x - A)) / (B - A);
+  };
+}
+
+/**
  * Changes the proportions of a head with its hair: `along` times as long and `across` times as wide, around the
- * neck, over the body and the background, which stay. One way, then the other, and each never folds on its own:
- * a head that grows is measured where it was, as `growHead` does, so a point read moves out as the point shown
- * does; a head that shrinks is measured where it shows, over a fade wide enough that the point read still moves
- * out. Two warps that never fold make one that never folds.
+ * neck. Growing, the head goes over the body and the background, which stay: it is measured where it was, as
+ * `growHead` does, so a point read moves out as the point shown does. Shrinking, the face shrinks inside the head
+ * and the hair around it stretches to keep the outline of the head where it was, so nothing behind the head is
+ * uncovered and no background has to be made up. One way, then the other, and each never folds on its own: two
+ * warps that never fold make one that never folds.
  */
 export function reshapeHead(f: FaceFrame, along: number, across: number): FunPiece {
   const pivot = fromFrame(f, PIVOT, f.mid);
   const L = f.length;
-  // Shrinking, the edge of the head fades over this much more, so the warp never folds there.
-  const WIDE = 1.6;
-  const NARROW = 0.5;
+  const half = f.halfWidth;
+  // Shrinking along the face: the face from its top to the neck shows `along` as long, and the hair above it
+  // stretches down to meet it. The hair is not measured, so the stretch stops about where short hair ends: longer
+  // hair stays where it is above that, and the top of shorter hair comes down only a little, which the plates fill.
+  const HAIR = 0.55;
+  const top = PIVOT * (1 - along);
+  const shorter = along < 1 ? lineMap([-HAIR, top, PIVOT], [null, 1 / along], 0.08) : null;
+  // Shrinking across: the face shows `across` as wide, and the hair beside it stretches out to about where hair
+  // close to the head ends, in half widths of the face.
+  const EDGE = 1.5;
+  const narrower = across < 1 ? lineMap([-EDGE, -across, across, EDGE], [null, 1 / across, null], 0.1) : null;
   const scaleAxis = (t: number, side: number): number => {
-    // The height t of a point shown, read from: by the head where it was when it grows, where it shows when it shrinks.
-    const tau = (t - PIVOT) * L;
-    if (along >= 1) {
-      const u = tau / along;
-      const wt = headWeight(f, PIVOT + u / L, side, NARROW);
-      return PIVOT + (tau * (1 - (1 - 1 / along) * wt)) / L;
+    if (shorter) {
+      const w = 1 - smooth(1.3, 2.2, Math.abs(side - f.mid) / half);
+      return w > 0 ? t + w * (shorter(t) - t) : t;
     }
-    const wt = headWeight(f, t, side, WIDE);
-    return PIVOT + (tau * (1 + (1 / along - 1) * wt)) / L;
+    if (along <= 1) return t;
+    const tau = (t - PIVOT) * L;
+    const u = tau / along;
+    const wt = headWeight(f, PIVOT + u / L, side, 0.5);
+    return PIVOT + (tau * (1 - (1 - 1 / along) * wt)) / L;
   };
   const scaleSide = (t: number, side: number): number => {
     const s = side - f.mid;
-    if (across >= 1) {
-      const wt = headWeight(f, t, f.mid + s / across, NARROW);
-      return f.mid + s * (1 - (1 - 1 / across) * wt);
+    if (narrower) {
+      // Down to the jaw, and up over the hair, then nothing: the neck and the shoulders stay as they are.
+      const w = (1 - smooth(1, 1.25, t)) * smooth(-HAIR - 0.5, -HAIR, t);
+      return w > 0 ? f.mid + s + w * (narrower(s / half) * half - s) : side;
     }
-    const wt = headWeight(f, t, side, WIDE);
-    return f.mid + s * (1 + (1 / across - 1) * wt);
+    if (across <= 1) return side;
+    const wt = headWeight(f, t, f.mid + s / across, 0.5);
+    return f.mid + s * (1 - (1 - 1 / across) * wt);
   };
-  const half = f.halfWidth;
   return {
     x: pivot[0],
     y: pivot[1],
-    reach: (L * (PIVOT + 1 + WIDE) + half * 4) * Math.max(1, along, across),
+    reach: (L * (PIVOT + 1.8) + half * 3) * Math.max(1, along, across),
     alone: headAlone(f),
     add(x, y, out) {
       const [t, side] = toFrame(f, x, y);
@@ -248,8 +313,8 @@ export function reshapeHead(f: FaceFrame, along: number, across: number): FunPie
   };
 }
 
-/** The mouth: its middle, which way its corners lie, half its width and its height. Null when the face has no lips. */
-export function mouthOf(read: FunFace): { c: Vec; e1: Vec; half: number; height: number; corners: [Vec, Vec] } | null {
+/** The mouth: its middle, which way its corners lie, half its width, its height and the top of the upper lip. Null when the face has no lips. */
+export function mouthOf(read: FunFace): { c: Vec; e1: Vec; half: number; height: number; corners: [Vec, Vec]; top: Vec } | null {
   const lips = read.face.parts.outerLips;
   if (lips.length < 20) return null;
   const a = read.flat(lips[0]);
@@ -259,7 +324,7 @@ export function mouthOf(read: FunFace): { c: Vec; e1: Vec; half: number; height:
   const half = gap(a, b) / 2;
   if (!(half > 0)) return null;
   const c: Vec = [(a[0] + b[0] + top[0] + bottom[0]) / 4, (a[1] + b[1] + top[1] + bottom[1]) / 4];
-  return { c, e1: unit(b[0] - a[0], b[1] - a[1]), half, height: gap(top, bottom), corners: [a, b] };
+  return { c, e1: unit(b[0] - a[0], b[1] - a[1]), half, height: gap(top, bottom), corners: [a, b], top };
 }
 
 /** The nose: its middle, which way across it, half the span of its wings, and its length from the bridge. */

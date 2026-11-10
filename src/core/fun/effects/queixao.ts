@@ -4,7 +4,7 @@ import type { FunEffect } from '../types';
 import { lengthen, toFrame } from '../warps';
 
 /** At the end of the slider the chin goes down by this share of the length of the face. */
-const MOST = 0.2;
+const MOST = 0.16;
 
 export const queixao: FunEffect = {
   id: 'queixao',
