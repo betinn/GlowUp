@@ -147,6 +147,35 @@ export interface FaceShape {
   values: Record<string, number>;
 }
 
+/**
+ * A sticker of Brincar. Its place is on the photo as it was opened, so it needs no detector to draw: the warps
+ * of the face carry it where the face goes. `kind` is the id of its art in `core/fun/stickers`.
+ */
+export interface StickerState {
+  /** Unique in the document. */
+  id: number;
+  kind: string;
+  /** The face it was put on, as `FaceShape.at`. Null when no face was found. */
+  at: [number, number] | null;
+  /** Middle, in image UV. */
+  x: number;
+  y: number;
+  /** Width, as a share of the long side of the photo. The height follows the shape of the art. */
+  size: number;
+  /** Turn, in radians, clockwise on the screen. */
+  angle: number;
+}
+
+/**
+ * The playful edits of Brincar. Kept apart from everything realistic: their own numbers, their own field and
+ * their own limits. Older projects leave this out.
+ */
+export interface FunDoc {
+  /** The strength of each effect, 0..100, per face. An effect left out is off. */
+  faces?: FaceShape[];
+  stickers?: StickerState[];
+}
+
 /** One healing operation. Coordinates are image UV, radii are fractions of the long side. */
 export interface HealOp {
   id: number;
@@ -176,6 +205,8 @@ export interface EditDoc {
   shapesOff?: ('face' | 'eyes' | 'nose')[];
   /** The brush of Liquify moves the background too. Older projects leave this out: the background stays. */
   unlocked?: boolean;
+  /** Brincar. Older projects leave this out: nothing playful. */
+  fun?: FunDoc;
 }
 
 export function createDoc(width: number, height: number): EditDoc {

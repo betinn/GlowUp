@@ -43,6 +43,7 @@
   const loadFaceOverlay = () => import('./FaceOverlay.svelte');
   const loadHealOverlay = () => import('./HealOverlay.svelte');
   const loadShapeOverlay = () => import('./ShapeOverlay.svelte');
+  const loadStickerOverlay = () => import('./StickerOverlay.svelte');
 
   let canvas = $state<HTMLCanvasElement>();
   let ready = $state(false);
@@ -156,6 +157,13 @@
         if (![1, 2, 3].includes(bytes.byteLength / e.field.serialize().byteLength)) throw new InvalidProjectError('field size');
         e.field.restoreShape(new Float32Array(bytes.buffer as ArrayBuffer, bytes.byteOffset, bytes.byteLength / 4));
       }
+      if (record.fun && e.fun) {
+        const bytes = await unpack(record.fun);
+        // The whole, and after it the share of the head, when the project has one.
+        const size = e.fun.gridSize.w * e.fun.gridSize.h * 8;
+        if (![1, 2].includes(bytes.byteLength / size)) throw new InvalidProjectError('fun size');
+        e.fun.restore(new Float32Array(bytes.buffer as ArrayBuffer, bytes.byteOffset, bytes.byteLength / 4));
+      }
       // Before this field, the automatic mode was written into the strokes, so there is no strength to move.
       if (record.shape === undefined) delete e.doc.shapeAmount;
       await e.refreshLock();
@@ -199,6 +207,7 @@
       view: bump,
       busy: (label) => (ui.busy = label),
       shaping: (pending) => (ui.shaping = pending),
+      funShaping: (pending) => (ui.funShaping = pending),
       error: (message) => toast(message),
       outside: () => toast(strokeOutside()),
     };
@@ -253,6 +262,7 @@
     ui.path = null;
     ui.choosingPath = false;
     ui.onboarding = null;
+    ui.funShaping = false;
   });
 
   function updateViewport() {
@@ -422,6 +432,11 @@
         <ShapeOverlay />
       {/await}
     {/if}
+    {#if ui.path === 'fun' && !ui.splitOn && !ui.compareHold && !ui.choosingPath}
+      {#await loadStickerOverlay() then { default: StickerOverlay }}
+        <StickerOverlay />
+      {/await}
+    {/if}
   {/if}
 
   <header class="bar" bind:clientHeight={barH}>
@@ -539,7 +554,7 @@
     <PathChoice />
   {/if}
 
-  {#if ui.shaping && ready}
+  {#if (ui.shaping || ui.funShaping) && ready}
     <!-- Only while the finished field is on its way. It shows a moment late, so a quick one never blinks. -->
     <div class="shaping" role="status" aria-label="Terminando o ajuste do rosto" data-testid="shape-pending" in:reveal={{ duration: 160, delay: 140, y: 4 }}>
       <span class="filament"></span>

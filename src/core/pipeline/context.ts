@@ -17,7 +17,7 @@ export interface DirtyFlags {
   global: boolean;
 }
 
-type Slot = 'healed' | 'checkpoint' | 'retouched' | 'dev' | 'final' | 'unfiltered' | 'a' | 'b';
+type Slot = 'healed' | 'checkpoint' | 'retouched' | 'dev' | 'final' | 'unfiltered' | 'a' | 'b' | 'stick';
 
 /**
  * Buffers for one rendering of the document at one resolution.

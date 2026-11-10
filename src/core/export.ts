@@ -45,6 +45,9 @@ export async function exportImage(
   engine.commit();
   // A face slider just let go may still have its finished field on the way: the file waits for it.
   await engine.shapeReady();
+  // So may an effect of Brincar, and the stickers are drawn again at the size they have in the file.
+  await engine.funReady();
+  await engine.stickersReady(1);
   const { glc, doc, source, pipeline } = engine;
   if (!source || !pipeline) throw new Error('no-image');
   const crop = doc.crop;
@@ -54,7 +57,7 @@ export async function exportImage(
   const rows = Math.ceil(out.h / side);
   const long = Math.max(doc.width, doc.height);
   const blurPx = doc.blur.mode === 'off' ? 0 : (doc.blur.strength / 100) * 0.035 * long * 3;
-  const fieldPx = doc.hasField && engine.field ? engine.field.maxDisplacement() * long : 0;
+  const fieldPx = (doc.hasField && engine.field ? engine.field.maxDisplacement() * long : 0) + (engine.fun?.maxDisplacement() ?? 0) * long;
   const healPx = doc.heals.reduce((m, op) => {
     const reach = Math.hypot(op.du * doc.width, op.dv * doc.height);
     return Math.max(m, reach + Math.max(...op.dabs.map((d) => d.r * long)) * 3);

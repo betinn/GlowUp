@@ -408,6 +408,93 @@ depois da escolha, e o caminho sem pincel não ensina a pintar.
   nenhum põe cor na boca. A miniatura mostra a cor do look nesta foto, na intensidade certa.
 - **Avisos.** Boca fechada deixa Dentes de fora, e o aviso diz isso. Sem rosto ou sem detector, entra só a
   cor do look e o aviso diz por quê. Sem detector, um segundo toque tenta de novo em vez de tirar o look.
+- **Brincar.** Caretas e adesivos, ao lado de Filtros. Um projeto só com Brincar reabre no Brincar. Veja abaixo.
+
+## Brincar
+
+O caminho das brincadeiras: caretas no rosto e adesivos. Fica ao lado de Filtros e longe do retoque. Nada daqui
+entra nos números, no campo ou nos limites do Formato do rosto e do Liquify, e o menu não mostra ferramenta nenhuma
+do retoque.
+
+- **Caretas.** Um controle por efeito, de 0 a 100, no rosto escolhido. Olhão aumenta os olhos. Cabeção aumenta a
+  cabeça com o cabelo, e corpo e fundo ficam: ele pede a separação da pessoa quando sai do zero, e sem ela a cabeça
+  cresce com o que está em volta, e o painel diz isso.
+- **Adesivos.** Uma grade com a arte de cada um. Um toque põe o adesivo no rosto escolhido, no lugar dele. Arrastar
+  move. Dois dedos, a alça do canto ou a rodinha do mouse giram e mudam o tamanho. O "x" na moldura tira. A moldura
+  só aparece na tela.
+- **Segue o rosto.** O adesivo guarda o lugar na foto como foi aberta, e as deformações, de brincadeira e de
+  verdade, levam ele para onde o rosto foi. Óculos num Cabeção crescem com a cabeça.
+- **Desfazer.** Cada gesto é uma etapa: soltar um controle, pôr, arrastar, girar ou tirar um adesivo. "Zerar
+  Brincar" tira tudo numa etapa, e "Voltar ao original" também tira o Brincar.
+
+### Como o campo se junta ao do retoque
+
+Um ponto da foto vai primeiro pelo campo do Brincar e dali pelo campo do retoque (`develop.frag`). A brincadeira
+dobra o rosto como o retoque deixou. Com o campo do Brincar vazio, nenhuma leitura muda, e o resultado do retoque
+sai igual, pixel por pixel, como o e2e confere. A parte que move uma cabeça sozinha leva a cabeça para um lado e
+corpo e fundo para o outro, como a do Tamanho da cabeça, com as mesmas placas e o mesmo preenchimento.
+
+### Como adicionar uma careta
+
+Um arquivo em `src/core/fun/effects/`, e uma linha em `src/core/fun/effects/index.ts`, que dá a ordem do menu. Nada
+mais muda: menu, campo, workers, desfazer, projeto salvo e exportação pegam sozinhos.
+
+```ts
+import { magnify } from '../kit';
+import type { FunEffect } from '../types';
+
+export const narigao: FunEffect = {
+  id: 'narigao', // vai para o projeto salvo: nunca muda
+  label: 'Narigão',
+  note: 'Um nariz de palhaço.',
+  pieces(read, strength) {
+    const tip = read.face.parts.marks?.noseTip;
+    if (!tip || strength <= 0) return [];
+    return [magnify(read.flat(tip), read.frame.halfWidth * 0.5, 0.5 * strength)];
+  },
+};
+```
+
+- `pieces(read, strength)` recebe um rosto e a força de 0 a 1, e devolve pedaços de deformação. Medidas em fração do
+  lado maior da foto. `read.face` tem os pontos do detector, `read.frame` o eixo, o comprimento e a largura do rosto,
+  e `read.flat` passa um ponto do detector para essas medidas.
+- Um pedaço diz, para cada ponto, de onde ler a foto: `add(x, y, out)` soma em `out`. `x`, `y` e `reach` dizem até
+  onde ele alcança. Deve chegar a zero sem degrau na borda e não dobrar: o ponto lido anda sempre para o mesmo lado
+  ao longo de uma linha. O teste `neverFolds` em `tests/unit/fun.test.ts` serve para conferir.
+- `alone(x, y)`, de 0 a 1, é a parte do pedaço que move a cabeça sozinha, sem o corpo. Com ela, marque
+  `layered: true`, e o menu pede a separação da pessoa. Veja `growHead` em `src/core/fun/kit.ts`.
+- `kit.ts` tem `magnify`, `growHead`, `eyesOf` e `middleOf`. Uma ajuda que só um efeito usa fica no arquivo dele,
+  para duas sessões não mexerem no mesmo arquivo.
+- Cada efeito tem o seu limite dentro de `pieces`. Nenhum passa pelos limites do Formato do rosto.
+
+### Como adicionar um adesivo
+
+Um arquivo em `src/core/fun/stickers/`, com arte feita no projeto, e uma linha em
+`src/core/fun/stickers/index.ts`, que dá a ordem da grade.
+
+```ts
+import type { StickerDef } from '../types';
+
+export const bigode: StickerDef = {
+  id: 'bigode', // vai para o projeto salvo: nunca muda
+  label: 'Bigode',
+  svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 60">…</svg>`,
+  aspect: 60 / 200,
+  anchor(read) {
+    const mouth = read.face.parts.outerLips;
+    if (!mouth.length) return null;
+    const [x, y] = read.flat(mouth[15]);
+    return { x, y: y - read.frame.length * 0.04, size: read.frame.halfWidth * 1.2, angle: 0 };
+  },
+};
+```
+
+- `svg` é um documento SVG inteiro, com `viewBox`, sem texto, fonte, imagem, script ou endereço de fora. Nunca arte
+  de terceiros. O teste do registro confere isso e que `aspect` é a altura sobre a largura do `viewBox`.
+- `anchor(read)` diz onde ele entra num rosto: o meio, a largura e o giro em radianos, nas medidas do rosto. Null
+  quando falta o que ele precisa, e ele vai para o meio do rosto.
+- A arte é desenhada na hora no tamanho que tem na tela ou no arquivo, em potências de 2 de 64 a 4096 pixels, então
+  fica nítida na exportação em resolução total.
 
 ## Layout
 

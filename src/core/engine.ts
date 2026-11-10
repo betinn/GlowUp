@@ -5,7 +5,10 @@
 
 import { GLContext, type Tex } from './gl/context';
 import { DEFAULT_BRUSH, StrokeInterpolator, type BrushSettings, type Dab } from './brush';
-import { clone, createDoc, DEFAULT_ADJUST, COVER_MASK, DEFAULT_BLUR, FILTER_MASK, HEAD_MASK, MOUTH_MASK, PERSON_MASK, PHOTO_MASKS, type Adjustments, type BlurSettings, type EditDoc, type FilterState, type HealOp, type LayerId, type ParamValue } from './doc';
+import { clone, createDoc, DEFAULT_ADJUST, COVER_MASK, DEFAULT_BLUR, FILTER_MASK, HEAD_MASK, MOUTH_MASK, PERSON_MASK, PHOTO_MASKS, type Adjustments, type BlurSettings, type EditDoc, type FilterState, type HealOp, type LayerId, type ParamValue, type StickerState } from './doc';
+import type { FunController } from './fun/controller';
+import { shownSticker, type Lookup, type ShownSticker } from './fun/place';
+import type { FunSource } from './fun/types';
 import { createFieldJobs, type FieldWorkers } from './face/fieldpool';
 import type { FieldFrame } from './face/fieldjobs';
 import type { FieldGrids, ShapeSource } from './face/fieldwork';
@@ -14,7 +17,7 @@ import { applyMat3, defaultCrop, imageToOutput, outputSize, outputToImage, rotat
 import { decodeTile, encodeTile } from './history/codec';
 import { History, type HistoryEntry } from './history/history';
 import { MaskStore, type MaskTile } from './masks';
-import { Pipeline, shader } from './pipeline/pipeline';
+import { Pipeline, shader, type StickerDraw } from './pipeline/pipeline';
 import { coverWay } from './face/person';
 import { buildPlate, extendMouth } from './face/plate';
 import { RenderContext } from './pipeline/context';
@@ -52,6 +55,8 @@ export interface ResetScope {
   adjust?: boolean;
   /** The strokes of the brush and the automatic mode, and the sliders stay. `field` takes all of it. */
   liquify?: boolean;
+  /** Brincar: its effects and its stickers. */
+  fun?: boolean;
   /** The filter, its area and the softness of the area. */
   filter?: boolean;
   blur?: boolean;
@@ -153,6 +158,20 @@ export interface EngineEvents {
   outside(): void;
   /** The finished field of a face slider is on its way, or no longer. The photo shows a rough one meanwhile. */
   shaping(pending: boolean): void;
+  /** The same, for an effect of Brincar. */
+  funShaping(pending: boolean): void;
+}
+
+/** Takes empty parts of Brincar out of the document, so a project with nothing playful left has no trace of it. */
+function tidyFun(doc: EditDoc): void {
+  const fun = doc.fun;
+  if (!fun) return;
+  if (fun.faces) {
+    fun.faces = fun.faces.filter((f) => Object.keys(f.values).length);
+    if (!fun.faces.length) delete fun.faces;
+  }
+  if (fun.stickers && !fun.stickers.length) delete fun.stickers;
+  if (!fun.faces && !fun.stickers) delete doc.fun;
 }
 
 function previewSide(glc: GLContext): number {
@@ -205,6 +224,19 @@ export class Engine {
   private plates: { w: number; h: number; span: number; back: { data: Uint8Array; tex: Tex }; head: { data: Uint8Array; tex: Tex }; way: Tex | null; mattes: { person: Uint8Array; head: Uint8Array } } | null = null;
   /** Counts the times the layers were set, so work done for older ones is not taken for these. */
   private layersRev = 0;
+  /** Brincar: its own field and the art of its stickers. Null until its menu, or a project with it, loads it. */
+  fun: FunController | null = null;
+  /** The faces the effects of Brincar hold on to. Empty on a reopened project until the menu looks for them. */
+  funFaces: readonly Face[] = [];
+  /** Changes whenever the field of Brincar changes, so autosave knows when to write it. */
+  funRev = 0;
+  /** The finished field of an effect of Brincar is on its way. */
+  funPending = false;
+  /** The workers of the field of Brincar, apart from those of the face menu. */
+  private funWorkers: FieldWorkers | null = null;
+  private funWorkersOff = false;
+  private nextFun: { frame: FieldFrame; raf: number } | null = null;
+  private funPlain: { of: readonly Face[]; faces: Face[] } | null = null;
   /** Id of the filter whose LUT is on the GPU. */
   loadedLut: string | null = null;
   /** Re-uploads the LUT after an undo changes the filter. */
@@ -303,6 +335,11 @@ export class Engine {
   close(): void {
     this.shaper?.jobs.cancel();
     this.dropNextField();
+    this.funWorkers?.jobs.cancel();
+    this.dropNextFun();
+    this.fun?.destroy();
+    this.fun = null;
+    this.funFaces = [];
     this.stopFlight();
     this.stopReveal();
     cancelAnimationFrame(this.frame);
@@ -336,6 +373,8 @@ export class Engine {
     this.close();
     this.shaper?.destroy();
     this.shaper = null;
+    this.funWorkers?.destroy();
+    this.funWorkers = null;
     this.history.clear();
     this.glc.gl.getExtension('WEBGL_lose_context')?.loseContext();
   }
@@ -361,6 +400,31 @@ export class Engine {
     this.dropNextField();
     this.field = field;
     if (this.pipeline) this.pipeline.field = field;
+  }
+
+  /** Something of Brincar arrived that the photo shows, as the art of a sticker: draw again. */
+  refreshFun(): void {
+    this.ctx?.invalidate('global');
+    this.dropRoi();
+    this.requestRender();
+  }
+
+  /** Brincar is loaded: from here on the develop stage reads its field and draws its stickers. */
+  registerFun(fun: FunController): void {
+    this.funWorkers?.jobs.cancel();
+    this.dropNextFun();
+    this.fun?.destroy();
+    this.fun = fun;
+    if (!this.pipeline) return;
+    this.pipeline.fun = {
+      get tex() {
+        return fun.isEmpty() ? null : fun.tex;
+      },
+      get alone() {
+        return !fun.isEmpty() && fun.alone;
+      },
+      draws: (ctx) => this.stickerDraws(ctx),
+    };
   }
 
   /* The lock of the background */
@@ -645,6 +709,241 @@ export class Engine {
     this.syncShape();
   }
 
+  /* Brincar */
+
+  /** What the document asks of the field of Brincar. Null when nothing, undefined when the faces are not known yet. */
+  private funSource(): FunSource | null | undefined {
+    const { doc } = this;
+    const shapes = (doc.fun?.faces ?? []).filter((s) => Object.values(s.values).some((v) => v > 0));
+    if (!shapes.length) return null;
+    if (!this.funFaces.length) return undefined;
+    if (this.funPlain?.of !== this.funFaces) this.funPlain = { of: this.funFaces, faces: JSON.parse(JSON.stringify(this.funFaces)) as Face[] };
+    return { kind: 'fun', shapes: clone(shapes), faces: this.funPlain.faces, w: doc.width, h: doc.height };
+  }
+
+  /** Works the field of Brincar out again from the numbers in the document, at once. */
+  syncFun(): void {
+    const { fun } = this;
+    if (!fun) return;
+    this.funWorkers?.jobs.cancel();
+    this.dropNextFun();
+    const source = this.funSource();
+    // A reopened project with no faces yet keeps the field it saved, which is the same.
+    if (source !== undefined) fun.setSource(source);
+    this.funRev++;
+    this.ctx?.invalidate('global');
+    this.dropRoi();
+    this.requestRender();
+  }
+
+  /** As `syncShapeLater`, for Brincar: a rough field at once, the finished one from the workers. */
+  private syncFunLater(): void {
+    const { fun } = this;
+    if (!fun) return;
+    const source = this.funSource();
+    const jobs = source ? this.funJobs(fun) : null;
+    if (!source || !jobs) {
+      this.syncFun();
+      return;
+    }
+    jobs.request(source);
+  }
+
+  private funJobs(fun: FunController) {
+    if (this.funWorkersOff) return null;
+    this.funWorkers ??= createFieldJobs(
+      {
+        show: (frame) => {
+          if (this.nextFun) this.nextFun.frame = frame;
+          else this.nextFun = { frame, raf: requestAnimationFrame(() => this.flushFun()) };
+        },
+        busy: (pending) => {
+          if (!pending && this.nextFun) return;
+          this.setFunPending(pending);
+        },
+        failed: () => {
+          this.funWorkersOff = true;
+          this.funWorkers?.destroy();
+          this.funWorkers = null;
+          this.syncFun();
+        },
+      },
+      2,
+    );
+    if (!this.funWorkers) {
+      this.funWorkersOff = true;
+      return null;
+    }
+    this.funWorkers.setGrid(fun.gridSize.w, fun.gridSize.h);
+    return this.funWorkers.jobs;
+  }
+
+  private setFunPending(pending: boolean): void {
+    if (this.funPending === pending) return;
+    this.funPending = pending;
+    this.emit('funShaping', pending);
+  }
+
+  private dropNextFun(): void {
+    if (!this.nextFun) return;
+    cancelAnimationFrame(this.nextFun.raf);
+    this.nextFun = null;
+    if (!this.funWorkers?.jobs.busy) this.setFunPending(false);
+  }
+
+  private flushFun(): void {
+    const next = this.nextFun;
+    if (!next) return;
+    cancelAnimationFrame(next.raf);
+    this.nextFun = null;
+    this.fun?.setGrids(next.frame.grids);
+    if (!next.frame.rough) this.funRev++;
+    this.ctx?.invalidate('global');
+    this.dropRoi();
+    this.requestRender();
+    if (!next.frame.rough) {
+      if (!this.funWorkers?.jobs.busy) this.setFunPending(false);
+      this.emit('change');
+    }
+  }
+
+  /** Resolves once the field of Brincar shows what the document asks for, finished. */
+  async funReady(): Promise<void> {
+    await this.funWorkers?.jobs.idle();
+    this.flushFun();
+  }
+
+  /** The strength of an effect of Brincar on a face, 0..100, `live` as for `setShapeValue`. Call `commit` when the gesture ends. */
+  setFunValue(at: readonly [number, number], id: string, value: number, live = false): void {
+    this.track('Brincar');
+    const fun = (this.doc.fun ??= {});
+    const faces = (fun.faces ??= []);
+    let face = faces.find((s) => s.at[0] === at[0] && s.at[1] === at[1]);
+    if (!face) {
+      face = { at: [at[0], at[1]], values: {} };
+      faces.push(face);
+    }
+    if (value > 0) face.values[id] = value;
+    else delete face.values[id];
+    tidyFun(this.doc);
+    if (live) this.syncFunLater();
+    else this.syncFun();
+    this.emit('change');
+  }
+
+  /** Puts a sticker on the photo, as one undo step. Returns its id. */
+  addSticker(sticker: Omit<StickerState, 'id'>): number {
+    this.commit();
+    this.track('Adesivo');
+    const list = ((this.doc.fun ??= {}).stickers ??= []);
+    const id = list.reduce((m, s) => Math.max(m, s.id), 0) + 1;
+    list.push({ ...sticker, id });
+    this.commit();
+    this.ctx?.invalidate('global');
+    this.requestRender();
+    return id;
+  }
+
+  /** Moves, turns or resizes a sticker. A gesture is one undo step: call `commit` when it ends. */
+  changeSticker(id: number, patch: Partial<Pick<StickerState, 'x' | 'y' | 'size' | 'angle'>>): void {
+    const sticker = this.doc.fun?.stickers?.find((s) => s.id === id);
+    if (!sticker) return;
+    this.track('Adesivo');
+    Object.assign(sticker, patch);
+    this.ctx?.invalidate('global');
+    this.dropRoi();
+    this.requestRender();
+    this.emit('change');
+  }
+
+  /** Takes a sticker off, as one undo step. */
+  removeSticker(id: number): void {
+    const list = this.doc.fun?.stickers;
+    if (!list?.some((s) => s.id === id)) return;
+    this.commit();
+    this.track('Tirar adesivo');
+    this.doc.fun!.stickers = list.filter((s) => s.id !== id);
+    tidyFun(this.doc);
+    this.commit();
+    this.ctx?.invalidate('global');
+    this.requestRender();
+  }
+
+  /** How far away a point shown at `u, v` reads the head under it: Brincar first, then the realistic field. */
+  headLookup(): Lookup | null {
+    const fun = this.fun && !this.fun.isEmpty() ? this.fun : null;
+    const field = this.doc.hasField && this.field ? this.field : null;
+    if (!fun && !field) return null;
+    return (u, v) => {
+      const [fu, fv] = fun ? fun.lookup(u, v) : [0, 0];
+      const [du, dv] = field ? field.lookup(u + fu, v + fv) : [0, 0];
+      return [fu + du, fv + dv];
+    };
+  }
+
+  /** Every sticker where it shows now, after the warps, in the order they were put on. */
+  shownStickers(): { sticker: StickerState; shown: ShownSticker; aspect: number }[] {
+    const list = this.doc.fun?.stickers ?? [];
+    if (!list.length) return [];
+    const lookup = this.headLookup();
+    const { width, height } = this.doc;
+    return list.map((sticker) => ({ sticker, shown: shownSticker(sticker, width, height, lookup), aspect: this.fun?.aspectOf(sticker.kind) ?? 1 }));
+  }
+
+  /** The stickers on a context, for the develop stage: art at the size they have there, and their box. */
+  private stickerDraws(ctx: RenderContext): StickerDraw[] {
+    const fun = this.fun;
+    if (!fun) return [];
+    const { width, height } = this.doc;
+    const long = Math.max(width, height);
+    const kx = width / long;
+    const ky = height / long;
+    const [rx, ry, rw, rh] = ctx.regionUv;
+    const draws: StickerDraw[] = [];
+    for (const { sticker, shown, aspect } of this.shownStickers()) {
+      const wide = shown.size * ctx.longSide;
+      const art = fun.art(sticker.kind, aspect <= 1 ? wide : wide * aspect);
+      if (!art || !(shown.size > 0)) continue;
+      const c = Math.cos(shown.angle);
+      const s = Math.sin(shown.angle);
+      const sw = shown.size;
+      const sh = shown.size * aspect;
+      // From an offset in UV to the frame of the sticker, then to the UV of its art.
+      const rowX: [number, number] = [(c * kx) / sw, (s * ky) / sw];
+      const rowY: [number, number] = [(-s * kx) / sh, (c * ky) / sh];
+      // The box, from the four corners, in pixels of the context, with a pixel to spare.
+      let x0 = Infinity;
+      let y0 = Infinity;
+      let x1 = -Infinity;
+      let y1 = -Infinity;
+      for (const [a, b] of [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]] as const) {
+        const u = shown.x + (a * sw * c - b * sh * s) / kx;
+        const v = shown.y + (a * sw * s + b * sh * c) / ky;
+        const px = ((u - rx) / rw) * ctx.w;
+        const py = ((v - ry) / rh) * ctx.h;
+        x0 = Math.min(x0, px);
+        y0 = Math.min(y0, py);
+        x1 = Math.max(x1, px);
+        y1 = Math.max(y1, py);
+      }
+      const bx = Math.max(0, Math.floor(x0) - 1);
+      const by = Math.max(0, Math.floor(y0) - 1);
+      const bx1 = Math.min(ctx.w, Math.ceil(x1) + 1);
+      const by1 = Math.min(ctx.h, Math.ceil(y1) + 1);
+      if (bx1 <= bx || by1 <= by) continue;
+      draws.push({ art, center: [shown.x, shown.y], rowX, rowY, rect: { x: bx, y: by, w: bx1 - bx, h: by1 - by } });
+    }
+    return draws;
+  }
+
+  /** The art of every sticker at the size it has on a context of this scale, as the export needs it. */
+  async stickersReady(scale: number): Promise<void> {
+    const fun = this.fun;
+    if (!fun) return;
+    const long = Math.max(this.doc.width, this.doc.height) * scale;
+    await fun.artReady(this.shownStickers().map(({ sticker, shown, aspect }) => ({ kind: sticker.kind, px: shown.size * long * Math.max(1, aspect) })));
+  }
+
   setTool(mode: ToolMode, layer: LayerId | null = null): void {
     this.mode = mode;
     this.activeLayer = layer;
@@ -895,6 +1194,7 @@ export class Engine {
       (!!scope.heals && doc.heals.length > 0) ||
       (!!scope.field && (doc.hasField || !!doc.shapes?.some((s) => Object.keys(s.values).length))) ||
       (!!scope.liquify && (doc.shapeAmount !== undefined || (!!this.field && !this.field.brushEmpty()))) ||
+      (!!scope.fun && !!(doc.fun?.faces?.length || doc.fun?.stickers?.length)) ||
       (!!scope.adjust && Object.values(doc.adjust).some((v) => v !== 0)) ||
       (!!scope.filter && (!!doc.filter.id || !!doc.filter.masked)) ||
       (!!scope.blur && doc.blur.mode !== 'off') ||
@@ -923,8 +1223,11 @@ export class Engine {
     const field = strokes && this.field && !this.field.brushEmpty() ? this.field.serialize().slice() : null;
     // A reopened project has no faces yet, so the undo brings back what it opened with instead of working it out.
     const shapeField = strokes ? (this.field?.shapeData()?.slice() ?? null) : null;
+    // As for the shape: what a reopened project opened with, for an undo before the faces are known.
+    const funField = scope.fun ? (this.fun?.data()?.slice() ?? null) : null;
     const before = clone(this.doc);
     const after = clone(this.doc);
+    if (scope.fun) delete after.fun;
     for (const id of ids) {
       after.layers[id] = { enabled: true, painted: false, params: { ...(this.toolDefaults.get(id) ?? after.layers[id]!.params) } };
     }
@@ -956,6 +1259,12 @@ export class Engine {
       if (strokes && back && shapeField && !this.shapeFaces.length) {
         this.field?.restoreShape(shapeField);
         this.doc.hasField = true;
+      }
+      if (scope.fun && this.fun) {
+        if (!back) this.fun.restore(null);
+        else if (this.funFaces.length) this.syncFun();
+        else this.fun.restore(funField);
+        this.funRev++;
       }
       if (this.pipeline) this.pipeline.lutMix = this.doc.filter.intensity;
       this.onFilterRestore?.();
@@ -998,8 +1307,9 @@ export class Engine {
         else next.layers[id] = current.layers[id];
       }
       this.doc = next;
-      // Numbers of the shape come from the snapshot, and the field follows them.
+      // Numbers of the shape come from the snapshot, and the field follows them. So do those of Brincar.
       this.syncShape();
+      this.syncFun();
       if (!this.field) next.hasField = current.hasField;
       this.onFilterRestore?.();
       this.ctx?.invalidate('prefix');
@@ -1059,6 +1369,12 @@ export class Engine {
       }
     }
     return applyMat3(imageToOutput(this.displayCrop(), this.doc.width, this.doc.height), x, y);
+  }
+
+  /** A point of the photo as it shows, past every warp, in image UV, to CSS pixels on the canvas. */
+  shownToCss(u: number, v: number): [number, number] {
+    const [s, t] = applyMat3(imageToOutput(this.displayCrop(), this.doc.width, this.doc.height), u, v);
+    return this.outputToCss(s, t);
   }
 
   cssToOutput(x: number, y: number): [number, number] {

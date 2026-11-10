@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { FieldJobs, type FieldFrame, type FieldTask, type TaskResult } from '../../src/core/face/fieldjobs';
-import { bandsOf, fieldFrom, fillField, fillRough, fillRows, gridArea, joinBands, type ShapeSource } from '../../src/core/face/fieldwork';
+import { bandsOf, fieldFrom, fillField, fillRough, fillRows, gridArea, joinBands, type AnySource, type ShapeSource } from '../../src/core/face/fieldwork';
 import { makeFace, type Face } from '../../src/core/face/scan';
 import type { GLContext } from '../../src/core/gl/context';
 import { createField } from '../../src/tools/liquify/index';
@@ -138,11 +138,11 @@ describe('the field of a slider worked out elsewhere', () => {
 
 /** Tasks that end when the test says so. Each one works out its real numbers. */
 function manualRunner() {
-  const running: { slot: number; job: number; source: ShapeSource; task: FieldTask; end(): void; fail(): void }[] = [];
-  const run = (slot: number, job: number, s: ShapeSource, task: FieldTask) =>
+  const running: { slot: number; job: number; source: AnySource; task: FieldTask; end(): void; fail(): void }[] = [];
+  const run = (slot: number, job: number, s: AnySource, task: FieldTask) =>
     new Promise<TaskResult>((resolve, reject) => {
       const end = () => {
-        const field = fieldFrom(s);
+        const field = fieldFrom(s as ShapeSource);
         if (!field) return resolve({ area: null, band: null });
         const area = gridArea(field, SIDE, SIDE);
         if (task.kind === 'rough') {

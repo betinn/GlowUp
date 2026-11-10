@@ -6,7 +6,7 @@
 import type { Component } from 'svelte';
 import { appliedLook } from '../presets/recipes';
 import { selectTool } from './actions';
-import { photoChanged } from './reset';
+import { photoChanged, wholeScope } from './reset';
 import { engine, prefs, ui } from './state.svelte';
 
 export interface EditPath {
@@ -43,6 +43,13 @@ export const PATHS: EditPath[] = [
     icon: 'filters',
     menu: () => import('./FiltersMenu.svelte'),
   },
+  {
+    id: 'fun',
+    label: 'Brincar',
+    note: 'Caretas e adesivos de brincadeira. O retoque fica de fora.',
+    icon: 'fun',
+    menu: () => import('./BrincarMenu.svelte'),
+  },
 ];
 
 export const pathById = (id: string | null) => PATHS.find((p) => p.id === id);
@@ -72,6 +79,8 @@ function enterPath(path: EditPath): void {
  */
 function pathOfProject(): EditPath | undefined {
   if (!photoChanged()) return undefined;
+  // A photo with nothing but Brincar on it opens in Brincar.
+  if (!engine().changed({ ...wholeScope(), fun: false })) return pathById('fun');
   return pathById(appliedLook(engine().doc) ? 'glow' : 'manual');
 }
 

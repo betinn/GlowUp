@@ -29,6 +29,8 @@ export interface ProjectRecord extends ProjectSummary {
    * this out, and their automatic mode is inside `field`.
    */
   shape?: Blob | null;
+  /** The field of Brincar, so a project opens with no detector. Older projects leave this out: nothing playful. */
+  fun?: Blob | null;
 }
 
 /**
@@ -45,6 +47,16 @@ export class InvalidProjectError extends Error {
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null;
 const allNumbers = (o: Record<string, unknown>, keys: readonly string[]) => keys.every((k) => Number.isFinite(o[k]));
 
+/** The playful part of a document makes sense: numbers per face, and stickers with a place. */
+function funOk(fun: unknown): boolean {
+  if (!isObject(fun)) return false;
+  const { faces, stickers } = fun;
+  const point = (p: unknown) => Array.isArray(p) && p.length === 2 && p.every(Number.isFinite);
+  if (faces !== undefined && !(Array.isArray(faces) && faces.every((f) => isObject(f) && point(f.at) && isObject(f.values) && Object.values(f.values).every(Number.isFinite)))) return false;
+  const stickerOk = (s: unknown) => isObject(s) && typeof s.kind === 'string' && Number.isInteger(s.id) && (s.at === null || point(s.at)) && allNumbers(s, ['x', 'y', 'size', 'angle']);
+  return stickers === undefined || (Array.isArray(stickers) && stickers.every(stickerOk));
+}
+
 /** Why a document cannot open, or null when it can. */
 function docProblem(doc: unknown): string | null {
   if (!isObject(doc)) return 'no document';
@@ -58,6 +70,7 @@ function docProblem(doc: unknown): string | null {
   if (!isObject(crop) || !allNumbers(crop, ['angle', 'quarter', 'cx', 'cy', 'cw', 'ch'])) return 'crop';
   if (!isObject(layers) || !Object.values(layers).every((l) => isObject(l) && isObject(l.params))) return 'layers';
   if (!Array.isArray(heals)) return 'heals';
+  if (doc.fun !== undefined && !funOk(doc.fun)) return 'fun';
   const healOk = (h: unknown) =>
     isObject(h) && allNumbers(h, ['hardness', 'du', 'dv']) && Array.isArray(h.dabs) && h.dabs.every((d) => isObject(d) && allNumbers(d, ['u', 'v', 'r']));
   if (!heals.every(healOk)) return 'heals';
@@ -74,6 +87,7 @@ export function validProject(record: unknown, original: unknown): { record: Proj
   if (!isObject(masks) || !Object.values(masks).every((m) => m instanceof Blob)) throw new InvalidProjectError('masks');
   if (!(field === null || field instanceof Blob)) throw new InvalidProjectError('field');
   if (!(record.shape === undefined || record.shape === null || record.shape instanceof Blob)) throw new InvalidProjectError('shape');
+  if (!(record.fun === undefined || record.fun === null || record.fun instanceof Blob)) throw new InvalidProjectError('fun');
   if (!(thumb instanceof Blob)) throw new InvalidProjectError('thumb');
   return { record: record as unknown as ProjectRecord, original };
 }
@@ -156,6 +170,8 @@ export class Autosave {
   private masks: ProjectRecord['masks'] = {};
   private field: Blob | null = null;
   private shape: Blob | null = null;
+  private fun: Blob | null = null;
+  private savedFunRev = -1;
   private thumb: Blob | null = null;
   private originalSaved = false;
   private savedFieldRev = -1;
@@ -170,6 +186,8 @@ export class Autosave {
       this.masks = { ...restored.masks };
       this.field = restored.field;
       this.shape = restored.shape ?? null;
+      this.fun = restored.fun ?? null;
+      this.savedFunRev = engine.funRev;
       this.thumb = restored.thumb;
       this.originalSaved = true;
       this.savedFieldRev = engine.fieldRev;
@@ -227,6 +245,12 @@ export class Autosave {
         const shape = engine.field?.shapeData();
         this.shape = shape && engine.doc.hasField ? await pack(new Uint8Array(shape.buffer, shape.byteOffset, shape.byteLength)) : null;
       }
+      // The same for Brincar.
+      if (this.savedFunRev !== engine.funRev && !engine.funPending) {
+        this.savedFunRev = engine.funRev;
+        const fun = engine.fun?.data();
+        this.fun = fun ? await pack(new Uint8Array(fun.buffer, fun.byteOffset, fun.byteLength)) : null;
+      }
       if (!this.originalSaved) {
         // The original is written once. Later saves touch only the small edit stack.
         await tx('readwrite', (s) => s.put(source.blob, this.id), ORIGINALS);
@@ -244,6 +268,7 @@ export class Autosave {
         masks: this.masks,
         field: this.field,
         shape: this.shape,
+        fun: this.fun,
       };
       await tx('readwrite', (s) => s.put(structuredClone(record)));
       await this.prune();
