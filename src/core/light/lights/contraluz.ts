@@ -1,14 +1,16 @@
 import type { LightDef } from '../types';
 
-/** A lamp behind the person: a white line around the hair and the shoulders, a glow on the wall, and the front in shade. */
+/** A lamp behind the person: the wall burns beside them and the strands of hair catch the light. */
 export const contraluz: LightDef = {
   id: 'contraluz',
   label: 'Contraluz',
-  note: 'Uma luz atrás de você desenha o cabelo.',
+  note: 'Uma luz atrás de você acende o cabelo.',
   swatch: ['#fff4e0', '#5a1016'],
   recipe: {
-    back: { ev: -0.6, near: -0.2, reach: 0.1, sat: 0.85 },
-    person: { ev: -0.95 },
-    rim: { strength: 0.75, width: 0.035, color: [1, 0.95, 0.85], hair: 0.85, lamp: { at: [0, 1.0], reach: 1.5 }, halo: 0.1, haloWidth: 0.35, haloColor: [1, 0.8, 0.65] },
+    far: { ev: 0.1, level: 0.015, adapt: 0.8, tint: [0.85, 1.03, 1.08] },
+    near: { ev: -0.3, level: 0.274, adapt: 0.8, sat: 0.85 },
+    skin: { sat: 1.2 },
+    lamp: { at: [-0.4, 1], reach: 0.65, glow: 0.7, glowColor: [1.25, 0.95, 0.8], strands: 1, strandColor: [1.1, 1, 0.85] },
+    film: { gamma: 1.14, knee: 0.6, vignette: 0.6, grain: 0.25 },
   },
 };

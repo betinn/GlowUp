@@ -1,15 +1,16 @@
 import type { LightDef } from '../types';
 
-/** The last sun behind the person: a golden line on hair and shoulders, the place gone to evening. */
+/** The last sun behind the person: the place goes dark and the hair lights up in gold. */
 export const contraluzDourado: LightDef = {
   id: 'contraluz-dourado',
   label: 'Contraluz Dourado',
-  note: 'Fim de tarde por trás, com borda dourada.',
+  note: 'Fim de tarde por trás, com fios dourados.',
   swatch: ['#ffc56b', '#2a2018'],
   recipe: {
-    back: { ev: -4.4, near: -3.0, reach: 0.12, level: 0.02, adapt: 0.5, keep: 0.5, tint: [1.2, 0.97, 0.7] },
-    person: { ev: -0.9 },
-    skin: { tint: [1.12, 0.93, 0.76] },
-    rim: { strength: 0.5, width: 0.04, color: [1, 0.72, 0.36], hair: 0.6, lamp: { at: [-0.6, 0.2], reach: 1.8 }, halo: 0.05, haloWidth: 0.35 },
+    far: { ev: -3.6, level: 0.307, adapt: 0.8, keep: 0.3, sat: 1.2 },
+    near: { ev: -1, level: 0.108, adapt: 0.8, sat: 1.15 },
+    skin: { sat: 1.2 },
+    lamp: { at: [-0.9, 0.5], reach: 0.65, glow: 0.3, hug: 0.02, glowColor: [1.6, 0.88, 0.42], strands: 3, strandColor: [1.35, 0.98, 0.6] },
+    film: { gamma: 1.1, knee: 0.9, vignette: 0.5, grain: 0.12 },
   },
 };

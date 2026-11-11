@@ -63,7 +63,7 @@
 <div class="lights" data-testid="lights" data-state={lightPick.wearing ? 'wearing' : 'idle'} data-scene={lightPick.state}>
   {#if waiting && lightPick.task}
     <div class="wait">
-      <ProgressCard task={lightPick.task} title="Procurando a pessoa" note={facePick.download} />
+      <ProgressCard task={lightPick.task} title="Lendo a luz da foto" note={facePick.download} />
     </div>
   {/if}
   {#if !(waiting && desktop)}

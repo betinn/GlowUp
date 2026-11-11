@@ -243,6 +243,7 @@ export class Engine {
   /** Luzes: the scene of the photo, once something asked for it. It comes from the photo and no edit changes it. */
   scene: SceneData | null = null;
   private sceneTex: Tex | null = null;
+  private fieldTex: Tex | null = null;
   /** Changes whenever the scene does, so autosave knows when to write it. */
   sceneRev = 0;
   /** Id of the filter whose LUT is on the GPU. */
@@ -356,7 +357,9 @@ export class Engine {
     this.ctx?.destroy();
     this.dropPlate();
     if (this.sceneTex) this.glc.destroyTex(this.sceneTex);
+    if (this.fieldTex) this.glc.destroyTex(this.fieldTex);
     this.sceneTex = null;
+    this.fieldTex = null;
     this.scene = null;
     this.masks?.destroy();
     this.field?.destroy();
@@ -1149,20 +1152,25 @@ export class Engine {
   /* Luzes */
 
   /**
-   * The scene of the photo came: where the person, the skin and the hair are. From here on a light of Luzes
-   * has where to fall. Null takes the scene away.
+   * The scene of the photo came: how far each point is, and where the person, the skin and the hair are. From
+   * here on a light of Luzes has where to fall. Null takes the scene away.
    */
   setScene(scene: SceneData | null): void {
     const { glc, pipeline } = this;
     if (this.sceneTex) glc.destroyTex(this.sceneTex);
+    if (this.fieldTex) glc.destroyTex(this.fieldTex);
     this.sceneTex = null;
+    this.fieldTex = null;
     this.scene = scene;
     if (scene) {
-      this.sceneTex = glc.createTex(scene.w, scene.h, 'rgba8', { mips: true });
-      glc.upload(this.sceneTex, { x: 0, y: 0, w: scene.w, h: scene.h }, scene.data);
-      glc.generateMips(this.sceneTex);
+      const whole = { x: 0, y: 0, w: scene.w, h: scene.h };
+      this.sceneTex = glc.createTex(scene.w, scene.h, 'rgba8', { noTarget: true });
+      glc.upload(this.sceneTex, whole, scene.data);
+      // Depth in half floats: eight bits would show as steps where a light falls off slowly.
+      this.fieldTex = glc.createTex(scene.w, scene.h, 'rgba16f', { noTarget: true });
+      glc.upload(this.fieldTex, whole, scene.field);
     }
-    if (pipeline) pipeline.scene = scene && this.sceneTex ? { tex: this.sceneTex, stats: scene.stats } : null;
+    if (pipeline) pipeline.scene = scene && this.sceneTex && this.fieldTex ? { tex: this.sceneTex, field: this.fieldTex, stats: scene.stats } : null;
     this.sceneRev++;
     this.ctx?.invalidate('global');
     this.dropRoi();

@@ -1,16 +1,16 @@
 import type { LightDef } from '../types';
 
-/** A soft flash when the day is almost gone: the place falls to half and the person stays as bright as before. */
+/** A flash at the end of the day: the place goes dark and cool, and the person stays in the light. */
 export const entardecer: LightDef = {
   id: 'entardecer',
   label: 'Entardecer',
   note: 'O fundo escurece e você continua na luz.',
   swatch: ['#e3b48f', '#3c3f42'],
   recipe: {
-    back: { ev: -2.3, level: 0.07, adapt: 0.7, sat: 0.8, tint: [0.92, 1.02, 1.04] },
-    person: { ev: -0.15, hair: -0.5, limb: 0.8 },
-    skin: { ev: 0.1, tint: [0.9, 1.07, 1.0] },
-    flash: { ev: 0.45, radius: 1.4 },
-    frame: { vignette: 0.15 },
+    fall: { lo: 0.42, hi: 0.86 },
+    far: { ev: -1.68, level: 0.318, adapt: 0.8, sat: 1.5, tint: [0.811, 1.046, 1.105] },
+    near: { ev: 1.14, hair: -1.47, level: 0.192, adapt: 0.8, sat: 1.11 },
+    skin: { ev: -0.16, fill: 0.55 },
+    film: { gamma: 1.05, knee: 0.02, vignette: 0.8, grain: 0.15 },
   },
 };

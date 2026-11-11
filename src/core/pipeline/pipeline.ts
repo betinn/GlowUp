@@ -101,9 +101,12 @@ export interface FunLayer {
   draws(ctx: RenderContext): StickerDraw[];
 }
 
-/** The scene of the photo, as Luzes reads it: the texture and what was measured with it. */
+/** The scene of the photo, as Luzes reads it: its two textures and what was measured with it. */
 export interface SceneLayer {
+  /** The matte of the person, their skin, their hair and the shade of the skin. */
   tex: Tex;
+  /** The depth on each side of the edge of the person, and the matte blurred a little and blurred wide. */
+  field: Tex;
   stats: SceneStats;
 }
 
@@ -351,12 +354,13 @@ export class Pipeline {
         {
           uInput: dev,
           uScene: light.scene.tex,
+          uField: light.scene.field,
           uRegion: ctx.regionUv,
           uPixels: [doc.width, doc.height],
           uToOutput: toOutput,
           uOutSize: [out.w, out.h],
           // The screen and the file read strands at the same scale of the photo.
-          uStrandLod: Math.max(0, Math.log2(ctx.longSide / 160)),
+          uStrandLod: Math.max(0, Math.log2(ctx.longSide / 128)),
           ...lightUniforms(light.recipe, light.scene.stats, doc, light.state.intensity, light.state.stamp),
         },
         rect,

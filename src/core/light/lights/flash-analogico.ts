@@ -1,16 +1,16 @@
 import type { LightDef } from '../types';
 
-/** A flash on a film camera: a pale face, a cold dark ground that still shows near the person, a leak and dust. */
+/** The flash of a film camera: a cold dark street, a burned subject, grain, and light that got into the camera. */
 export const flashAnalogico: LightDef = {
   id: 'flash-analogico',
   label: 'Flash Analógico',
-  note: 'Flash de câmera de filme, com vazamento de luz e poeira.',
+  note: 'Flash de câmera de filme, com vazamento de luz e grão.',
   swatch: ['#efe9df', '#16282b'],
   recipe: {
-    back: { ev: -4.2, near: -2.2, reach: 0.12, level: 0.006, adapt: 0.6, tint: [0.84, 1.04, 1.12] },
-    person: { ev: 1.3, hair: -1.2, gamma: 1.2, pivot: 0.06 },
-    skin: { ev: 0.0, level: 0.6, adapt: 0.5, sat: 0.55, tint: [1.0, 1.0, 0.94] },
-    flash: { ev: 0.5, radius: 1.8, knee: 0.42 },
-    frame: { vignette: 0.5, grain: 0.32, dust: 0.6, leak: { x: 0.0, y: 0.2, size: 0.07, strength: 1.1, color: [1, 0.7, 0.42] } },
+    fall: { lo: 0.1, hi: 0.9 },
+    far: { ev: -3.55, level: 0.288, adapt: 0.8, sat: 0.27, tint: [0.554, 1.109, 1.233] },
+    near: { ev: 2.4, hair: -1.4, level: 0.249, adapt: 0.8, sat: 0.89 },
+    skin: { ev: 0.75, fill: 0.35, sat: 1.13 },
+    film: { gamma: 1.29, black: 0.156, knee: 0.18, vignette: 0.78, vignetteY: 0.3, grain: 0.32, leak: { x: 0.007, y: 0.38, size: 0.072, strength: 1.23, color: [1, 0.92, 0.8] } },
   },
 };

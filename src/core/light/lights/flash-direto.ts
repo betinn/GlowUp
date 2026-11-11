@@ -7,10 +7,10 @@ export const flashDireto: LightDef = {
   note: 'Flash na cara e fundo preto, como foto de festa.',
   swatch: ['#f4efe6', '#0b0b0d'],
   recipe: {
-    back: { ev: -3.6, level: 0.005, adapt: 0.75, sat: 0.9 },
-    person: { ev: 1.0, hair: 0.6, limb: 0.5 },
-    skin: { ev: 0.7, level: 0.66, adapt: 0.5, sat: 0.66, tint: [1.0, 1.0, 0.92] },
-    flash: { ev: 0.6, radius: 1.7, knee: 0.45 },
-    frame: { vignette: 0.25, grain: 0.22, dust: 0.45 },
+    fall: { lo: 0.5, hi: 0.8 },
+    far: { ev: -4, level: 0.076, adapt: 0.8, sat: 0.1, tint: [0.8, 1.07, 0.85] },
+    near: { ev: 1.35, hair: 0.4, level: 0.179, adapt: 0.8, sat: 0.72 },
+    skin: { ev: 2.2, fill: 0.5, sat: 1.4 },
+    film: { gamma: 1.08, black: 0.013, knee: 0.03, vignette: 0.45, grain: 0.17 },
   },
 };

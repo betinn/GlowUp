@@ -1,5 +1,5 @@
 /**
- * Luzes, on the side of the page: finding the scene of the photo the first time a light is asked for, and
+ * Luzes, on the side of the page: reading the scene of the photo the first time a light is asked for, and
  * putting a light on and taking it off as one tap.
  */
 
@@ -14,8 +14,8 @@ import type { Task } from './task.svelte';
 /** Long enough to read why a light did not go on. */
 const NOTE_MS = 5200;
 
-/** Where the search for the scene stands, for the shelf. */
-export type SceneState = 'idle' | 'finding' | 'ready' | 'nobody' | 'failed';
+/** Where the reading of the scene stands, for the shelf. */
+export type SceneState = 'idle' | 'finding' | 'ready' | 'failed';
 
 export const lightPick = $state({
   state: 'idle' as SceneState,
@@ -25,8 +25,6 @@ export const lightPick = $state({
   wearing: null as string | null,
 });
 
-/** Photos already searched that show nobody, so a second tap does not search again. */
-const empty = new WeakSet<object>();
 /** Changes to stop the search in progress, and so that only the last tap has something to say. */
 let current = 0;
 
@@ -36,25 +34,23 @@ export const appliedLight = (e: Engine): LightDef | undefined => lightById(e.doc
 /** What the shelf should show for the photo as it stands. */
 export function syncLights(e: Engine): void {
   if (lightPick.state === 'finding') return;
-  lightPick.state = e.scene ? 'ready' : e.source && empty.has(e.source) ? 'nobody' : 'idle';
+  lightPick.state = e.scene ? 'ready' : 'idle';
 }
 
-/** Finds the scene of the photo, once. Resolves to where the search ended. */
+/** Reads the scene of the photo, once: its depth, the person, their skin and hair. Resolves to where it ended. */
 export async function ensureScene(e: Engine): Promise<SceneState | 'stopped'> {
   const { source } = e;
   if (!source) return 'stopped';
   if (e.scene) return (lightPick.state = 'ready');
-  if (empty.has(source)) return (lightPick.state = 'nobody');
   const mine = ++current;
   const stopped = () => mine !== current || e.source !== source;
-  const task = openJob(true, true);
+  const task = openJob(true, true, true);
   lightPick.task = task;
   lightPick.state = 'finding';
   try {
     const scan = await scanPhoto(source, task, false, stopped, true);
-    if (!scan || !(await findScene(e, scan.list, task, stopped))) return 'stopped';
-    if (!e.scene) empty.add(source);
-    return (lightPick.state = e.scene ? 'ready' : 'nobody');
+    if (!scan || !(await findScene(e, scan.list, task, stopped)) || !e.scene) return 'stopped';
+    return (lightPick.state = 'ready');
   } catch (err) {
     console.error(err);
     if (stopped()) return 'stopped';
@@ -93,11 +89,10 @@ export async function tapLight(light: LightDef): Promise<void> {
   try {
     const found = await ensureScene(e);
     if (lightPick.wearing !== light.id) return;
-    if (found === 'nobody') toast('Não achei ninguém nesta foto. As luzes precisam de uma pessoa para iluminar.', NOTE_MS);
-    else if (found === 'failed') toast('O detector não carregou. Confere a conexão e toque na luz de novo.', NOTE_MS);
+    if (found === 'failed') toast('O leitor de profundidade não carregou. Confere a conexão e toque na luz de novo.', NOTE_MS);
     if (found !== 'ready') return;
     // The strength the person chose stays from one light to the next.
-    e.setLight(light.id, e.doc.light?.intensity ?? 1, light.recipe.frame?.stamp ? stampOf(new Date()) : undefined);
+    e.setLight(light.id, e.doc.light?.intensity ?? 1, light.recipe.film?.stamp ? stampOf(new Date()) : undefined);
     e.commit();
   } finally {
     if (lightPick.wearing === light.id) lightPick.wearing = null;

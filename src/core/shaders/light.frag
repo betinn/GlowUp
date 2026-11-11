@@ -1,70 +1,66 @@
-// Luzes: the light of the scene made again, between the developed photo and the stickers. The person and the
-// background change apart, by the scene of the photo: person in red, skin in green, hair in blue, and the
-// distance to the edge of the person in alpha. What belongs to the scene follows the photo, and what belongs
-// to the camera (vignette, leak, date) follows the frame after the crop.
+// Luzes: the light of the scene made again, between the developed photo and the stickers.
+//
+// The light falls by depth, as a real one does: what is at the depth of the subject takes it, what is far loses
+// it, and there is no line between the two but the edges the photo itself has. `uScene` holds the matte of the
+// person in red, their skin in green, their hair in blue and the shade of the skin in alpha. `uField` holds the
+// depth on the person's side of their edge in red, the depth on the other side in green, and the matte blurred a
+// little and blurred wide in blue and alpha. What belongs to the scene follows the photo, and what belongs to
+// the camera (vignette, leak, grain, date) follows the frame after the crop.
 in vec2 vUv;
 out vec4 outColor;
 
 uniform sampler2D uInput;
 uniform sampler2D uScene;
+uniform sampler2D uField;
 uniform vec4 uRegion;
 uniform vec2 uPixels;
 uniform mat3 uToOutput;
 uniform vec2 uOutSize;
 uniform float uMix;
-// Share of the long side that the distance in the scene covers on each side of the edge.
-uniform float uSpan;
-uniform vec2 uFace;
-uniform float uFaceSize;
 
-// x far, y beside the person, z reach, w how much lamps keep.
-uniform vec4 uBack;
-uniform float uBackSat;
-uniform vec3 uBackTint;
-uniform vec2 uBackSlope;
+// x and y: the depths between which the light arrives. z and w: the matte between which a point goes from the
+// background's light to the person's.
+uniform vec4 uFall;
+// Stops: x far, y at the subject, z per unit of depth nearer than the subject. w: how much lamps keep.
+uniform vec4 uEv;
+// Stops: x on skin, y on hair, z for the whole of the shade of the skin.
+uniform vec4 uPart;
+// Saturation: x far, y at the subject, z of skin.
+uniform vec3 uSat;
+uniform vec3 uFarTint;
+uniform vec3 uNearTint;
+uniform vec3 uSkinTint;
 uniform vec3 uDuoLeft;
 uniform vec3 uDuoRight;
 uniform float uDuo;
-// x strength, y size.
-uniform vec2 uGlows;
 
-// x person, y skin, z hair.
-uniform vec3 uEv;
-// x power, y pivot.
-uniform vec2 uGamma;
-uniform float uPersonSat;
-uniform vec3 uPersonTint;
-uniform float uSkinSat;
-uniform vec3 uSkinTint;
-// x at the edge, y away from it, z how far in that is.
-uniform vec3 uShade;
-// x stops, y radius, z knee.
-uniform vec3 uFlash;
-
-// x strength, y width, z hair, w whether strands are read.
-uniform vec4 uRim;
-uniform vec3 uRimColor;
-// xy where the light comes from, z how much that counts.
-uniform vec3 uRimFrom;
-// The lamp behind the person: xy where it is, with the long side of the photo as the unit, and z how far it
-// reaches. With no reach, the light comes evenly from all around.
-uniform vec3 uRimLamp;
-// x strength, y width.
-uniform vec2 uHalo;
-uniform vec3 uHaloColor;
-
-uniform float uVignette;
-uniform float uGrain;
-uniform float uDust;
-uniform float uFade;
-uniform vec3 uTone;
-// xy place in the frame, z size, w strength.
-uniform vec4 uLeak;
-uniform vec3 uLeakColor;
+// The lamp behind the person: xy where it is, with the long side of the photo as the unit, z how far its core
+// reaches, w how many of those reaches the strands still take light.
+uniform vec4 uLamp;
+// x core on what is around the person, y soft light that hugs them, z strands of hair, w whether there is a lamp.
+uniform vec4 uGlow;
+uniform vec3 uGlowColor;
+uniform vec3 uStrandColor;
 // The level of the blurred photo that strands are read against: the same share of the photo at any size.
 uniform float uStrandLod;
+
+// x contrast, y its pivot, z what falls to black, w where lights roll off.
+uniform vec4 uCurve;
+uniform vec3 uLift;
+// x strength, y height of its middle in the frame.
+uniform vec2 uVignette;
+uniform float uGrain;
+// xy place in the frame, z size, w strength.
+uniform vec4 uLeak;
+// rgb color, a how much taller than wide.
+uniform vec4 uLeakColor;
 uniform bool uStampOn;
 uniform float uStamp[8];
+
+// The byte of the shade of the skin, as a share of its range: -1 to 1.
+float shadeOf(float a) {
+  return (a * 255.0 - 127.5) / 127.5;
+}
 
 float valueNoise(vec2 p) {
   vec2 i = floor(p);
@@ -110,11 +106,10 @@ float stamp(vec2 t) {
   return smoothstep(0.17, 0.09, d) + 0.35 * exp(-d * 3.5);
 }
 
-// Lights above the knee roll off toward white instead of stopping at it.
-vec3 shoulder(vec3 c, float knee) {
-  if (knee >= 0.999) return c;
-  vec3 over = max(c - knee, 0.0) / (1.0 - knee);
-  return min(c, vec3(knee)) + (1.0 - knee) * (1.0 - exp(-over));
+// The stops a point at this depth takes, and in y how much it is with the subject.
+vec2 fall(float depth) {
+  float near = smoothstep(uFall.x, uFall.y, depth);
+  return vec2(mix(uEv.x, uEv.y, near) + uEv.z * clamp(depth - 1.0, 0.0, 1.0), near);
 }
 
 void main() {
@@ -130,159 +125,108 @@ void main() {
   vec2 q = iuv * asp;
 
   vec4 scene = texture(uScene, iuv);
-  float person = scene.r;
+  vec4 field = texture(uField, iuv);
+  float matte = scene.r;
   float skin = scene.g;
   float hair = scene.b;
-  float dist = (scene.a * 2.0 - 1.0) * uSpan;
-  float inside = max(dist, 0.0) / uFaceSize;
-  float outside = max(-dist, 0.0);
 
   vec3 lin = srgbToLinear(clamp(src.rgb, 0.0, 1.0));
-  // How much a point stands out from what is around it: a strand of hair does, and a flat wall does not.
-  float strands = uRim.w > 0.0 ? luma(src.rgb) - luma(textureLod(uInput, vUv, uStrandLod).rgb) : 0.0;
+  float y = luma(lin);
 
-  /* The background */
-  vec3 back = lin;
-  if (uBackSat != 1.0) back = max(mix(vec3(luma(back)), back, uBackSat), 0.0);
-  back *= uBackTint;
+  /* Where the light falls */
+  vec2 front = fall(field.r);
+  vec2 behind = fall(field.g);
+  // The soft edge of the matte goes with the background: a strand lit a little less does not show, and a
+  // background lit a little more is a halo around the person.
+  float side = smoothstep(uFall.z, uFall.w, matte);
+  float ev = mix(behind.x, front.x, side);
+  float near = mix(behind.y, front.y, side);
+  if (uEv.w > 0.0) {
+    float lamp = smoothstep(0.8, 0.98, max(src.r, max(src.g, src.b))) * (1.0 - near);
+    ev *= 1.0 - uEv.w * lamp;
+  }
+  ev += uPart.x * skin + uPart.y * hair + uPart.z * skin * shadeOf(scene.a);
+
+  vec3 c = max(mix(vec3(y), lin, mix(uSat.x, uSat.y, near)), 0.0) * mix(uFarTint, uNearTint, near);
   if (uDuo > 0.0) {
     vec3 duo = mix(uDuoLeft, uDuoRight, smoothstep(0.15, 0.85, iuv.x));
-    back = mix(back, duo * (luma(back) / max(luma(duo), 0.04)), uDuo);
+    vec3 wash = duo * (luma(c) / max(luma(duo), 0.04));
+    c = mix(c, wash, uDuo * (1.0 - 0.6 * near));
   }
-  float backEv = mix(uBack.y, uBack.x, smoothstep(0.0, max(uBack.z, 1e-4), outside)) + mix(uBackSlope.x, uBackSlope.y, iuv.y);
-  float lamp = smoothstep(0.6, 0.97, max(src.r, max(src.g, src.b)));
-  backEv *= 1.0 - uBack.w * lamp;
-  back *= exp2(backEv);
+  if (skin > 0.0) {
+    vec3 toned = max(mix(vec3(luma(c)), c, uSat.z), 0.0) * uSkinTint;
+    c = mix(c, toned, skin);
+  }
+  c *= exp2(ev);
 
-  if (uGlows.x > 0.0) {
-    // Points of light on a grid of the photo, a few cells lit, each with a streak under it as on wet ground.
-    const float CELLS = 6.0;
-    vec2 cell = floor(q * CELLS);
-    vec3 glow = vec3(0.0);
-    for (int j = -1; j <= 1; j++) {
-      for (int i = -1; i <= 1; i++) {
-        vec2 id = cell + vec2(float(i), float(j));
-        vec2 rnd = hash22(id + 7.3);
-        if (rnd.x > 0.3) continue;
-        vec2 at = (id + 0.2 + 0.6 * hash22(id + 31.7)) / CELLS;
-        float size = uGlows.y * (0.45 + 0.9 * rnd.y);
-        vec2 d = q - at;
-        float point = exp(-dot(d, d) / (size * size)) + 0.35 * exp(-dot(d, d) / (size * size * 9.0));
-        float streak = d.y > 0.0 ? 0.3 * exp(-d.x * d.x / (size * size * 0.5)) * exp(-d.y / (size * 9.0)) : 0.0;
-        vec3 tint = mix(uDuoLeft, uDuoRight, smoothstep(0.15, 0.85, at.x / asp.x));
-        glow += (point + streak) * (tint + 0.35 * point);
-      }
+  /* The lamp behind the person */
+  if (uGlow.w > 0.0) {
+    vec2 d = (q - uLamp.xy) / uLamp.z;
+    float d2 = dot(d, d);
+    float core = exp(-d2);
+    float reach = exp(-d2 / (uLamp.w * uLamp.w));
+    float wide = field.a;
+    // Its light is one smooth field over the edge of the person: all of it on what is around them, fading a
+    // little way into them, so no line shows where the matte ends.
+    float over = 1.0 - smoothstep(0.5, 0.88, wide);
+    float hug = (1.0 - smoothstep(0.3, 0.6, wide)) * clamp(wide * 5.0, 0.0, 1.0);
+    float bloom = uGlow.x * core * over + uGlow.y * reach * hug;
+    // Near the lamp the light burns whatever it falls on, a dark shadow as much as a pale wall.
+    c = c * (1.0 + 4.0 * bloom) + uGlowColor * bloom * 2.0;
+    if (uGlow.z > 0.0) {
+      // In hair near the edge the strands that stand out take the light, and the gaps between them stay dark.
+      float fine = luma(srgbToLinear(clamp(textureLod(uInput, vUv, max(uStrandLod - 3.0, 0.0)).rgb, 0.0, 1.0)));
+      float local = luma(srgbToLinear(clamp(textureLod(uInput, vUv, uStrandLod).rgb, 0.0, 1.0)));
+      float strand = clamp((fine / max(local, 0.01) - 0.75) * 2.5, 0.0, 1.6);
+      // An edge of the matte counts only where it is an edge in depth too.
+      float real = smoothstep(0.03, 0.2, field.r - field.g);
+      float band = (1.0 - smoothstep(0.5, 0.82, wide)) * smoothstep(0.25, 0.5, wide);
+      // What comes through has some of the color of what it came through.
+      vec3 own = clamp(lin / max(y, 0.02), 0.0, 3.0);
+      // Only what is surely the person: at the very edge a point is part background, and a bright wall there
+      // would pass for a strand and draw a line around the person.
+      float solid = smoothstep(0.75, 1.0, matte);
+      c += uStrandColor * (0.5 + 0.5 * own) * (uGlow.z * reach * band * (0.1 + 0.9 * hair) * strand * real * solid);
     }
-    back += glow * uGlows.x * smoothstep(0.62, 0.3, iuv.y) * (1.0 - person);
-  }
-  // How much of the lamp behind the person reaches this point.
-  float reach = 1.0;
-  if (uRimLamp.z > 0.0) {
-    vec2 d = (q - uRimLamp.xy) / uRimLamp.z;
-    reach = 0.12 + exp(-dot(d, d));
-  }
-  if (uHalo.x > 0.0) {
-    // The glow lights what is there, in its own color, more than it paints over it.
-    // It starts past the edge: where dark hair meets a dark wall the edge is soft, and a glow there would be a gray band on the hair.
-    float glow = uHalo.x * reach * exp(-outside / (uFaceSize * uHalo.y)) * smoothstep(0.0, 0.006, outside);
-    back = back * (1.0 + 6.0 * glow) + uHaloColor * glow * 0.5;
-  }
-  if (uRim.w > 0.0 && uRim.x > 0.0) {
-    // Loose hairs past the edge of the person take the light too, where there is hair close by.
-    float close = textureLod(uScene, iuv, 4.0).b * exp(-outside / (uFaceSize * 0.3)) * smoothstep(0.0, 0.006, outside);
-    back += uRimColor * uRim.x * uRim.z * reach * close * min(abs(strands) * 9.0, 1.6);
   }
 
-  /* The person */
-  vec3 lit = lin;
-  if (person > 0.002) {
-    if (skin > 0.0) {
-      vec3 tinted = max(mix(vec3(luma(lit)), lit, uSkinSat), 0.0) * uSkinTint;
-      lit = mix(lit, tinted, skin);
-    }
-    if (uPersonSat != 1.0) lit = max(mix(vec3(luma(lit)), lit, uPersonSat), 0.0);
-    lit *= uPersonTint;
-
-    // The body as a rounded shape: flat in the middle and turning away at the edge.
-    float turn = clamp(inside * 2.0, 0.0, 1.0);
-    float away = 1.0 - sqrt(1.0 - (1.0 - turn) * (1.0 - turn));
-    float ev = uEv.x + uEv.y * skin + uEv.z * hair - uShade.x * away - uShade.y * smoothstep(0.0, max(uShade.z, 1e-4), inside);
-    if (uFlash.x != 0.0) {
-      vec2 d = (q - uFace * asp) / (uFaceSize * uFlash.y);
-      ev += uFlash.x * exp(-dot(d, d));
-    }
-    lit *= exp2(ev);
-    if (uGamma.x != 1.0) {
-      float y = max(luma(lit), 1e-4);
-      lit *= uGamma.y * pow(y / uGamma.y, uGamma.x) / y;
-    }
-    lit = shoulder(lit, uFlash.z);
+  /* The film */
+  if (uCurve.x != 1.0) {
+    float yc = max(luma(c), 1e-5);
+    c *= uCurve.y * pow(yc / uCurve.y, uCurve.x) / yc;
   }
-
-  // The soft edge of the person holds some of the background too. It goes with the background, so a person
-  // made brighter gets no pale line around them.
-  vec3 c = mix(back, lit, smoothstep(0.3, 0.9, person));
-
-  if (uRim.x > 0.0) {
-    // Light from behind: a thin line along the edge of the person, a glow on what is around, and further in a
-    // softer light that comes through what is thin. It is uneven along the edge, as light through hair is.
-    float depth = dist / uFaceSize;
-    float line = depth > 0.0 ? exp(-depth / (uRim.y * 0.5)) : 0.4 * exp(depth / (uRim.y * 1.2));
-    float through = depth > 0.0 ? exp(-depth / (uRim.y * 3.0)) : 0.0;
-    // The light is for hair and skin. An edge of clothes takes little of it: the segmenter is least sure there,
-    // and a wrong edge would be drawn in light.
-    vec4 around = textureLod(uScene, iuv, 4.0);
-    float takes = (0.2 + 0.8 * clamp(around.b * 1.8 + around.g * 1.3, 0.0, 1.0)) * (0.55 + 0.9 * valueNoise(q * 14.0)) * reach;
-    if (uRimFrom.z > 0.0) {
-      vec2 e = vec2(0.006, 0.0);
-      float gx = textureLod(uScene, iuv + e.xy / asp, 2.0).a - textureLod(uScene, iuv - e.xy / asp, 2.0).a;
-      float gy = textureLod(uScene, iuv + e.yx / asp, 2.0).a - textureLod(uScene, iuv - e.yx / asp, 2.0).a;
-      vec2 g = vec2(gx, gy);
-      // The distance grows inward, so the edge faces the other way.
-      float facing = dot(-g / max(length(g), 1e-5), uRimFrom.xy);
-      takes *= mix(1.0, smoothstep(-0.35, 0.75, facing), uRimFrom.z);
-    }
-    // In hair the light catches the strands that stand out, and leaves the mass of it dark.
-    float caught = mix(1.0, clamp(0.05 + strands * 14.0, 0.0, 4.0), uRim.z * hair * person);
-    // What comes through has the color of what it came through.
-    vec3 own = clamp(c / max(luma(c), 0.02), 0.0, 3.0);
-    c = c * (1.0 + 1.5 * uRim.x * through * takes) + uRimColor * uRim.x * takes * (line + 0.45 * through * caught * mix(vec3(1.0), own, 0.75));
+  // A toe: what is darker than this falls away, and the rest hardly moves.
+  if (uCurve.z > 0.0) c = c * c / (c + uCurve.z);
+  // Lights above the knee roll off toward white instead of stopping at it.
+  if (uCurve.w < 0.999) {
+    vec3 over = max(c - uCurve.w, 0.0) / (1.0 - uCurve.w);
+    c = min(c, vec3(uCurve.w)) + (1.0 - uCurve.w) * (1.0 - exp(-over));
   }
+  c += uLift * (1.0 - smoothstep(0.0, 0.25, luma(c)));
 
   /* The camera */
   vec2 st = (vec3(iuv, 1.0) * uToOutput).xy;
   float outLong = max(uOutSize.x, uOutSize.y);
   vec2 frame = st * uOutSize / outLong;
   vec2 corner = uOutSize / outLong;
-  c *= uTone;
-  if (uFade > 0.0) c = mix(c, vec3(0.045), uFade * (1.0 - smoothstep(0.0, 0.5, luma(c))));
   if (uLeak.w > 0.0) {
     // Taller than wide, as light that comes in by the side of the film.
-    vec2 d = (frame - uLeak.xy * corner) / (uLeak.z * vec2(1.0, 2.4));
+    vec2 d = (frame - uLeak.xy * corner) / (uLeak.z * vec2(1.0, uLeakColor.a));
     float leak = exp(-dot(d, d));
-    c += uLeak.w * leak * mix(uLeakColor, vec3(1.0), leak * leak);
+    c += uLeak.w * leak * mix(uLeakColor.rgb, vec3(1.0), leak * leak);
   }
-  if (uVignette > 0.0) {
-    float v = smoothstep(0.35, 1.45, length((st - 0.5) * 2.0));
-    c *= 1.0 - uVignette * 0.9 * v * v * (3.0 - 2.0 * v);
+  if (uVignette.x > 0.0) {
+    float v = smoothstep(0.35, 1.45, length((st - vec2(0.5, uVignette.y)) * 2.0));
+    c *= 1.0 - uVignette.x * 0.9 * v;
   }
 
   vec3 o = linearToSrgb(clamp(c, 0.0, 1.0));
   if (uGrain > 0.0) {
-    vec2 p = q * 1500.0;
+    // Grain the size of the frame, not of the pixel: the screen and the file get the same.
+    vec2 p = frame * 1300.0;
     float n = valueNoise(p) * 0.6 + valueNoise(p * 2.13 + 17.0) * 0.4 - 0.5;
     float l = luma(o);
-    o += n * uGrain * 0.22 * (0.35 + 0.65 * (1.0 - abs(l * 2.0 - 1.0)));
-  }
-  if (uDust > 0.0) {
-    vec2 p = q * 70.0;
-    vec2 id = floor(p);
-    vec2 rnd = hash22(id + 3.1);
-    if (rnd.x < uDust * 0.16) {
-      vec2 d = p - id - (0.25 + 0.5 * hash22(id + 19.4));
-      float size = 0.035 + 0.075 * rnd.y;
-      o += 0.55 * smoothstep(size, size * 0.4, length(d));
-    }
+    o += n * uGrain * 0.28 * (0.4 + 0.6 * (1.0 - abs(l * 2.0 - 1.0)));
   }
   if (uStampOn) {
     const float TALL = 0.024;

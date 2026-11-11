@@ -48,15 +48,18 @@ export class LightThumbs {
     glc.run(glc.program(shader(LIGHT_FRAG)), this.target, {
       uInput: this.base,
       uScene: pipeline.scene.tex,
+      uField: pipeline.scene.field,
       uRegion: this.crop,
       uPixels: [doc.width, doc.height],
       // Image UV to the square, so what belongs to the camera sits in the preview as it will in the frame.
       uToOutput: [1 / w, 0, -x / w, 0, 1 / h, -y / h, 0, 0, 1],
       uOutSize: [SIZE, SIZE],
+      // The square is too small a photo to have strands to read.
+      uStrandLod: 0,
       ...lightUniforms(light.recipe, scene.stats, doc, 1, '01/01/2000'),
-      // A date and specks of dust at this size are only noise.
+      // A date and grain at this size are only noise.
       uStampOn: false,
-      uDust: 0,
+      uGrain: 0,
     });
     const { data } = await glc.readAsync(this.target, { x: 0, y: 0, w: SIZE, h: SIZE });
     canvas.width = SIZE;

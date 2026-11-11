@@ -1,22 +1,26 @@
 /** Turns the recipe of a light into the numbers its shader reads, for one photo. No browser APIs. */
 
-import { SCENE_SPAN } from './scene';
+import { SHADE_STOPS } from './scene';
 import type { LightRecipe, Rgb, SceneStats } from './types';
 
 type Numbers = Record<string, number | boolean | readonly number[]>;
 
 const WHITE: Rgb = [1, 1, 1];
-/** A recipe never asks for more than this many stops from what it measured, either way. */
-const MAX_ADAPT = 5;
+/** A recipe never follows a photo by more than this many stops, either way. */
+const MAX_ADAPT = 3;
+/** The matte of the person between these goes from the background's light to the person's. See `light.frag`. */
+const EDGE_LOW = 0.3;
+const EDGE_HIGH = 0.95;
 
 /**
- * The stops a region takes. A recipe gives a fixed number, and may also say where the region should end, with
- * how much that counts: a background that is already dark is then not darkened as much as a bright one.
+ * The stops a part of the photo takes. A recipe was made on one photo, where that part had the brightness
+ * `level`. On a photo where it measures otherwise, the recipe moves with it by the share `adapt`: the part then
+ * ends about as bright as it did on the photo of the recipe.
  */
 export function adaptedEv(ev: number, level: number | undefined, adapt: number | undefined, measured: number): number {
   if (!adapt || !level) return ev;
-  const wanted = Math.min(MAX_ADAPT, Math.max(-MAX_ADAPT, Math.log2(level / Math.max(measured, 0.004))));
-  return ev + (wanted - ev) * Math.min(1, Math.max(0, adapt));
+  const follow = Math.min(MAX_ADAPT, Math.max(-MAX_ADAPT, Math.log2(level / Math.max(measured, 0.004))));
+  return ev + follow * Math.min(1, Math.max(0, adapt));
 }
 
 /** The date as the eight figures of day, month and year. */
@@ -39,55 +43,40 @@ function lampAt(at: readonly [number, number], stats: SceneStats, size: { width:
 }
 
 /**
- * Everything the shader needs from the recipe. `size` is the photo, in pixels. `mix` is the intensity, 0 to 1. The textures, the region and
- * the frame come from whoever draws.
+ * Everything the shader needs from the recipe. `size` is the photo, in pixels. `mix` is the intensity, 0 to 1.
+ * The textures, the region and the frame come from whoever draws.
  */
 export function lightUniforms(recipe: LightRecipe, stats: SceneStats, size: { width: number; height: number }, mix: number, stamp?: string): Numbers {
-  const { back = {}, person = {}, skin = {}, flash, rim, frame = {} } = recipe;
-  const far = adaptedEv(back.ev ?? 0, back.level, back.adapt, stats.backY);
-  // What is beside the person keeps its distance from what is far.
-  const near = far + ((back.near ?? back.ev ?? 0) - (back.ev ?? 0));
-  const skinEv = adaptedEv(skin.ev ?? 0, skin.level, skin.adapt, stats.skinY * 2 ** (person.ev ?? 0));
-  const from = rim?.from;
-  const length = from ? Math.hypot(from[0], from[1]) : 0;
+  const { fall = {}, far = {}, near = {}, skin = {}, lamp, film = {} } = recipe;
+  const face = Math.max(stats.faceSize, 0.02);
+  const lift = film.lift ?? 0;
+  const liftTint = film.liftTint ?? WHITE;
   return {
     uMix: Math.min(1, Math.max(0, mix)),
-    uSpan: SCENE_SPAN,
-    uFace: stats.face,
-    uFaceSize: Math.max(stats.faceSize, 0.02),
-    uBack: [far, near, back.reach ?? 0.08, back.keep ?? 0],
-    uBackSat: back.sat ?? 1,
-    uBackTint: back.tint ?? WHITE,
-    uBackSlope: [back.top ?? 0, back.bottom ?? 0],
-    uDuoLeft: back.duo?.left ?? WHITE,
-    uDuoRight: back.duo?.right ?? WHITE,
-    uDuo: back.duo?.amount ?? 0,
-    uGlows: [back.glows?.strength ?? 0, back.glows?.size ?? 0.02],
-    uEv: [person.ev ?? 0, skinEv, person.hair ?? 0],
-    uGamma: [person.gamma ?? 1, person.pivot ?? 0.3],
-    uPersonSat: person.sat ?? 1,
-    uPersonTint: person.tint ?? WHITE,
-    uSkinSat: skin.sat ?? 1,
+    uFall: [fall.lo ?? 0.35, fall.hi ?? 0.85, EDGE_LOW, EDGE_HIGH],
+    uEv: [adaptedEv(far.ev ?? 0, far.level, far.adapt, stats.backY), adaptedEv(near.ev ?? 0, near.level, near.adapt, stats.skinY), near.close ?? 0, far.keep ?? 0],
+    uPart: [skin.ev ?? 0, near.hair ?? 0, (skin.fill ?? 0) * SHADE_STOPS, 0],
+    uSat: [far.sat ?? 1, near.sat ?? 1, skin.sat ?? 1],
+    uFarTint: far.tint ?? WHITE,
+    uNearTint: near.tint ?? WHITE,
     uSkinTint: skin.tint ?? WHITE,
-    uShade: [person.limb ?? 0, person.inner ?? 0, person.innerWidth ?? 0.3],
-    uFlash: [flash?.ev ?? 0, flash?.radius ?? 1.5, flash?.knee ?? 1],
-    uRim: [rim?.strength ?? 0, Math.max(rim?.width ?? 0.05, 1e-3), rim?.hair ?? 0, rim?.hair ? 1 : 0],
-    uRimColor: rim?.color ?? WHITE,
-    uRimFrom: length > 0 ? [from![0] / length, from![1] / length, 1] : [0, 0, 0],
-    uRimLamp: rim?.lamp ? [...lampAt(rim.lamp.at, stats, size), rim.lamp.reach * Math.max(stats.faceSize, 0.02)] : [0, 0, 0],
-    uHalo: [rim?.halo ?? 0, Math.max(rim?.haloWidth ?? 0.2, 1e-3)],
-    uHaloColor: rim?.haloColor ?? rim?.color ?? WHITE,
-    uVignette: frame.vignette ?? 0,
-    uGrain: frame.grain ?? 0,
-    uDust: frame.dust ?? 0,
-    uFade: frame.fade ?? 0,
-    uTone: frame.tone ?? WHITE,
-    uLeak: frame.leak ? [frame.leak.x, frame.leak.y, frame.leak.size, frame.leak.strength] : [0, 0, 1, 0],
-    uLeakColor: frame.leak?.color ?? WHITE,
-    uStampOn: !!frame.stamp,
+    uDuoLeft: far.duo?.left ?? WHITE,
+    uDuoRight: far.duo?.right ?? WHITE,
+    uDuo: far.duo?.amount ?? 0,
+    uLamp: lamp ? [...lampAt(lamp.at, stats, size), Math.max(lamp.reach, 0.05) * face, Math.max(lamp.wide ?? 3, 0.1)] : [0, 0, 1, 1],
+    uGlow: lamp ? [lamp.glow ?? 0, lamp.hug ?? 0, lamp.strands ?? 0, 1] : [0, 0, 0, 0],
+    uGlowColor: lamp?.glowColor ?? WHITE,
+    uStrandColor: lamp?.strandColor ?? lamp?.glowColor ?? WHITE,
+    uCurve: [film.gamma ?? 1, film.pivot ?? 0.18, film.black ?? 0, film.knee ?? 1],
+    uLift: [liftTint[0] * lift, liftTint[1] * lift, liftTint[2] * lift],
+    uVignette: [film.vignette ?? 0, film.vignetteY ?? 0.5],
+    uGrain: film.grain ?? 0,
+    uLeak: film.leak ? [film.leak.x, film.leak.y, film.leak.size, film.leak.strength] : [0, 0, 1, 0],
+    uLeakColor: film.leak ? [...film.leak.color, film.leak.tall ?? 2.4] : [1, 1, 1, 2.4],
+    uStampOn: !!film.stamp,
     uStamp: stampDigits(stamp),
   };
 }
 
-/** The shader reads the blurred photo only for a rim that picks out strands of hair. */
-export const readsStrands = (recipe: LightRecipe) => !!recipe.rim?.hair;
+/** The shader reads the blurred photo only for a lamp that picks out strands of hair. */
+export const readsStrands = (recipe: LightRecipe) => !!recipe.lamp?.strands;
