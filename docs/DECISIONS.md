@@ -490,3 +490,14 @@ na exportação em resolução total, e a linha dos olhos com zoom.
 | 342 | A medição contra os pares é na imagem inteira: alvo alinhado ao original, sem a interface do print, com SSIM, ΔE2000 e LPIPS, e o teto de um filtro ao lado | As médias por região da entrega anterior fechavam em ΔE 1 com a foto visivelmente errada: a média não vê borda, halo nem ponto solto |
 | 343 | Sem relight generativo no navegador | Só um modelo que redesenha a foto iguala os alvos. Os abertos passam de 2 GB, e o GitHub não aceita arquivo acima de 100 MB. Mesmo com um, a foto sairia outra a cada vez, e não a do alvo |
 | 344 | Nomes das luzes são do GlowUp: Luz de Estúdio, Flash Direto, Flash Analógico, Analógica, Entardecer, Noite de Festa, Contraluz, Contraluz Dourado, Silhueta, Néon | Dizem o que a luz faz. Nenhum nome vem do aplicativo de onde saíram os pares |
+
+## Seletor de cor e Cor dos olhos
+
+| # | Decisão | Motivo |
+| --- | --- | --- |
+| 345 | Um só seletor de cor, `ColorPicker.svelte`, serve todas as ferramentas de cor: olhos, cabelo, batom, blush, sombra, sobrancelha, contorno e sardas | Uma mudança vale para todas, e nenhuma fica para trás com o problema antigo |
+| 346 | As cores prontas quebram em linhas em vez de rolar de lado | A fileira rolava sem barra, sem sinal de que havia mais, e no computador a roda do mouse nem rolava de lado: as últimas cores ficavam escondidas. Com oito cores e o círculo de cor própria, a quebra custa no máximo uma linha |
+| 347 | Cor própria: um quadrado de saturação e brilho sobre uma faixa de matiz, com o código hex ao lado. A foto acompanha o arraste, um quadro por vez, e a cor vira uma etapa do desfazer quando o dedo ou o mouse solta | É o desenho que todo editor usa, funciona com toque e mouse, e o desfazer volta uma escolha, não cada ponto do arraste |
+| 348 | As últimas cinco cores próprias ficam guardadas por ferramenta no navegador e aparecem depois das prontas, em quadrado de canto redondo | Quem acertou um tom quer voltar a ele sem refazer o arraste. O formato diferente diz que a cor é sua e não uma pronta |
+| 349 | Cor dos olhos começa em 50 de intensidade, e não mais em 75 | Comparado nas fotos reais com azul, verde, mel e cinza em 100, 75, 70, 55, 50, 45 e 35. Em 75 a íris virava um disco pintado, clara e de cor chapada. Em 50 a cor nova se lê como um olho de verdade, e em 45 o azul já vira cinza. O controle continua indo até 100, a força de antes no topo |
+| 350 | A luz da íris muda pelo brilho da íris em volta, e não puxando cada pixel para o brilho da cor nova | Puxar cada pixel para um só brilho achatava as fibras e o anel escuro da borda em 26%. Mudando o todo, o contraste das fibras fica como estava. A cor (croma e matiz) segue a conta de antes, e o reflexo continua branco |
