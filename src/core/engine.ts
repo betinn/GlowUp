@@ -1681,6 +1681,7 @@ export class Engine {
       this.requestRender();
       return;
     }
+    op.origin = 'manual';
     this.doc.heals.push(op);
     this.applyNewestHeal(ctx);
     this.requestRender();
@@ -1703,30 +1704,43 @@ export class Engine {
   /**
    * Replaces every healed spot with one heal at each of `spots`, as one undo step. Each spot is fitted
    * as a touch of the healing brush would be, and the photo shows them going one by one: `each` runs
-   * after every spot. Returns how many were healed.
+   * after every spot. With `keep` the healed spots stay and the new ones join them, leaving out a spot
+   * already healed. The new ones are the automatic mode's. Returns how many were healed.
    */
-  async healSpots(spots: HealOp['dabs'], label: string, each?: () => Promise<void>): Promise<number> {
+  async healSpots(spots: HealOp['dabs'], label: string, each?: () => Promise<void>, keep = false): Promise<number> {
     const { heal, ctx, pipeline } = this;
     if (!heal || !ctx || !pipeline || this.healingSpots) return 0;
     this.commit();
     this.healingSpots = true;
     const before = this.doc.heals.slice();
-    const made: HealOp[] = [];
+    const made: HealOp[] = keep ? before.slice() : [];
+    const { width, height } = this.doc;
+    const long = Math.max(width, height);
+    // A spot whose middle is inside a healed one is healed already.
+    const covered = (spot: HealOp['dabs'][number]) =>
+      keep && before.some((op) => op.dabs.some((d) => Math.hypot((d.u - spot.u) * width, (d.v - spot.v) * height) < Math.max(d.r, spot.r) * long));
     try {
-      this.doc.heals = [];
-      ctx.invalidate('healed');
-      pipeline.update(ctx, this.doc);
-      // The update above leaves nothing marked to redraw, so the detail kept for a zoomed view would
-      // stay healed. With no spot to heal, or none that holds, the photo would keep showing them.
-      this.dropRoi();
-      this.unfilteredFresh = false;
-      this.requestRender();
+      if (keep) {
+        // The spots are fitted on the photo as it stands, with the spots already healed.
+        pipeline.update(ctx, this.doc);
+      } else {
+        this.doc.heals = [];
+        ctx.invalidate('healed');
+        pipeline.update(ctx, this.doc);
+        // The update above leaves nothing marked to redraw, so the detail kept for a zoomed view would
+        // stay healed. With no spot to heal, or none that holds, the photo would keep showing them.
+        this.dropRoi();
+        this.unfilteredFresh = false;
+        this.requestRender();
+      }
       for (const spot of spots) {
+        if (covered(spot)) continue;
         // A touch refits the spot. When it sees a contour instead, the search already found a spot
         // that stays inside the skin, so its circle is healed as it is.
         const op = (await heal.commit(ctx, [spot], AUTO_HEAL_EDGE, true)) ?? (await heal.commit(ctx, [spot], AUTO_HEAL_EDGE, false));
         if (this.ctx !== ctx) return 0;
         if (!op) continue;
+        op.origin = 'auto';
         this.doc.heals.push(op);
         made.push(op);
         this.applyNewestHeal(ctx);
@@ -1744,14 +1758,15 @@ export class Engine {
       this.ctx?.invalidate('healed');
       this.requestRender();
     };
-    if (made.length === 0 && before.length === 0) return 0;
+    const added = made.length - (keep ? before.length : 0);
+    if (keep ? added === 0 : made.length === 0 && before.length === 0) return 0;
     this.history.push({
       label,
       bytes: 128 + (before.length + after.length) * 96,
       undo: () => set(before),
       redo: () => set(after),
     });
-    return made.length;
+    return added;
   }
 
   /**

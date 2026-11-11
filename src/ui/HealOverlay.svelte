@@ -1,7 +1,7 @@
 <script lang="ts">
   /**
-   * A small ring on each spot that Manchas healed, while the automatic mode keeps the brush away. A tap
-   * on a ring takes that one correction back and keeps the others, as one undo step.
+   * A small ring on each spot that Manchas healed, by the automatic mode or by the brush, in both modes. A
+   * tap on a ring takes that one correction back and keeps the others, as one undo step.
    */
   import { scale } from 'svelte/transition';
   import type { HealOp } from '../core/doc';

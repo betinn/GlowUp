@@ -172,8 +172,8 @@ test.describe('automático e manual', () => {
     await page.getByRole('button', { name: /^Continuar/ }).first().click();
     await page.locator('[data-group=skin]').waitFor({ timeout: 90_000 });
     await settle(page);
-    // The mask holds work now, so the tool opens on the brush and leaves it as it is.
-    await pickTool(page, 'eyes', 'sclera', { auto: true });
+    // The tool opens on the brush and leaves the mask as it is.
+    await pickTool(page, 'eyes', 'sclera', { free: true });
     await expect(page.getByTestId('tool-mode')).toHaveAttribute('data-mode', 'manual');
     await expect(undoButton(page)).toBeDisabled();
   });
@@ -191,6 +191,7 @@ test.describe('automático e manual', () => {
     await openEditor(page);
     await page.locator('[data-group=eyes]').click();
     await page.locator('[data-tool=redeye]').click();
+    await chooseMode(page, 'Automático');
     await expect(page.locator('[data-limit=on]')).toHaveCount(1, { timeout: 60_000 });
     await showSettled(page);
     await expect(page.getByTestId('tool-mode')).toBeVisible();

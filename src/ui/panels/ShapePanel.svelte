@@ -8,7 +8,7 @@
   import { ensureLock, facePick, lockState } from '../facepick.svelte';
   import FillCard from '../FillCard.svelte';
   import ProgressCard from '../ProgressCard.svelte';
-  import { chinNote, chosenFace, placeOf, searchMoreFaces, shapePick, valueOf } from '../shapepick.svelte';
+  import { chinNote, chosenFace, findShape, holdShapeValue, placeOf, searchMoreFaces, shapePick, valueOf } from '../shapepick.svelte';
   import Slider from '../Slider.svelte';
   import { bump, engine, ui } from '../state.svelte';
   import Switch from '../Switch.svelte';
@@ -17,6 +17,9 @@
   const section = $derived(ui.tool ? toolById(ui.tool)?.section : undefined);
   const sliders = $derived(SHAPE_SLIDERS.filter((s) => s.section === section));
   const parts = $derived([...new Set(sliders.map((s) => s.part))]);
+  /** Before the face is found: the head waits for the person apart, and the double chin for a fold. */
+  const early = $derived(sliders.filter((s) => s.id !== 'head' && s.id !== 'doubleChin'));
+  const earlyParts = $derived([...new Set(early.map((s) => s.part))]);
   const off = $derived((ui.rev, !!section && !!e.doc.shapesOff?.includes(section)));
   const canHead = $derived(lockState.state === 'on');
 
@@ -26,6 +29,12 @@
   }
 
   function set(slider: ShapeSlider, value: number) {
+    // The first slider that moves finds the face: opening the tool downloads nothing.
+    if (shapePick.state !== 'on') {
+      holdShapeValue(e, slider.id, value);
+      bump();
+      return;
+    }
     const face = chosenFace();
     if (!face) return;
     // A slider moved in a section that is off turns the section back on.
@@ -57,6 +66,18 @@
 <div class="shape" data-shape={shapePick.state} data-lock={lockState.state}>
   {#if shapePick.state === 'searching' && shapePick.task}
     <ProgressCard task={shapePick.task} title="Procurando o rosto e o fundo" note={facePick.download} />
+  {/if}
+  {#if shapePick.state === 'idle' || shapePick.state === 'searching'}
+    {#if shapePick.state === 'idle'}
+      <p class="note" role="status" data-testid="shape-idle">Mexa num controle e eu procuro o rosto e o fundo.</p>
+      <button type="button" class="btn" data-testid="shape-find" onclick={() => void findShape(e)}>Procurar o rosto</button>
+    {/if}
+    {#each earlyParts as part (part)}
+      <h3>{part}</h3>
+      {#each early.filter((s) => s.part === part) as s (s.id)}
+        <Slider label={s.label} value={valueHere(s.id)} min={s.min} max={100} bipolar={s.min < 0} resetTo={0} oninput={(v) => set(s, v)} onchange={done} />
+      {/each}
+    {/each}
   {:else if shapePick.state === 'no-face'}
     <p class="note" role="status">Não achei rosto nesta foto. Estes controles precisam dele. O Liquify segue livre, com o pincel.</p>
     <button type="button" class="btn" data-testid="shape-more" onclick={() => void searchMoreFaces(e)}>Procurar mais rostos</button>

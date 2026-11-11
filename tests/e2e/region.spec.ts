@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { expectNoErrors, imageRect, meanDiff, openEditor, pickTool, settle, showSettled, viewZoom } from './helpers';
+import { expectNoErrors, imageRect, meanDiff, openEditor, pickTool, settle, showSettled, viewZoom, chooseMode } from './helpers';
 
 /** The real detector runs here: the procedural portraits are enough to trigger it. */
 const shot = (name: string) => `docs/visual-checks/${name}.png`;
@@ -25,6 +25,7 @@ function stage(page: Page) {
 async function openTool(page: Page, group: string, tool: string): Promise<void> {
   await page.locator(`[data-group=${group}]`).click();
   await page.locator(`[data-tool=${tool}]`).click();
+  await chooseMode(page, 'Automático');
 }
 
 test.describe('olhos e dentes em destaque', () => {
@@ -83,6 +84,7 @@ test.describe('olhos e dentes em destaque', () => {
     expect(await viewZoom(page)).toBeCloseTo(chosen, 2);
     // Another part keeps the view too.
     await page.locator('[data-tool=eyecolor]').click();
+    await chooseMode(page, 'Automático');
     await expect(page.locator('[data-limit=on]')).toHaveCount(1, { timeout: 60_000 });
     await showSettled(page);
     expect(await viewZoom(page)).toBeCloseTo(chosen, 2);

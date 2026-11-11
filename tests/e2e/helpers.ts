@@ -57,6 +57,8 @@ export function facePoint(page: Page, x: number, y: number): [number, number] {
 export interface RegionOptions {
   /** The automatic mode stays, with what it applied. Otherwise the tool goes to manual, with an empty mask. */
   auto?: boolean;
+  /** Manual with the brush free, as the tool opens. Otherwise the switch keeps the brush on the region. */
+  free?: boolean;
 }
 
 export async function pickTool(page: Page, group: string, tool: string, options: RegionOptions = {}): Promise<void> {
@@ -68,12 +70,19 @@ export async function pickTool(page: Page, group: string, tool: string, options:
 }
 
 /**
- * The tools for eyes and teeth hold the brush until the detector answers, then light the region and
- * fill it. Most tests paint by hand on the whole photo, so by default the fill is undone and the tool
- * goes to manual.
+ * Tools open in Manual, with a free brush and nothing downloaded. With `auto` the test picks Automático, and
+ * the tool holds the brush until the detector answers, then lights the region and fills it. Otherwise, unless
+ * `free`, the test turns on the switch that keeps the brush on the region, as most tests paint there. A tool
+ * that was left in Automático goes back to Manual unless `auto`, with its fill undone.
  */
-export async function limitSettled(page: Page, { auto = false }: RegionOptions = {}): Promise<void> {
+export async function limitSettled(page: Page, { auto = false, free = false }: RegionOptions = {}): Promise<void> {
   await page.locator('[data-limit]').waitFor();
+  if (auto && (await page.locator('[data-testid=tool-mode][data-mode=manual]').count())) await chooseMode(page, 'Automático');
+  const toggle = page.getByTestId('limit-toggle');
+  if (!auto && !free && (await toggle.count()) && (await toggle.getAttribute('aria-checked')) === 'false') {
+    await toggle.click();
+    await settle(page, 200);
+  }
   await expect(page.locator('[data-limit=searching]')).toHaveCount(0, { timeout: 60_000 });
   await showSettled(page);
   // The words over the photo outlast the light by a little.
@@ -210,4 +219,18 @@ export const onSite = (url: string, origin: string) => url.startsWith(`${origin}
 
 export function expectNoErrors(errors: string[]): void {
   expect(errors, errors.join('\n')).toEqual([]);
+}
+
+/** Brincar opens with no model. The button finds the faces, as the first careta or sticker would. */
+export async function findFunFaces(page: Page): Promise<void> {
+  await page.locator('[data-fun=idle], [data-fun=on]').waitFor({ timeout: 90_000 });
+  if (await page.locator('[data-fun=idle]').count()) await page.getByTestId('fun-find').click();
+  await expect(page.locator('[data-fun=on]')).toHaveCount(1, { timeout: 90_000 });
+}
+
+/** The face menu opens with no model. The button finds the face and the person, as the first slider would. */
+export async function findShapeFaces(page: Page): Promise<void> {
+  await page.locator('[data-shape]').waitFor({ timeout: 90_000 });
+  if (await page.locator('[data-shape=idle]').count()) await page.getByTestId('shape-find').click();
+  await expect(page.locator('[data-shape=searching]')).toHaveCount(0, { timeout: 90_000 });
 }

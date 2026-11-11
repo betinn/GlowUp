@@ -23,11 +23,14 @@ function watch(page: Page): string[] {
   return errors;
 }
 
-/** Opens a tool of its menu and waits until the automatic mode is done, or the photo says it cannot be. */
+/** Opens a tool of its menu in Automático and waits until it is done, or the photo says it cannot be. */
 async function openTool(page: Page, group: string, tool: string, state = 'on'): Promise<void> {
   await page.locator(`[data-group=${group}]`).click();
   const button = page.locator(`[data-tool=${tool}]`);
   if ((await button.getAttribute('aria-pressed')) !== 'true') await button.click();
+  // Tools open in Manual, and the automatic mode is a tap away.
+  await page.locator('[data-limit]').waitFor();
+  if (await page.locator('[data-testid=tool-mode][data-mode=manual]').count()) await chooseMode(page, 'Automático');
   await expect(page.locator(`[data-limit=${state}]`)).toHaveCount(1, { timeout: 60_000 });
   await showSettled(page);
   await settle(page, 300);

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { DEV_ORIGIN } from '../../playwright.config';
-import { expectNoErrors, meanDiff, openEditor, PORTRAIT, setSlider, settle, showSettled, imageRect, limitSettled } from './helpers';
+import { expectNoErrors, meanDiff, openEditor, PORTRAIT, setSlider, settle, showSettled, imageRect, limitSettled, findShapeFaces } from './helpers';
 
 /** The dev server serves each module by address, so a test can read the document and the pixels. */
 test.use({ baseURL: DEV_ORIGIN });
@@ -25,6 +25,8 @@ function watch(page: Page): string[] {
 async function openShape(page: Page, tool = 'faceshape'): Promise<void> {
   await page.locator('[data-group=shape]').click();
   await page.locator(`[data-tool=${tool}]`).click();
+  // The menu opens with no model: the button finds the face and the person, as the first slider would.
+  await findShapeFaces(page);
   await expect(page.locator('[data-shape=on]')).toHaveCount(1, { timeout: 60_000 });
   await showSettled(page);
   await settle(page, 300);
@@ -182,7 +184,8 @@ test.describe('o fundo travado', () => {
     await limitSettled(page);
     const toggle = page.getByTestId('lock-toggle');
     await expect(toggle).toHaveAttribute('aria-checked', 'true');
-    await expect(page.getByTestId('lock-note')).toHaveText(/o pincel só mexe na pessoa/);
+    // Opening the tool downloads nothing: the first stroke finds the person.
+    await expect(page.getByTestId('lock-note')).toHaveText(/No primeiro traço eu separo a pessoa do fundo/);
 
     // A corner of the photo, far from the person.
     const r = imageRect(page);
@@ -197,6 +200,9 @@ test.describe('o fundo travado', () => {
     const clip = { x: r.x + 4, y: r.y + 4, width: 70, height: 40 };
     const before = await page.screenshot({ clip });
     await stroke();
+    // The lock holds what the stroke already did.
+    await expect(page.getByTestId('lock-note')).toHaveText(/o pincel só mexe na pessoa/, { timeout: 60_000 });
+    await settle(page, 400);
     expect(await meanDiff(page, before, await page.screenshot({ clip }))).toBeLessThan(0.02);
     expect(await inPage<boolean>(page, 'return e.field.brushEmpty();')).toBe(false);
 
@@ -220,8 +226,15 @@ test.describe('o fundo travado', () => {
     await openEditor(page, 'gradient.png');
     await page.locator('[data-group=shape]').click();
     await page.locator('[data-tool=liquify]').click();
-    await expect(page.locator('[data-limit=no-face]')).toHaveCount(1, { timeout: 60_000 });
-    await expect(page.getByTestId('lock-note')).toHaveText(/Não achei uma pessoa/);
+    await settle(page, 300);
+    // The first stroke looks for the person, and the brush goes on.
+    const r = imageRect(page);
+    await page.mouse.move(r.x + r.w / 2, r.y + r.h / 2);
+    await page.mouse.down();
+    await page.mouse.move(r.x + r.w / 2 + 40, r.y + r.h / 2, { steps: 8 });
+    await page.mouse.up();
+    await page.mouse.move(2, 2);
+    await expect(page.getByTestId('lock-note')).toHaveText(/Não achei uma pessoa/, { timeout: 60_000 });
     expect(await inPage<boolean>(page, 'return e.locking;')).toBe(false);
     expectNoErrors(errors);
   });
@@ -404,9 +417,18 @@ test.describe('a troca de ferramenta', () => {
     await openEditor(page);
     await page.locator('[data-group=shape]').click();
     await page.locator('[data-tool=liquify]').click();
+    await settle(page, 300);
+    // The first stroke starts the search for the person.
+    const r = imageRect(page);
+    await page.mouse.move(r.x + r.w / 2, r.y + r.h / 2);
+    await page.mouse.down();
+    await page.mouse.move(r.x + r.w / 2 + 40, r.y + r.h / 2, { steps: 8 });
+    await page.mouse.up();
     await reached;
     await page.locator('[data-group=light]').click();
     await page.locator('[data-tool=adjust]').click();
+    await page.locator('[data-limit]').waitFor();
+    await page.getByRole('radiogroup', { name: 'Modo' }).getByRole('radio', { name: 'Automático' }).click();
     await expect(page.locator('[data-limit=on]')).toHaveCount(1, { timeout: 60_000 });
     await settle(page, 2500);
     expectNoErrors(errors);
@@ -632,6 +654,7 @@ test.describe('os controles', () => {
     await openEditor(page, 'gradient.png');
     await page.locator('[data-group=shape]').click();
     await page.locator('[data-tool=faceshape]').click();
+    await page.getByTestId('shape-find').click();
     await expect(page.locator('[data-shape=no-face]')).toHaveCount(1, { timeout: 60_000 });
     await expect(page.getByText(/Não achei rosto nesta foto. Estes controles precisam dele/)).toBeVisible();
     expectNoErrors(errors);
@@ -796,6 +819,7 @@ test.describe('o aviso do tamanho do download', () => {
         await slowNetwork(page);
         await page.locator('[data-group=shape]').click();
         await page.locator('[data-tool=faceshape]').click();
+        await page.getByTestId('shape-find').click();
         const search = page.locator('[data-shape=searching]');
         await expect(search.locator('[role=progressbar]')).toBeVisible({ timeout: 60_000 });
         await expect(search).toContainText('A foto não sai do seu aparelho');

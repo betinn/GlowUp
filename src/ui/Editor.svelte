@@ -71,16 +71,11 @@
     const e = engine();
     return new Set(groupTools.filter((t) => switchable(t.id) && hasWork(e, t.id)).map((t) => t.id));
   });
-  /** In the automatic mode of Manchas each healed spot has a ring, to take it back alone, unless the person hid them. */
-  const healRings = $derived(
-    meta?.kind === 'heal' &&
-      ui.healRings &&
-      toolLimit.region !== null &&
-      toolLimit.mode === 'auto' &&
-      toolLimit.state === 'on' &&
-      !ui.splitOn &&
-      !ui.compareHold,
-  );
+  /**
+   * In Manchas each healed spot has a ring, in Automático and in Manual, to take it back alone, whether the
+   * automatic mode or the brush healed it, unless the person hid them.
+   */
+  const healRings = $derived(meta?.kind === 'heal' && ui.healRings && toolLimit.state !== 'searching' && !ui.splitOn && !ui.compareHold);
   const canUndo = $derived((ui.rev, ready && engine().history.canUndo));
   const canRedo = $derived((ui.rev, ready && engine().history.canRedo));
   // The label changes with each step, so it follows every change, not only canUndo.

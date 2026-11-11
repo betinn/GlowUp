@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { DEV_ORIGIN } from '../../playwright.config';
-import { expectNoErrors, imageRect, meanDiff, openEditor, setSlider, settle, skipIntro } from './helpers';
+import { expectNoErrors, imageRect, meanDiff, openEditor, setSlider, settle, skipIntro, findFunFaces, findShapeFaces } from './helpers';
 
 /** The dev server serves each module by address, so a test can read the document and the pixels. */
 test.use({ baseURL: DEV_ORIGIN });
@@ -28,7 +28,7 @@ async function openBrincar(page: Page): Promise<void> {
   await page.addInitScript(() => localStorage.setItem('glowup.startPath', '"fun"'));
   await page.goto('/');
   await page.setInputFiles('[data-testid=file-input]', 'tests/fixtures/portrait.png');
-  await expect(page.locator('[data-fun=on]')).toHaveCount(1, { timeout: 90_000 });
+  await findFunFaces(page);
   await expect(page.getByTestId('opening')).toHaveCount(0);
   await settle(page);
 }
@@ -65,7 +65,7 @@ test.describe('o caminho Brincar', () => {
     const names = await choice.locator('[data-path]').evaluateAll((list) => list.map((el) => el.getAttribute('data-path')));
     expect(names.slice(-2)).toEqual(['filters', 'fun']);
     await choice.locator('[data-path=fun]').click();
-    await expect(page.locator('[data-fun=on]')).toHaveCount(1, { timeout: 90_000 });
+    await findFunFaces(page);
     await expect(page.getByRole('slider', { name: 'Olhão' })).toBeVisible();
     await expect(page.getByRole('slider', { name: 'Cabeção' })).toBeVisible();
     // The first tab of the grid of stickers, the glasses.
@@ -81,6 +81,7 @@ test.describe('o caminho Brincar', () => {
     await openEditor(page);
     await page.locator('[data-group=shape]').click();
     await page.locator('[data-tool=faceshape]').click();
+    await findShapeFaces(page);
     await expect(page.locator('[data-shape=on]')).toHaveCount(1, { timeout: 60_000 });
     await settle(page, 300);
     const changed = await inPage<{ before: number; after: number; sizes: boolean; fun: boolean }>(

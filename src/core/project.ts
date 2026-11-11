@@ -76,7 +76,7 @@ function docProblem(doc: unknown): string | null {
   if (doc.fun !== undefined && !funOk(doc.fun)) return 'fun';
   if (doc.light !== undefined && !(isObject(doc.light) && typeof doc.light.id === 'string' && Number.isFinite(doc.light.intensity) && (doc.light.stamp === undefined || typeof doc.light.stamp === 'string'))) return 'light';
   const healOk = (h: unknown) =>
-    isObject(h) && allNumbers(h, ['hardness', 'du', 'dv']) && Array.isArray(h.dabs) && h.dabs.every((d) => isObject(d) && allNumbers(d, ['u', 'v', 'r']));
+    isObject(h) && allNumbers(h, ['hardness', 'du', 'dv']) && [undefined, 'auto', 'manual'].includes(h.origin as string) && Array.isArray(h.dabs) && h.dabs.every((d) => isObject(d) && allNumbers(d, ['u', 'v', 'r']));
   if (!heals.every(healOk)) return 'heals';
   return typeof doc.hasField === 'boolean' ? null : 'field flag';
 }

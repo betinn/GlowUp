@@ -171,7 +171,7 @@ test.describe('limite do pincel', () => {
     expect(await page.evaluate(() => (window as unknown as { blocked: string[] }).blocked)).toEqual([]);
   });
 
-  test('abrir a ferramenta baixa o detector, avisa, e o traço fica na íris', async ({ page }) => {
+  test('a ferramenta abre sem baixar nada, a chave baixa o detector, avisa, e o traço fica na íris', async ({ page }) => {
     // The model takes a moment, so the wait can be seen and tried.
     await page.route(/\.task$/, async (route) => {
       await new Promise((r) => setTimeout(r, 1500));
@@ -183,6 +183,9 @@ test.describe('limite do pincel', () => {
 
     await page.locator('[data-group=eyes]').click();
     await page.locator('[data-tool=eyecolor]').click();
+    await settle(page, 300);
+    expect(seen.requests.filter(isDetector)).toEqual([]);
+    await page.getByTestId('limit-toggle').click();
     await expect(page.getByRole('progressbar', { name: 'Procurando os olhos' })).toBeVisible();
     // On a computer the card says it downloads once, and no size: that warning is for a phone.
     await expect(page.getByText('Só na primeira vez. A foto não sai do seu aparelho.')).toBeVisible();
@@ -238,7 +241,7 @@ test.describe('limite do pincel', () => {
     // That choice belongs to this tool, and it stays while the photo is open.
     await pickTool(page, 'eyes', 'sparkle');
     await expect(toggle(page)).toHaveAttribute('aria-checked', 'true');
-    await pickTool(page, 'eyes', 'eyecolor');
+    await pickTool(page, 'eyes', 'eyecolor', { free: true });
     await expect(toggle(page)).toHaveAttribute('aria-checked', 'false');
 
     // The eraser is never held back, so paint from a free stroke can always go.
@@ -368,6 +371,7 @@ test.describe('limite do pincel', () => {
     const clip = photo(page);
     await page.locator('[data-group=eyes]').click();
     await page.locator('[data-tool=eyecolor]').click();
+    await page.getByTestId('limit-toggle').click();
     await limit(page, 'searching').waitFor();
     const plain = await page.screenshot({ clip });
     await page.getByTestId('limit-free').click();
@@ -473,6 +477,7 @@ test.describe('limite do pincel, celular', () => {
     await openEditor(page);
     await page.locator('[data-group=eyes]').tap();
     await page.locator('[data-tool=eyecolor]').tap();
+    await page.getByTestId('limit-toggle').tap();
     // A phone may be on mobile data, so there the card says how much it downloads.
     await expect(page.getByText('Só na primeira vez, cerca de 6 MB: melhor no Wi-Fi. A foto não sai do seu aparelho.')).toBeInViewport();
     await expect(page.getByTestId('limit-free')).toBeInViewport();
