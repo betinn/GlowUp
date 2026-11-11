@@ -26,9 +26,11 @@
   const locked = $derived((ui.rev, !e.doc.unlocked));
   /** A brush that went free before the search ended still gets the lock. */
   const searched = $derived(toolLimit.state !== 'searching');
+  /** The brush moved the photo. Opening the tool downloads nothing: the first stroke with the lock on finds the person. */
+  const brushed = $derived((ui.rev, !!e.field && !e.field.brushEmpty()));
 
   $effect(() => {
-    if (searched && lockState.state === 'idle') void ensureLock(e);
+    if (searched && brushed && locked && lockState.state === 'idle') void ensureLock(e);
   });
 
   function pick(id: string) {
@@ -90,6 +92,8 @@
   <p class="note warn" role="status" data-testid="lock-note">
     {lockState.state === 'failed' ? 'A separação do fundo não carregou' : 'Não achei uma pessoa para separar do fundo nesta foto'}. O pincel e o Automático mexem também no que estiver atrás.
   </p>
+{:else if !auto && locked && lockState.state === 'idle'}
+  <p class="note" role="status" data-testid="lock-note">No primeiro traço eu separo a pessoa do fundo, para o fundo ficar parado.</p>
 {:else if !auto && lockState.state === 'on'}
   <p class="note" role="status" data-testid="lock-note">
     {locked ? 'Com o fundo travado, o pincel só mexe na pessoa.' : 'Com o fundo solto, o pincel mexe em tudo. Os controles de Rosto, Olhos, Nariz e boca seguem sem mexer no fundo.'}

@@ -287,6 +287,7 @@ test.describe('make', () => {
     await openEditor(page);
     await page.locator('[data-group=makeup]').click();
     await page.locator('[data-tool=lips]').click();
+    await chooseMode(page, 'Automático');
     await expect(page.locator('[data-limit=searching]')).toBeVisible();
     await expect(page.getByText('Só na primeira vez. A foto não sai do seu aparelho.')).toBeVisible();
     await expect(page.locator('[data-limit=on]')).toBeVisible({ timeout: 60_000 });
@@ -354,6 +355,7 @@ test.describe('make', () => {
     for (const tool of ['lips', 'whiten', 'blush', 'eyeshadow', 'brow', 'contour', 'freckles']) {
       await page.locator('[data-group=makeup]').click();
       await toolButton(page, tool).click();
+      await page.getByTestId('limit-toggle').click();
       await expect(page.locator('[data-limit=no-face]')).toBeVisible({ timeout: 60_000 });
       await expect(page.getByText('Não achei rosto nesta foto. O pincel está livre.')).toBeVisible();
       await expect(page.getByTestId('tool-mode')).toHaveCount(0);
@@ -367,6 +369,7 @@ test.describe('make', () => {
     await openEditor(page);
     await page.locator('[data-group=makeup]').click();
     await toolButton(page, 'lips').click();
+    await page.getByTestId('limit-toggle').click();
     await expect(page.locator('[data-limit=failed]')).toBeVisible({ timeout: 60_000 });
     await expect(page.getByText('O detector não carregou. O pincel está livre.')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Borracha' })).toBeVisible();
@@ -381,6 +384,7 @@ test.describe('make, celular', () => {
     await openEditor(page);
     await page.locator('[data-group=makeup]').tap();
     await page.locator('[data-tool=lips]').tap();
+    await chooseMode(page, 'Automático');
     await expect(page.getByText(/Aplicado nos lábios que achei/)).toBeVisible({ timeout: 60_000 });
     await expect(page.locator('[data-region-show=idle]')).toHaveCount(1, { timeout: 15_000 });
     await page.screenshot({ path: shot('ui-celular-make') });

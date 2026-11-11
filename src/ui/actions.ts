@@ -78,7 +78,7 @@ export async function selectTool(id: string | null): Promise<void> {
         await ensureField(e);
         if (ui.tool !== id) return;
         e.setTool('none');
-        void openShapeTool(e);
+        openShapeTool(e);
         break;
       case 'crop':
         e.setTool('none');

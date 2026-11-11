@@ -12,7 +12,7 @@
   import { selectTool } from './actions';
   import { lockState } from './facepick.svelte';
   import FillCard from './FillCard.svelte';
-  import { applyCombo, closeFun, funComboOn, funHeld, funPick, funValueOf, openFun, putSticker, raiseSelected, removeSelected, resetFun, setFunValue } from './funpick.svelte';
+  import { applyCombo, closeFun, findFaces, funComboOn, funHeld, funPick, funValueOf, openFun, putSticker, raiseSelected, removeSelected, resetFun, setFunValue } from './funpick.svelte';
   import Icon from './Icon.svelte';
   import ProgressCard from './ProgressCard.svelte';
   import Slider from './Slider.svelte';
@@ -24,6 +24,8 @@
   const thumbs = new Map(STICKERS.map((s) => [s.id, `data:image/svg+xml;charset=utf-8,${encodeURIComponent(s.svg)}`]));
 
   const ready = $derived(funPick.state === 'on');
+  /** The caretas show before the faces are found: the first one that moves finds them. */
+  const caretas = $derived(ready || funPick.state === 'idle' || funPick.state === 'searching');
   const held = $derived((ui.rev, funHeld(e)));
   const layeredOn = $derived((ui.rev, FUN_EFFECTS.some((f) => f.layered && funValueOf(e, f.id) > 0)));
   const comboOn = $derived((ui.rev, funPick.chosen, funComboOn(e)?.id ?? null));
@@ -90,7 +92,12 @@
     </div>
   {/if}
 
-  {#if ready}
+  {#if funPick.state === 'idle'}
+    <p class="note" role="status" data-testid="fun-idle">Escolha uma careta ou um adesivo e eu procuro o rosto.</p>
+    <button type="button" class="btn find" data-testid="fun-find" onclick={() => void findFaces(e)}>Procurar o rosto</button>
+  {/if}
+
+  {#if caretas}
     <h3>Caretas</h3>
     <div class="combos" role="group" aria-label="Caretas prontas">
       {#each FUN_COMBOS as combo (combo.id)}
@@ -116,7 +123,7 @@
     {/if}
   {/if}
 
-  {#if funPick.state !== 'searching' && funPick.state !== 'idle'}
+  {#if funPick.state !== 'searching'}
     <h3>Adesivos</h3>
     <div class="tabs" role="tablist" aria-label="Tipos de adesivo">
       {#each STICKER_GROUPS as g (g.id)}
@@ -359,5 +366,10 @@
   .faces button.on {
     color: var(--ink);
     background: var(--safe);
+  }
+
+  .find {
+    justify-self: start;
+    font-size: 14px;
   }
 </style>

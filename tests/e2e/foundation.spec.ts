@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { DEV_ORIGIN } from '../../playwright.config';
-import { meanDiff, openEditor, settle } from './helpers';
+import { chooseMode, meanDiff, openEditor, settle } from './helpers';
 
 /**
  * The APIs here have no button yet, and the bundle of the preview hides its modules. The dev server
@@ -127,6 +127,9 @@ test.describe('APIs chamadas por código', () => {
     await page.locator('[data-group=light]').click();
     const button = page.locator('[data-tool=adjust]');
     await button.click();
+    // Tools open in Manual: the action runs when the person asks for it.
+    expect(await contrast()).toBe(0);
+    await chooseMode(page, 'Automático');
     await expect(button).toHaveAttribute('data-effect', 'on');
     expect(await contrast()).toBe(40);
     await expect(page.getByText('Sozinho.')).toBeVisible();

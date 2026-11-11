@@ -56,6 +56,7 @@ test.describe('pele', () => {
     const plain = await page.screenshot();
     await page.locator('[data-group=skin]').click();
     await page.locator('[data-tool=smooth]').click();
+    await chooseMode(page, 'Automático');
     await expect(page.locator('[data-limit=searching]')).toBeVisible();
     await expect(page.getByText('Só na primeira vez. A foto não sai do seu aparelho.')).toBeVisible();
     await expect(page.locator('[data-limit=on]')).toBeVisible({ timeout: 60_000 });
@@ -81,6 +82,7 @@ test.describe('pele', () => {
     const plain = await page.screenshot();
     await page.locator('[data-group=skin]').click();
     await page.locator('[data-tool=heal]').click();
+    await chooseMode(page, 'Automático');
     await expect(page.getByText(/Aplicado nas manchas que achei/)).toBeVisible({ timeout: 60_000 });
     await expect(undoButton(page)).toHaveAttribute('title', 'Desfazer: Automático');
     await expect(page.locator('[data-region-show=idle]')).toHaveCount(1, { timeout: 30_000 });
@@ -120,6 +122,7 @@ test.describe('pele', () => {
     const plain = await page.screenshot();
     await page.locator('[data-group=skin]').click();
     await page.locator('[data-tool=heal]').click();
+    await chooseMode(page, 'Automático');
     await expect(page.getByText(/Aplicado nas manchas que achei/)).toBeVisible({ timeout: 60_000 });
     await expect(page.getByText(/Toque num círculo para desfazer só aquela/)).toBeVisible();
     await expect(page.locator('[data-region-show=idle]')).toHaveCount(1, { timeout: 30_000 });
@@ -198,6 +201,7 @@ test.describe('pele', () => {
     await expect(page.getByTestId('opening')).toHaveCount(0);
     await settle(page);
     await page.locator('[data-tool=heal]').click();
+    await chooseMode(page, 'Automático');
     await expect(page.getByText(/Aplicado nas manchas que achei/)).toBeVisible({ timeout: 60_000 });
     await expect(page.locator('[data-region-show=idle]')).toHaveCount(1, { timeout: 30_000 });
     await page.keyboard.press('0');
@@ -304,6 +308,7 @@ test.describe('pele, celular', () => {
     const errors = watch(page);
     await openEditor(page);
     await page.locator('[data-tool=smooth]').tap();
+    await chooseMode(page, 'Automático');
     await expect(page.getByText(/Aplicado na pele que achei/)).toBeVisible({ timeout: 60_000 });
     await expect(page.locator('[data-region-show=idle]')).toHaveCount(1, { timeout: 15_000 });
     await page.screenshot({ path: shot('ui-celular-pele') });

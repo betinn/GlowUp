@@ -31,6 +31,7 @@ const BROKEN: [string, (r: ReturnType<typeof goodRecord>) => void][] = [
   ['a tool with no settings', (r) => ((r.doc.layers as Record<string, unknown>).smooth = { enabled: true, painted: true })],
   ['a heal with no spots', (r) => ((r.doc.heals as unknown[]) = [{ id: 1, hardness: 1, du: 0, dv: 0 }])],
   ['heals that are no list', (r) => ((r.doc as { heals: unknown }).heals = {})],
+  ['a heal from nobody knows where', (r) => ((r.doc.heals as unknown[]) = [{ id: 1, dabs: [{ u: 0.5, v: 0.5, r: 0.01 }], hardness: 1, du: 0, dv: 0, origin: 'magic' }])],
   ['no field flag', (r) => ((r.doc as { hasField: unknown }).hasField = undefined)],
   ['a mask that is no file', (r) => (r.masks.smooth = 'x')],
   ['a field that is no file', (r) => (r.field = 'x')],
@@ -47,7 +48,12 @@ describe('saved project validation', () => {
   it('takes a project with work in it', () => {
     const record = goodRecord();
     record.doc.layers.smooth = { enabled: true, painted: true, params: { strength: 50 } };
-    record.doc.heals = [{ id: 1, dabs: [{ u: 0.5, v: 0.5, r: 0.01 }], hardness: 0.3, du: 0.1, dv: 0 }];
+    // Spots of the automatic mode and of the brush keep where they came from. An older project has no origin.
+    record.doc.heals = [
+      { id: 1, dabs: [{ u: 0.5, v: 0.5, r: 0.01 }], hardness: 0.3, du: 0.1, dv: 0 },
+      { id: 2, dabs: [{ u: 0.4, v: 0.5, r: 0.01 }], hardness: 0.3, du: 0.1, dv: 0, origin: 'auto' },
+      { id: 3, dabs: [{ u: 0.6, v: 0.5, r: 0.01 }], hardness: 0.3, du: 0.1, dv: 0, origin: 'manual' },
+    ];
     record.doc.filter = { id: 'mel', intensity: 0.5, masked: true, feather: 20, reach: 0.2 };
     record.doc.hasField = true;
     record.field = photo();
