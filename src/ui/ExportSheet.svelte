@@ -11,7 +11,7 @@
   import Segment from './Segment.svelte';
   import Slider from './Slider.svelte';
   import Switch from './Switch.svelte';
-  import { cancelUpscale, expectedMs, UPSCALE_DOWNLOAD_MB, upscaleCanvas, upscaleReady } from './upscale';
+  import { cancelUpscale, expectedMs, UPSCALE_DOWNLOAD_MB, upscaleCanvas, upscaleFailure, upscaleReady, type UpscaleFailure } from './upscale';
   import { grow as toolGrow } from './upscaletool.svelte';
   import { reveal, rise } from './motion';
   import { engine, ui } from './state.svelte';
@@ -45,7 +45,10 @@
   let available = $state(FORMATS.slice(0, 2));
   let job = $state<Task | null>(null);
   let done = $state<{ file: File; ms: number } | null>(null);
-  let failed = $state(false);
+  /** What went wrong with the last try, so the note says what to do about it. */
+  let failed = $state<UpscaleFailure | 'file' | null>(null);
+  /** The format of the last try. */
+  let failedFormat = $state<ExportFormat>('image/jpeg');
   let preview = $state<HTMLCanvasElement>();
   /** The print plays its saved moment: it lifts into the light, a gleam crosses it and a seal stamps it. */
   let saved = $state(false);
@@ -114,7 +117,7 @@
       ...(upscaling ? [{ id: 'upscale', label: `Aumentando ${scale}×`, weight: 60 }] : []),
       { id: 'encode', label: `Comprimindo em ${label}`, weight: upscaling ? 10 : 22, estimate: 150 + megapixels * (format === 'image/png' ? 160 : 50) },
     ]);
-    failed = false;
+    failed = null;
     stoppedNote = false;
     done = null;
     job = task;
@@ -122,6 +125,8 @@
     await tick();
     const c = preview?.getContext('2d') ?? null;
     if (c) seedPreview(c);
+    /** The upscale is the step running, so a failure is told as one of the upscale. */
+    let upscaleStep = false;
     try {
       // A completion still running would leave its quick guess in the file.
       await fillSettled();
@@ -134,6 +139,7 @@
       });
       if (upscaling) {
         growing = true;
+        upscaleStep = true;
         canvas = await upscaleCanvas(canvas, scale, {
           downloading: (fraction, left) => {
             task.stage('download');
@@ -146,6 +152,7 @@
           },
         });
         growing = false;
+        upscaleStep = false;
         if (!canvas) {
           // Stopped: nothing is saved, and the options come back as they were.
           task.stop();
@@ -164,7 +171,8 @@
     } catch (err) {
       console.error(err);
       task.stop();
-      failed = true;
+      failed = upscaleStep ? upscaleFailure(err) : 'file';
+      failedFormat = format;
       job = null;
     } finally {
       growing = false;
@@ -179,6 +187,14 @@
   const close = () => {
     if (!running) ui.exportOpen = false;
   };
+
+  /** What to say when saving failed: what happened, and what may work instead. */
+  function failedWords(why: UpscaleFailure | 'file', was: ExportFormat): string {
+    if (why === 'download') return 'Não deu para baixar o modelo que aumenta a resolução. Confere a internet e tenta de novo, ou desliga Aumentar resolução para salvar sem ele.';
+    if (why === 'upscale') return 'O aumento de resolução não deu certo dessa vez. Tenta de novo, ou desliga Aumentar resolução para salvar sem ele.';
+    const others = FORMATS.filter((f) => f.value !== was && f.value !== 'image/webp').map((f) => f.label);
+    return `Não deu certo dessa vez. Tenta de novo, ou tenta ${others.join(' ou ')}.`;
+  }
 
   const sizeLabel = (bytes: number) => (bytes > 1e6 ? `${(bytes / 1e6).toFixed(1)} MB` : `${Math.round(bytes / 1e3)} KB`);
 </script>
@@ -261,7 +277,7 @@
       <p class="meta" role="status">Parou. Nada foi salvo.</p>
     {/if}
     {#if failed}
-      <p class="meta error" role="alert">Não deu certo dessa vez. Tenta de novo, ou tenta PNG ou JPG.</p>
+      <p class="meta error" role="alert" data-testid="export-failed" data-failed={failed}>{failedWords(failed, failedFormat)}</p>
     {/if}
     <button type="button" class="btn primary wide" data-testid="export-go" onclick={start}>Salvar no aparelho</button>
   {/if}
