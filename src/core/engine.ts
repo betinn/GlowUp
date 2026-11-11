@@ -24,7 +24,7 @@ import { buildPlate, extendMouth } from './face/plate';
 import { RenderContext } from './pipeline/context';
 import type { ToolPass } from './pipeline/types';
 import { SourceImage } from './source';
-import { blendViews, clampView, fitView, outputToScreen, panBy, screenToOutput, viewScale, zoomAt, type Size, type ViewState, type Viewport } from './view';
+import { clampView, fitView, outputToScreen, panBy, screenToOutput, viewScale, zoomAt, type Size, type ViewState, type Viewport } from './view';
 import VIEW_FRAG from './shaders/view.frag?raw';
 
 /** Mask key of the healing brush. It is a scratch mask and never reaches the render chain. */
@@ -259,9 +259,6 @@ export class Engine {
   split = -1;
   compareBase: CompareBase = 'original';
 
-  /** Counts the moves of the view the person made, so a flight never undoes one. */
-  viewMoves = 0;
-  private flight: { frame: number; done: () => void } | null = null;
   /** The light over the reach of the brush, while it plays. */
   private reveal: { start: number; still: boolean; frame: number; done: () => void } | null = null;
 
@@ -349,7 +346,6 @@ export class Engine {
     this.fun?.destroy();
     this.fun = null;
     this.funFaces = [];
-    this.stopFlight();
     this.stopReveal();
     cancelAnimationFrame(this.frame);
     this.needsRender = false;
@@ -1238,10 +1234,7 @@ export class Engine {
     this.track('Recorte');
     this.doc.crop = crop;
     this.ctx?.invalidate('global');
-    if (!this.cropEditing) {
-      this.stopFlight();
-      this.view = fitView();
-    }
+    if (!this.cropEditing) this.view = fitView();
     this.requestRender();
     this.emit('view');
   }
@@ -1340,10 +1333,7 @@ export class Engine {
       }
       if (this.pipeline) this.pipeline.lutMix = this.doc.filter.intensity;
       this.onFilterRestore?.();
-      if (cropMoved && !this.cropEditing) {
-        this.stopFlight();
-        this.view = fitView();
-      }
+      if (cropMoved && !this.cropEditing) this.view = fitView();
       this.ctx?.invalidate('healed');
       this.emit('view');
       this.requestRender();
@@ -1828,53 +1818,7 @@ export class Engine {
     this.emit('view');
   }
 
-  /** Moves the view smoothly to `target`. Any move of the person stops it where it is. */
-  flyTo(target: ViewState, duration: number): Promise<void> {
-    this.stopFlight();
-    const from = { ...this.view };
-    const to = clampView(this.viewport, this.displaySize, target);
-    if (duration <= 0) {
-      this.view = to;
-      this.requestRender();
-      this.emit('view');
-      return Promise.resolve();
-    }
-    return new Promise((done) => {
-      const start = performance.now();
-      const tick = () => {
-        const f = this.flight;
-        if (!f) return;
-        const t = Math.min(1, (performance.now() - start) / duration);
-        this.view = clampView(this.viewport, this.displaySize, blendViews(from, to, easeInOut(t)));
-        this.requestRender();
-        this.emit('view');
-        if (t >= 1) this.stopFlight();
-        else f.frame = requestAnimationFrame(tick);
-      };
-      this.flight = { frame: requestAnimationFrame(tick), done };
-    });
-  }
-
-  get flying(): boolean {
-    return !!this.flight;
-  }
-
-  stopFlight(): void {
-    const f = this.flight;
-    if (!f) return;
-    this.flight = null;
-    cancelAnimationFrame(f.frame);
-    f.done();
-  }
-
-  /** A move of the view by the person: it wins over any flight. */
-  private moved(): void {
-    this.stopFlight();
-    this.viewMoves++;
-  }
-
   zoomBy(x: number, y: number, factor: number): void {
-    this.moved();
     const dpr = this.dpr;
     this.view = zoomAt(this.viewport, this.displaySize, this.view, x * dpr, y * dpr, factor);
     this.requestRender();
@@ -1882,7 +1826,6 @@ export class Engine {
   }
 
   panBy(dx: number, dy: number): void {
-    this.moved();
     const dpr = this.dpr;
     this.view = panBy(this.viewport, this.displaySize, this.view, dx * dpr, dy * dpr);
     this.requestRender();
@@ -1890,7 +1833,6 @@ export class Engine {
   }
 
   resetView(): void {
-    this.moved();
     this.view = fitView();
     this.requestRender();
     this.emit('view');
@@ -1912,7 +1854,6 @@ export class Engine {
   }
 
   setCropEditing(on: boolean): void {
-    this.stopFlight();
     this.cropEditing = on;
     this.view = fitView();
     this.requestRender();

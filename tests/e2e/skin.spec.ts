@@ -34,7 +34,7 @@ const undoButton = (page: Page) => page.getByRole('button', { name: 'Desfazer' }
 const healTool = (page: Page) => page.locator('[data-tool=heal]');
 const healSpots = (page: Page) => page.getByTestId('heal-spot');
 
-/** The whole photo in view, once the flight and the fade are over. */
+/** The whole photo in view, once the fade is over. */
 async function fitted(page: Page): Promise<Buffer> {
   await page.keyboard.press('0');
   await settle(page, 400);

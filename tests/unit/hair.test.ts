@@ -41,19 +41,14 @@ describe('hairCrop', () => {
 describe('addHair', () => {
   const target = { w: 100, h: 100 };
 
-  it('puts the hair of the cut where the crop sits, and frames it', () => {
+  it('puts the hair of the cut where the crop sits', () => {
     const out = new Uint8Array(100 * 100);
     const area = { x: 20, y: 10, w: 60, h: 60 };
-    const box = addHair(out, target, area, cutWith(0, 0, 1, 0.5), faceSize({ x: 0.4, y: 0.3, w: 0.2, h: 0.2 }, 100, 100));
+    const found = addHair(out, target, area, cutWith(0, 0, 1, 0.5), faceSize({ x: 0.4, y: 0.3, w: 0.2, h: 0.2 }, 100, 100));
     expect(out[20 * 100 + 50]).toBe(255);
     expect(out[60 * 100 + 50]).toBe(0);
     expect(out[20 * 100 + 10]).toBe(0);
-    expect(box).not.toBeNull();
-    const [[u0, v0], [u1, v1]] = box!;
-    expect(u0).toBeCloseTo(0.2, 1);
-    expect(u1).toBeCloseTo(0.8, 1);
-    expect(v0).toBeCloseTo(0.1, 1);
-    expect(v1).toBeCloseTo(0.4, 1);
+    expect(found).toBe(true);
   });
 
   it('keeps the larger value where two heads overlap', () => {
@@ -67,7 +62,7 @@ describe('addHair', () => {
 
   it('finds nothing in a cut that is unsure everywhere', () => {
     const out = new Uint8Array(100 * 100);
-    expect(addHair(out, target, { x: 0, y: 0, w: 100, h: 100 }, cutWith(0, 0, 1, 1, 64, 0.2), 30)).toBeNull();
+    expect(addHair(out, target, { x: 0, y: 0, w: 100, h: 100 }, cutWith(0, 0, 1, 1, 64, 0.2), 30)).toBe(false);
     expect(out.every((v) => v === 0)).toBe(true);
   });
 

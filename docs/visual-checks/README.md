@@ -11,8 +11,9 @@ de propósito manchas, olheiras, olho vermelho e dentes amarelados. Nenhuma pess
 - `21-branco-do-olho.png`, `22-limite-dentes.png`: um traço largo que só muda a região da ferramenta.
 - `ui-limite-*.png`, `ui-celular-limite*.png`: busca com o aviso dos 6 MB, interruptor, traço fora, foto
   em grupo e boca fechada.
-- `ui-regiao-*.png`: a vista que voou até os olhos (`ui-regiao-olhos`), a boca (`ui-regiao-dentes`) e um rosto
-  da foto em grupo (`ui-regiao-grupo`), e o brilho sobre o alcance do pincel (`ui-regiao-brilho`).
+- `ui-regiao-*.png`: a foto inteira depois de abrir Cor dos olhos (`ui-regiao-olhos`) e Dentes (`ui-regiao-dentes`),
+  a foto em grupo com o brilho nos rostos (`ui-regiao-grupo`), e o brilho sobre o alcance do pincel (`ui-regiao-brilho`).
+  A vista não se mexe ao escolher uma parte.
 - `ui-auto-olhos.png`, `ui-manual-olhos.png`, `ui-celular-auto.png`: o seletor Automático e Manual, com a cor já
   aplicada pelo Automático e o pincel de volta no Manual.
 - `12-cabelo.png` e `23-` a `26-cabelo-*.png`: as cinco ferramentas de cabelo no Automático. `ui-cabelo-brilho` e

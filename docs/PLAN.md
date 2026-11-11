@@ -95,8 +95,7 @@
 
 ## M13. Foco, brilho e modo automático
 
-- [x] Voo animado até os olhos ou a boca, com escolha entre todos os rostos e o maior
-- [x] Voo que cede a qualquer gesto, respeita movimento reduzido, recorte, giro e liquify
+- [x] Escolher uma parte não mexe na vista: o brilho mostra a região e o zoom fica com a pessoa (decisão 345, o voo animado saiu)
 - [x] Brilho sobre o alcance do pincel, fora da exportação e diferente da marca do pincel
 - [x] Automático e Manual, com o automático aplicado numa etapa e a máscara salva como pintada
 
@@ -105,7 +104,7 @@
 - [x] Grupo Cabelo na barra, entre Make e Forma
 - [x] Segmentador de cabelo no próprio site, baixado só na primeira ferramenta de cabelo
 - [x] Cabelo achado ao redor de cada rosto, ou na foto toda quando não há rosto
-- [x] Cor, Escurecer, Clarear, Contraste e Nitidez, com Automático, voo e brilho como nos olhos
+- [x] Cor, Escurecer, Clarear, Contraste e Nitidez, com Automático e brilho como nos olhos
 
 ## M15. Voltar ao original
 
@@ -113,7 +112,7 @@
 
 ## M16. Make pelo detector
 
-- [x] Batom, blush, sombra, sobrancelha, contorno e sardas com busca, voo, brilho, Automático e Manual
+- [x] Batom, blush, sombra, sobrancelha, contorno e sardas com busca, brilho, Automático e Manual
 - [x] Batom ajusta o contorno dos lábios à cor da foto, com linha limpa e sem os dentes
 - [x] Sobrancelha lê os fios do brilho da foto
 - [x] Sardas soltas, sem padrão, com tipo, quantidade e tamanho na escala do rosto
@@ -556,6 +555,8 @@ SwiftShader no e2e, retrato procedural de 1500 x 1875, tela de 1280 x 800.
 | Voo e brilho | 650 ms e 1,1 s, aviso por 2,6 s |
 | JS da primeira visita em gzip | 27,2 KB, eram 27,3 KB |
 | Chunk do editor em gzip | 37,4 KB, eram 34,8 KB |
+
+O voo e os zooms de chegada desta tabela saíram com a decisão 345: a vista não se mexe ao escolher uma parte.
 
 O brilho custa uma leitura de textura a mais por pixel, só enquanto toca. O detector continua fora do
 precache e só baixa quando uma ferramenta de olhos ou dentes abre.
