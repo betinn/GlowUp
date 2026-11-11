@@ -565,35 +565,53 @@ export const coroa: StickerDef = {
 
 ## Luzes
 
-Filtros que mudam a luz da cena, não só a cor: o fundo escurece ou muda de cor enquanto a pessoa clareia, ou ganha
-uma linha de luz por trás. Ficam numa prateleira própria no menu do Glow na Hora, ao lado de Looks. O look cuida do
+Filtros que mudam a luz da cena, não só a cor: um flash que acende a pessoa e apaga o fundo, uma lâmpada atrás
+dela, uma noite de néon. Ficam numa prateleira própria no menu do Glow na Hora, ao lado de Looks. O look cuida do
 rosto e a luz cuida da cena, e os dois podem estar na foto ao mesmo tempo.
 
-- **Um toque.** O primeiro toque numa luz procura a pessoa na foto, com o cartão de progresso, e põe a luz. Dali em
+- **Um toque.** O primeiro toque numa luz lê a cena da foto, com o cartão de progresso, e põe a luz. Dali em
   diante trocar de luz é na hora. Um segundo toque na luz acesa tira.
-- **Quadrinhos.** Antes da busca, cada um mostra duas cores: a da pessoa e a do fundo naquela luz. Depois, a própria
-  foto, em volta do rosto, com a luz.
+- **Primeira vez.** A leitura baixa dois modelos do próprio site, 59 MB no fio. O cartão diz o tamanho no celular.
+  A foto não sai do aparelho.
+- **Quadrinhos.** Antes da leitura, cada um mostra duas cores: a da pessoa e a do fundo naquela luz. Depois, a
+  própria foto, em volta do rosto, com a luz.
 - **Intensidade.** Um controle de 0 a 100 embaixo da prateleira, que aparece com a luz. A escolha fica quando se
   troca de luz.
 - **Desfazer.** Pôr, trocar, tirar e soltar o controle são uma etapa cada. "Voltar ao original" também tira a luz.
-- **Sem ninguém na foto.** A luz não entra, e um aviso diz que as luzes precisam de uma pessoa.
-- **Projeto salvo.** Abre com a luz, já na prateleira Luzes, sem procurar a pessoa de novo.
+- **Sem ninguém na foto.** A luz entra do mesmo jeito, e cai no que está mais perto da câmera.
+- **Projeto salvo.** Abre com a luz, já na prateleira Luzes, sem ler a cena de novo.
 
 ### Como a luz é feita
 
-A foto ganha uma cena, uma vez (`src/core/light/scene.ts`): onde está a pessoa, onde nela é pele e onde é cabelo, e
-quanto cada ponto dista da borda dela. Sai dos dois separadores que o site já serve, e a borda é levada para a borda
-de cor da foto. A cena também mede o brilho médio do fundo, da pele e da pessoa, e guarda onde está o rosto.
+Uma luz de verdade não sabe o que é pessoa e o que é fundo: ela cai mais forte no que está perto dela. Por isso a
+foto ganha uma cena, uma vez (`src/core/light/scene.ts`), feita de quatro leituras:
 
-O passe `light.frag` roda depois da revelação e antes dos adesivos, e lê só a foto revelada e a cena:
+| Leitura | De onde vem | Para quê |
+| --- | --- | --- |
+| Profundidade | Depth Anything V2 Small, `depth_anything_v2_small.onnx` | Onde a luz cai e onde ela se perde |
+| Recorte da pessoa | MODNet, `modnet.onnx`, levado depois para as cores da foto | Qual lado de uma borda é a pessoa, com a borda mole do cabelo |
+| Pele e cabelo | Os dois separadores que o site já serve | Exposição e cor próprias, e o preenchimento das sombras da pele |
+| Rosto | O detector de rostos | A profundidade em que a luz é mirada, e onde fica a lâmpada de trás |
 
-1. **Fundo.** Exposição longe e perto da pessoa, quanto as lâmpadas guardam, saturação, cor, duas cores de néon e
-   pontos de luz.
-2. **Pessoa.** Exposição da pessoa, da pele e do cabelo, contraste, cor, a borda do corpo que escurece num flash, e
-   o flash em si, mais forte no rosto.
-3. **Contraluz.** Uma linha na borda, o brilho que passa para o fundo e a luz que atravessa o cabelo pelos fios.
-4. **Câmera.** Vinheta, vazamento de luz, grão, poeira e a data. Vinheta, vazamento e data seguem o quadro depois do
-   recorte.
+Os dois modelos rodam num worker (`scene.worker.ts`, chamado por `src/ui/scenemodels.ts`): a profundidade no
+WebGPU quando há, e o recorte sempre no WASM. A profundidade é guardada com a pessoa em 1: metade é duas vezes
+mais longe, e acima de 1 é mais perto que ela.
+
+A cena vai para a placa em duas texturas. Uma de bytes: recorte, pele, cabelo e quantos pontos a pele em volta
+está da média da pele. Uma de meio float: a profundidade do lado da pessoa, a profundidade do outro lado, e o
+recorte borrado pouco e muito. Cada lado da borda guarda a própria profundidade, e o recorte diz de que lado um
+ponto está. É isso que deixa a borda da luz em cima da borda da foto, sem faixa clara em volta do cabelo.
+
+O passe `light.frag` roda depois da revelação e antes dos adesivos, e lê a foto revelada e as duas texturas:
+
+1. **Queda.** A exposição vai da de longe para a de perto conforme a profundidade, e sobe mais no que está à
+   frente da pessoa, como a mão estendida num flash. Lâmpadas do fundo podem guardar o brilho.
+2. **Cor.** Saturação e cor de longe e de perto, as duas cores do néon, e a pele por cima: exposição, cor e
+   preenchimento das sombras.
+3. **Lâmpada de trás.** Um clarão no que está em volta da pessoa, mais forte perto da lâmpada, que entra poucos
+   pixels nela. No cabelo, os fios mais claros que a vizinhança acendem, um pouco para dentro da borda.
+4. **Filme.** Contraste, pé e ombro.
+5. **Câmera.** Vazamento de luz, vinheta, grão e a data. Seguem o quadro depois do recorte.
 
 A intensidade mistura o resultado com a foto de antes.
 
@@ -610,28 +628,36 @@ export const entardecer: LightDef = {
   note: 'O fundo escurece e você continua na luz.',
   swatch: ['#e3b48f', '#3c3f42'],
   recipe: {
-    back: { ev: -2.3, level: 0.07, adapt: 0.7, sat: 0.8 },
-    person: { ev: -0.15, hair: -0.5, limb: 0.8 },
-    flash: { ev: 0.45, radius: 1.4 },
+    fall: { lo: 0.42, hi: 0.86 },
+    far: { ev: -1.68, level: 0.318, adapt: 0.8, sat: 1.5, tint: [0.811, 1.046, 1.105] },
+    near: { ev: 1.14, hair: -1.47, level: 0.192, adapt: 1, sat: 1.11 },
+    skin: { ev: -0.16, fill: 0.55 },
+    film: { gamma: 1.05, knee: 0.02, vignette: 0.8, grain: 0.15 },
   },
 };
 ```
 
 - `id` vai para o projeto salvo: um que já saiu nunca muda de nome.
-- `swatch` são as duas cores do quadrinho antes da busca: a pessoa e o fundo.
+- `swatch` são as duas cores do quadrinho antes da leitura: a pessoa e o fundo.
 - Cada parte da receita que fica de fora não mexe em nada. Os campos estão em `src/core/light/types.ts`.
-- `ev` é exposição em pontos. `level` e `adapt` dizem onde a região deve terminar, em luz linear, e quanto isso
-  pesa: use quando o número veio de um par só.
-- Tamanhos do contraluz e do flash são em tamanhos de rosto, para a luz ter a mesma cara em foto de perto e de longe.
+- `fall` são as duas profundidades entre as quais a luz chega. Abaixo de `lo` um ponto está longe.
+- `ev` é exposição em pontos. `level` é o brilho que aquela parte tinha na foto do par, em luz linear, e `adapt`
+  quanto a receita segue uma foto diferente.
+- `lamp` põe uma lâmpada atrás da pessoa. O lugar e o alcance são em tamanhos de rosto, para a luz ter a mesma cara
+  em foto de perto e de longe.
 
 ### Como tirar os números de um par
 
-1. Separe pessoa, pele, cabelo, roupa e fundo nas duas fotos do par com os modelos do app.
-2. Meça, em cada região, a média em luz linear e em Lab, antes e depois. A razão das médias dá a exposição e a cor
-   de cada região, e a razão dos percentis dá o contraste.
-3. Meça o L médio em faixas de distância à borda da pessoa, para dentro e para fora: é ali que aparecem o contraluz
-   e o brilho no fundo.
-4. Escreva a receita com esses números, aplique na foto de antes pelo app e meça de novo contra a foto de depois.
+1. Alinhe o alvo ao original e marque a interface do print, que fica fora de toda conta.
+2. Leia a profundidade e o recorte do original com os dois modelos.
+3. Ajuste os números da receita para a foto relida ficar perto do alvo, comparando as duas borradas: o alvo foi
+   redesenhado, e o que conta é a luz e a cor. Compare também a distribuição de brilho, ou o ajuste sai sem
+   contraste.
+4. Meça o grão do alvo nas partes lisas e ponha o mesmo.
+5. Aplique pelo app na foto de antes e meça na imagem inteira: SSIM, ΔE2000 e LPIPS. Olhe o resultado ao lado do
+   alvo, em tamanho cheio, na borda do cabelo, na pele e no fundo.
+6. Aplique em fotos que não são do par. Uma receita boa num par só pode estourar a pele ou desenhar uma borda
+   noutra foto.
 
 As fotos dos pares mostram pessoas reais e não entram no repositório: os scripts e as folhas de comparação ficam em
 `.tmp/`.

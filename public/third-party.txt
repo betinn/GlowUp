@@ -1,6 +1,6 @@
 Glowup inclui os componentes abaixo, sem alterações salvo onde está dito. Eles rodam só no aparelho de
-quem usa, para achar rostos, cabelo e o contorno de uma pessoa, para completar o fundo atrás dela e para
-aumentar a resolução da foto, quando quem usa pede. Não identificam ninguém.
+quem usa, para achar rostos, cabelo e o contorno de uma pessoa, para completar o fundo atrás dela, para
+aumentar a resolução da foto e para ler a profundidade da foto, quando quem usa pede. Não identificam ninguém.
 
 MediaPipe Tasks Vision (@mediapipe/tasks-vision 1.2.2): biblioteca e WebAssembly.
 Copyright The MediaPipe Authors. Licença Apache 2.0.
@@ -36,6 +36,19 @@ resolução da foto 4 vezes, refazendo os detalhes. Copyright (c) 2021, Xintao W
 cláusulas. Alteração: a rede foi convertida para ONNX por scripts/superres/convert.py, com os pesos do
 arquivo publicado arredondados para float16.
 https://github.com/xinntao/Real-ESRGAN
+
+Depth Anything V2 Small (depth_anything_v2_small.onnx): lê a que distância da câmera está cada ponto da
+foto, para as Luzes. Copyright Lihe Yang, Bingyi Kang, Zilong Huang, Zhen Zhao, Xiaogang Xu, Jiashi Feng e
+Hengshuang Zhao. Licença Apache 2.0, que no projeto vale só para o modelo Small. Alteração: é a conversão
+para ONNX publicada por onnx-community, com os pesos em float16 (onnx/model_fp16.onnx).
+https://github.com/DepthAnything/Depth-Anything-V2
+https://huggingface.co/onnx-community/depth-anything-v2-small
+
+MODNet (modnet.onnx): separa a pessoa do fundo com a borda mole do cabelo, para as Luzes. Copyright Zhanghan
+Ke, Jiayu Sun, Kaican Li, Qiong Yan e Rynson W.H. Lau. Licença Apache 2.0, para o código e para os modelos.
+Alteração: é a conversão para ONNX publicada por Xenova, com os pesos em float16 (onnx/model_fp16.onnx).
+https://github.com/ZHKKKe/MODNet
+https://huggingface.co/Xenova/modnet
 
 Texto da licença de Real-ESRGAN:
 
@@ -89,7 +102,7 @@ Texto da licença MIT, de ONNX Runtime Web e de MI-GAN:
    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
    SOFTWARE.
 
-Texto da licença Apache 2.0, dos componentes MediaPipe:
+Texto da licença Apache 2.0, dos componentes MediaPipe, do Depth Anything V2 Small e do MODNet:
 
 
                                  Apache License
