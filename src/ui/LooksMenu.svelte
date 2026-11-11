@@ -1,18 +1,30 @@
 <script lang="ts">
-  /** The menu of Glow na Hora: looks in place of tools. One tap puts a look on the whole face. */
+  /**
+   * The menu of Glow na Hora, in two shelves. Looks: one tap puts a look on the whole face. Luzes: one tap
+   * makes the light of the whole photo again. One of each can be on at the same time.
+   */
   import { onDestroy, onMount } from 'svelte';
   import { lutById } from '../presets/luts';
   import { appliedLook, LOOKS, type RetouchPreset } from '../presets/recipes';
   import { ThumbRenderer } from '../presets/thumbs';
   import { facePick } from './facepick.svelte';
+  import LightsShelf from './LightsShelf.svelte';
   import { tapLook } from './looks';
   import ProgressCard from './ProgressCard.svelte';
+  import Segment from './Segment.svelte';
   import { engine, ui } from './state.svelte';
 
   const e = engine();
   /** On a phone the wait floats over the photo and the words stay. On a desktop it takes their place. */
   const desktop = matchMedia('(min-width: 900px)').matches;
   const active = $derived((ui.rev, appliedLook(e.doc)?.id ?? null));
+
+  const SHELVES = [
+    { value: 'looks', label: 'Looks' },
+    { value: 'lights', label: 'Luzes' },
+  ];
+  /** A photo that wears a light and no look opens on the lights. */
+  let shelf = $state(e.doc.light && !appliedLook(e.doc) ? 'lights' : 'looks');
 
   /** The look on its way, until it lands. */
   let wearing = $state<string | null>(null);
@@ -48,7 +60,13 @@
   });
 </script>
 
-<div class="looks" data-testid="looks" data-state={wearing ? 'wearing' : 'idle'}>
+<div class="looks" data-testid="looks" data-state={wearing ? 'wearing' : 'idle'} data-shelf={shelf}>
+  <div class="shelves">
+    <Segment label="Prateleira" value={shelf} options={SHELVES} onchange={(v) => (shelf = v)} />
+  </div>
+  {#if shelf === 'lights'}
+    <LightsShelf />
+  {:else}
   {#if facePick.task && wearing}
     <div class="wait">
       <ProgressCard task={facePick.task} title="Procurando o rosto" note={facePick.download} />
@@ -66,6 +84,7 @@
       </button>
     {/each}
   </div>
+  {/if}
 </div>
 
 <style>
@@ -75,6 +94,10 @@
     flex-direction: column;
     min-height: 0;
     padding: 10px 0 6px;
+  }
+
+  .shelves {
+    padding: 0 16px 6px;
   }
 
   .hint {

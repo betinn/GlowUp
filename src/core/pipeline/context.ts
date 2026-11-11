@@ -17,7 +17,7 @@ export interface DirtyFlags {
   global: boolean;
 }
 
-type Slot = 'healed' | 'checkpoint' | 'retouched' | 'dev' | 'final' | 'unfiltered' | 'a' | 'b' | 'stick';
+type Slot = 'healed' | 'checkpoint' | 'retouched' | 'dev' | 'lit' | 'final' | 'unfiltered' | 'a' | 'b' | 'stick';
 
 /**
  * Buffers for one rendering of the document at one resolution.
@@ -67,7 +67,7 @@ export class RenderContext {
   slot(name: Slot): Tex {
     let t = this.slots.get(name);
     if (!t) {
-      t = this.glc.createTex(this.w, this.h, this.format, { mips: name === 'healed' || name === 'dev' });
+      t = this.glc.createTex(this.w, this.h, this.format, { mips: name === 'healed' || name === 'dev' || name === 'lit' });
       this.slots.set(name, t);
     }
     return t;

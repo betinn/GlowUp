@@ -342,6 +342,51 @@ export async function findLock(e: Engine, faces: readonly Face[], task: Task | n
   }
 }
 
+/**
+ * Works out the scene of the photo for Luzes: the person, their skin and hair, and how far each point is from
+ * their edge. It needs the same two segmenters as the lock, and none of the completion that follows the lock.
+ * The engine holds the scene from here on, or none when the photo shows nobody. False when the search was
+ * stopped. A segmenter that does not load throws.
+ */
+export async function findScene(e: Engine, faces: readonly Face[], task: Task | null, stopped: () => boolean): Promise<boolean> {
+  const { source } = e;
+  if (!source) return false;
+  const loads = !personStarted || !hairStarted;
+  if (loads) task?.stage('personload');
+  const { loadDetector, segmentHair, segmentParts } = await import('../core/face/detector');
+  await loadDetector(
+    (fraction) => {
+      if (loads) task?.timed(fraction);
+    },
+    () => undefined,
+    true,
+    true,
+  );
+  hairStarted = true;
+  personStarted = true;
+  if (stopped()) return false;
+  task?.stage('person');
+  const { buildScene, sceneSize } = await import('../core/light/scene');
+  const grid = sceneSize(source.w, source.h);
+  const seen = await personConfidence(
+    { w: source.w, h: source.h },
+    grid,
+    faces,
+    { parts: (area) => segmentParts(source, area), hair: (area) => segmentHair(source, area) },
+    nextPaint,
+    (fraction) => task?.timed(fraction),
+    stopped,
+  );
+  if (!seen) return false;
+  await nextPaint();
+  if (stopped()) return false;
+  const rgba = source.draw(0, 0, source.w, source.h, grid.w, grid.h).getContext('2d')!.getImageData(0, 0, grid.w, grid.h).data;
+  // The biggest face is the one the light is aimed at.
+  const boxes = faces.map((f) => f.box).sort((a, b) => b.w * b.h - a.w * a.h);
+  e.setScene(buildScene(seen, boxes, { ...grid, rgba }));
+  return true;
+}
+
 /** Runs the search for the lock on its own, for a brush that went free before it ended. */
 export async function ensureLock(e: Engine): Promise<void> {
   const { source } = e;

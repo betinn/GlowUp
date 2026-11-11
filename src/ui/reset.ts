@@ -22,7 +22,7 @@ export function groupScope(group: GroupId): ResetScope {
 
 export function wholeScope(): ResetScope {
   const layers = Object.keys(engine().doc.layers) as LayerId[];
-  return { layers, heals: true, field: true, adjust: true, filter: true, blur: true, crop: true, fun: true };
+  return { layers, heals: true, field: true, adjust: true, filter: true, light: true, blur: true, crop: true, fun: true };
 }
 
 const labelOf = (group: GroupId) => GROUPS.find((g) => g.id === group)?.label ?? '';

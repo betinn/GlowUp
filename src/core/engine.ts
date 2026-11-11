@@ -5,6 +5,7 @@
 
 import { GLContext, type Tex } from './gl/context';
 import { DEFAULT_BRUSH, StrokeInterpolator, type BrushSettings, type Dab } from './brush';
+import type { SceneData } from './light/types';
 import { clone, createDoc, DEFAULT_ADJUST, COVER_MASK, DEFAULT_BLUR, FILTER_MASK, HEAD_MASK, MOUTH_MASK, PERSON_MASK, PHOTO_MASKS, type Adjustments, type BlurSettings, type EditDoc, type FilterState, type HealOp, type LayerId, type ParamValue, type StickerState } from './doc';
 import type { FunController } from './fun/controller';
 import { shownSticker, type Lookup, type ShownSticker } from './fun/place';
@@ -59,6 +60,8 @@ export interface ResetScope {
   fun?: boolean;
   /** The filter, its area and the softness of the area. */
   filter?: boolean;
+  /** The light of Luzes. */
+  light?: boolean;
   blur?: boolean;
   crop?: boolean;
 }
@@ -237,6 +240,11 @@ export class Engine {
   private funWorkersOff = false;
   private nextFun: { frame: FieldFrame; raf: number } | null = null;
   private funPlain: { of: readonly Face[]; faces: Face[] } | null = null;
+  /** Luzes: the scene of the photo, once something asked for it. It comes from the photo and no edit changes it. */
+  scene: SceneData | null = null;
+  private sceneTex: Tex | null = null;
+  /** Changes whenever the scene does, so autosave knows when to write it. */
+  sceneRev = 0;
   /** Id of the filter whose LUT is on the GPU. */
   loadedLut: string | null = null;
   /** Re-uploads the LUT after an undo changes the filter. */
@@ -347,6 +355,9 @@ export class Engine {
     this.dropRoi();
     this.ctx?.destroy();
     this.dropPlate();
+    if (this.sceneTex) this.glc.destroyTex(this.sceneTex);
+    this.sceneTex = null;
+    this.scene = null;
     this.masks?.destroy();
     this.field?.destroy();
     this.glc.drainPool();
@@ -1135,6 +1146,43 @@ export class Engine {
     this.requestRender();
   }
 
+  /* Luzes */
+
+  /**
+   * The scene of the photo came: where the person, the skin and the hair are. From here on a light of Luzes
+   * has where to fall. Null takes the scene away.
+   */
+  setScene(scene: SceneData | null): void {
+    const { glc, pipeline } = this;
+    if (this.sceneTex) glc.destroyTex(this.sceneTex);
+    this.sceneTex = null;
+    this.scene = scene;
+    if (scene) {
+      this.sceneTex = glc.createTex(scene.w, scene.h, 'rgba8', { mips: true });
+      glc.upload(this.sceneTex, { x: 0, y: 0, w: scene.w, h: scene.h }, scene.data);
+      glc.generateMips(this.sceneTex);
+    }
+    if (pipeline) pipeline.scene = scene && this.sceneTex ? { tex: this.sceneTex, stats: scene.stats } : null;
+    this.sceneRev++;
+    this.ctx?.invalidate('global');
+    this.dropRoi();
+    this.requestRender();
+    this.emit('change');
+  }
+
+  /**
+   * Puts a light of Luzes on the photo, or takes it off with null. Live: call `commit` when the gesture ends.
+   * A light that prints the date keeps the date it went on with.
+   */
+  setLight(id: string | null, intensity = 1, stamp?: string): void {
+    this.track('Luz');
+    if (id) this.doc.light = { id, intensity, ...(stamp ? { stamp } : {}) };
+    else delete this.doc.light;
+    this.ctx?.invalidate('global');
+    this.dropRoi();
+    this.requestRender();
+  }
+
   setFilterState(id: string | null, intensity: number): void {
     this.track('Filtro');
     this.doc.filter = { ...this.doc.filter, id, intensity };
@@ -1211,6 +1259,7 @@ export class Engine {
       (!!scope.fun && !!(doc.fun?.faces?.length || doc.fun?.stickers?.length)) ||
       (!!scope.adjust && Object.values(doc.adjust).some((v) => v !== 0)) ||
       (!!scope.filter && (!!doc.filter.id || !!doc.filter.masked)) ||
+      (!!scope.light && !!doc.light) ||
       (!!scope.blur && doc.blur.mode !== 'off') ||
       (!!scope.crop && JSON.stringify(doc.crop) !== JSON.stringify(crop))
     );
@@ -1254,6 +1303,7 @@ export class Engine {
     }
     if (scope.adjust) after.adjust = { ...DEFAULT_ADJUST };
     if (scope.filter) after.filter = { id: null, intensity: 1 };
+    if (scope.light) delete after.light;
     if (scope.blur) after.blur = { ...DEFAULT_BLUR };
     if (scope.crop) after.crop = defaultCrop(after.width, after.height);
 

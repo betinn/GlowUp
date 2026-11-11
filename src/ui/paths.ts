@@ -81,6 +81,8 @@ function pathOfProject(): EditPath | undefined {
   if (!photoChanged()) return undefined;
   // A photo with nothing but Brincar on it opens in Brincar.
   if (!engine().changed({ ...wholeScope(), fun: false })) return pathById('fun');
+  // A light of Luzes lives in Glow na Hora, as the looks do.
+  if (!engine().changed({ ...wholeScope(), light: false })) return pathById('glow');
   return pathById(appliedLook(engine().doc) ? 'glow' : 'manual');
 }
 
