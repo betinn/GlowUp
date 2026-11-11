@@ -156,7 +156,7 @@
 - [x] Sugestão automática pelo tom da foto
 - [x] Script de réplica a partir de fotos antes e depois, com relatório e aviso de efeito local
 - [x] Entrada de Filtros na tela de escolha de caminho
-- [ ] Filtros replicados dos pares reais
+- [x] Pares reais lidos e medidos: são de luz refeita, não de cor, e seguem no M24
 
 ## M21. Formato do rosto
 
@@ -245,6 +245,44 @@ adesivos (S7), que trabalham em paralelo, cada efeito e cada adesivo no seu arqu
 - [ ] Sem WebGPU leva cerca de 40 min por megapixel: threads pediriam isolamento de origem no servidor
 - [ ] A pele sai mais lisa que a da foto: o modelo tira o bloco do JPEG e junto um pouco do poro
 
+## M24. Luzes
+
+Os dez pares reais de antes e depois (B, c, D, E, F, H, I, J, K, L) não são filtros de cor. Em todos a luz da
+cena foi refeita: o fundo escurece ou muda de cor enquanto a pessoa clareia, ou ganha um contorno de luz. Uma
+tabela de cor trata os dois do mesmo jeito e não chega lá. Por isso eles ganham um passe próprio, que sabe onde
+está a pessoa, a pele e o cabelo, e uma prateleira própria, Luzes, dentro do Glow na Hora.
+
+Três famílias, medidas região por região nos pares (médias em Lab, antes e depois):
+
+| Família | Pares | O que muda |
+| --- | --- | --- |
+| Flash | B, c, D, F, I | Fundo cai de L 33 a 64 para L 4 a 31. A pele sobe até L 82 a 87 e perde cor (c, D), ou fica no mesmo L com mais contraste (B, F, I) |
+| Contraluz | J, K, L | Borda da pessoa sobe de L 7 a 31 para L 44 a 51 e o cabelo ganha fios a L 77 a 91. O miolo da pessoa cai de 10 a 20 em L. Atrás dela o fundo clareia, e longe escurece |
+| Cor de cena | E, H | E: fundo cinza vira azul e magenta (b de 4 para -23), com pontos de luz. H: pele laranja vira neutra (croma 51 para 30, L 46 para 58) e o fundo azul vira cinza |
+
+- [x] Pares segmentados com os modelos do próprio app e medidos por região: rosto, pele, cabelo, roupa, fundo, e o perfil de luz pela distância à borda da pessoa
+- [x] Cena da foto, uma vez por foto: pessoa, pele, cabelo e distância à borda numa textura só, sem modelo novo
+- [x] Borda da pessoa refinada pela cor da foto, não só pelo brilho: cabelo escuro em cortina vermelha escura
+- [x] Passe de luz entre a revelação e os adesivos, com dois amostradores próprios, igual na tela e na exportação em tiles
+- [x] Uma luz é um arquivo de números, e uma lista registra todas: par novo, arquivo novo
+- [x] A receita se ajusta à foto: os níveis do fundo e da pele são alvos, medidos na foto
+- [x] Flash: Flash Direto (D), Flash Analógico (c), Noite de Festa (B), Entardecer (I), Analógica com data (F)
+- [x] Contraluz: Contraluz (J), Silhueta (K), Contraluz Dourado (L)
+- [x] Cor de cena: Néon (E), Luz de Estúdio (H)
+- [x] Prateleira Luzes no Glow na Hora, ao lado de Looks: miniaturas na própria foto, um toque põe, outro tira, intensidade, uma etapa do desfazer
+- [x] Soma com look, filtro, ajustes, desfoque e recorte, e "Voltar ao original" tira a luz
+- [x] Projeto salvo guarda a cena e abre com a luz, na prateleira dela, sem baixar o detector
+- [x] Foto sem ninguém: a luz não entra e a prateleira diz por quê
+- [x] Conferido contra cada par, região por região, e nas seis fotos reais de teste, as dez luzes em cada uma
+- [ ] Contraluz: a linha de luz segue a borda inteira com a mesma espessura, e os fios soltos não acendem um a um como nos pares. Em cabelo escuro sobre fundo escuro (par J) ela ainda lembra um contorno desenhado
+- [ ] Nenhuma luz muda a sombra dentro do rosto: o flash clareia o rosto por igual e o contraluz escurece por igual. Sombra nova pede a forma do rosto em profundidade, que é um modelo novo de 25 a 50 MB
+- [ ] Néon: os pontos de luz são inventados numa grade, sem saber onde fica o horizonte, e não há reflexo na água. No par E o rosto é pequeno demais para medir
+- [ ] A cena é da foto como foi aberta: depois de Formato do rosto, Liquify ou Brincar, a borda da luz fica onde a pessoa estava
+- [ ] Roupa escura que o separador confunde com o fundo (par K) fica com um pedaço tratado como fundo
+- [ ] As miniaturas só mostram a foto depois da primeira busca da pessoa. Antes disso mostram duas cores de cada luz
+- [ ] A medição contra os pares roda em scripts fora do repositório, porque lê as fotos reais. Falta um comando do projeto, como o `npm run replicate` dos filtros de cor
+- [ ] As luzes só aparecem no Glow na Hora. Do Meu Jeito ainda não tem entrada para elas
+
 ## Metas medidas
 
 Foto gerada de 12 MP (4000 x 3000), Chromium com aceleração, em uma placa dedicada (`node scripts/perf.mjs`):
@@ -262,6 +300,37 @@ Foto gerada de 12 MP (4000 x 3000), Chromium com aceleração, em uma placa dedi
 A primeira abertura é mais lenta porque compila os shaders. Pincel oscilou entre 57 e 60 fps entre medições.
 
 Notebook comum e celular médio não foram medidos: não havia esses aparelhos no ambiente de desenvolvimento.
+
+### Luzes
+
+Cada par segmentado com os modelos do app, nas duas fotos, e a média em Lab de cada região comparada. O par não
+alinha pixel a pixel (a foto de depois foi refeita e recortada de outro jeito), por isso a conta é por região. ΔE
+entre a região na foto de depois e a mesma região na foto de antes, e depois de a luz do app entrar na foto de
+antes. "Perfil" é a diferença média de L em dez faixas de distância à borda da pessoa, cinco para dentro e cinco
+para fora, que é onde aparecem o contraluz e o brilho no fundo.
+
+| Par | Luz | Rosto | Pele | Cabelo | Roupa | Fundo | Perfil |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| D | Flash Direto | 42,1 → 3,6 | 38,3 → 4,6 | 13,7 → 2,6 | 2,7 → 2,8 | 29,0 → 1,0 | 2,6 |
+| c | Flash Analógico | 36,8 → 2,4 | 34,3 → 2,3 | 4,8 → 6,8 | 11,8 → 5,5 | 37,0 → 3,8 | 7,6 |
+| B | Noite de Festa | 9,1 → 2,5 | 12,4 → 5,5 | 3,8 → 4,5 | 8,4 → 3,3 | 28,2 → 2,6 | 2,0 |
+| I | Entardecer | 7,8 → 3,3 | 5,5 → 2,9 | 4,5 → 3,0 | 2,4 → 3,5 | 33,9 → 1,0 | 1,5 |
+| F | Analógica | 18,5 → 5,7 | 15,4 → 4,9 | 8,2 → 3,2 | 6,5 → 1,2 | 32,7 → 2,4 | 0,8 |
+| H | Luz de Estúdio | 25,9 → 3,2 | 24,2 → 3,9 | 2,5 → 2,3 | 4,3 → 2,7 | 28,9 → 5,2 | 2,4 |
+| E | Néon | sem medida | sem medida | sem medida | 3,9 → 2,3 | 37,1 → 5,1 | 1,7 |
+| J | Contraluz | 15,7 → 2,5 | 17,5 → 4,9 | 17,0 → 6,0 | 2,7 → 1,8 | 8,6 → 6,4 | 6,1 |
+| K | Silhueta | 18,5 → 4,6 | 20,5 → 7,6 | 6,3 → 3,1 | 19,4 → 1,7 | 28,9 → 6,2 | 9,0 |
+| L | Contraluz Dourado | 11,5 → 6,5 | 11,9 → 7,4 | 8,5 → 3,0 | 13,1 → 4,7 | 38,5 → 6,8 | 8,9 |
+
+- As médias por região fecham em todas: nenhuma região acima de ΔE 8, contra até 42 antes.
+- O que as médias não contam é a forma da luz. Nos três de contraluz o perfil fica em 6 a 9 de L: a linha na borda
+  sai mais clara e mais estreita que a dos pares, e o miolo do cabelo menos aceso.
+- O cabelo do Flash Analógico e a roupa do Entardecer ficam um pouco mais longe do alvo do que estavam, por 1 a 2 de
+  ΔE: a receita trata o cabelo e a roupa com um número só cada.
+- Achar a cena leva de 2,0 a 2,3 s numa foto de 800 x 1300 no computador, com os modelos já baixados. É uma vez por
+  foto, e o projeto salvo guarda o resultado.
+- A exportação em tiles de 384 px difere da exportação inteira em menos de 0,6 de 255 na média, com grão, poeira,
+  vazamento e data (e2e).
 
 ### Aumentar resolução
 

@@ -418,7 +418,7 @@ simplesmente não toca, e pode deixar passar rosto de perfil, que ela pinta.
 Depois de abrir, a foto pergunta "Como vai ser?". Cada caminho é uma entrada em `src/ui/paths.ts`, e todos
 editam o mesmo documento, então trocar de caminho não perde nada. A pergunta aparece por cima da foto, que
 continua acesa, e o botão com o nome do caminho, na barra, traz a pergunta de volta. Um projeto com edição
-reabre sem perguntar: no Glow na Hora se está num look, nas ferramentas se não. Os cartões de gesto vêm
+reabre sem perguntar: no Glow na Hora se está num look ou só numa luz, nas ferramentas se não. Os cartões de gesto vêm
 depois da escolha, e o caminho sem pincel não ensina a pintar.
 
 - **Glow na Hora.** O menu mostra looks, não ferramentas. Um toque aplica no rosto todo, numa etapa do
@@ -430,6 +430,7 @@ depois da escolha, e o caminho sem pincel não ensina a pintar.
   nenhum põe cor na boca. A miniatura mostra a cor do look nesta foto, na intensidade certa.
 - **Avisos.** Boca fechada deixa Dentes de fora, e o aviso diz isso. Sem rosto ou sem detector, entra só a
   cor do look e o aviso diz por quê. Sem detector, um segundo toque tenta de novo em vez de tirar o look.
+- **Luzes.** A segunda prateleira do Glow na Hora: um toque refaz a luz da foto inteira. Veja "Luzes" abaixo.
 - **Brincar.** Caretas e adesivos, ao lado de Filtros. Um projeto só com Brincar reabre no Brincar. Veja abaixo.
 
 ## Brincar
@@ -561,6 +562,79 @@ export const coroa: StickerDef = {
 - `tests/unit/stickers.test.ts` confere cada adesivo num rosto inteiro, inclinado, maior e numa foto larga.
 - A arte é desenhada na hora no tamanho que tem na tela ou no arquivo, em potências de 2 de 64 a 4096 pixels, então
   fica nítida na exportação em resolução total.
+
+## Luzes
+
+Filtros que mudam a luz da cena, não só a cor: o fundo escurece ou muda de cor enquanto a pessoa clareia, ou ganha
+uma linha de luz por trás. Ficam numa prateleira própria no menu do Glow na Hora, ao lado de Looks. O look cuida do
+rosto e a luz cuida da cena, e os dois podem estar na foto ao mesmo tempo.
+
+- **Um toque.** O primeiro toque numa luz procura a pessoa na foto, com o cartão de progresso, e põe a luz. Dali em
+  diante trocar de luz é na hora. Um segundo toque na luz acesa tira.
+- **Quadrinhos.** Antes da busca, cada um mostra duas cores: a da pessoa e a do fundo naquela luz. Depois, a própria
+  foto, em volta do rosto, com a luz.
+- **Intensidade.** Um controle de 0 a 100 embaixo da prateleira, que aparece com a luz. A escolha fica quando se
+  troca de luz.
+- **Desfazer.** Pôr, trocar, tirar e soltar o controle são uma etapa cada. "Voltar ao original" também tira a luz.
+- **Sem ninguém na foto.** A luz não entra, e um aviso diz que as luzes precisam de uma pessoa.
+- **Projeto salvo.** Abre com a luz, já na prateleira Luzes, sem procurar a pessoa de novo.
+
+### Como a luz é feita
+
+A foto ganha uma cena, uma vez (`src/core/light/scene.ts`): onde está a pessoa, onde nela é pele e onde é cabelo, e
+quanto cada ponto dista da borda dela. Sai dos dois separadores que o site já serve, e a borda é levada para a borda
+de cor da foto. A cena também mede o brilho médio do fundo, da pele e da pessoa, e guarda onde está o rosto.
+
+O passe `light.frag` roda depois da revelação e antes dos adesivos, e lê só a foto revelada e a cena:
+
+1. **Fundo.** Exposição longe e perto da pessoa, quanto as lâmpadas guardam, saturação, cor, duas cores de néon e
+   pontos de luz.
+2. **Pessoa.** Exposição da pessoa, da pele e do cabelo, contraste, cor, a borda do corpo que escurece num flash, e
+   o flash em si, mais forte no rosto.
+3. **Contraluz.** Uma linha na borda, o brilho que passa para o fundo e a luz que atravessa o cabelo pelos fios.
+4. **Câmera.** Vinheta, vazamento de luz, grão, poeira e a data. Vinheta, vazamento e data seguem o quadro depois do
+   recorte.
+
+A intensidade mistura o resultado com a foto de antes.
+
+### Como adicionar uma luz
+
+Uma luz é um arquivo em `src/core/light/lights/` e uma linha em `index.ts`. Nada mais muda.
+
+```ts
+import type { LightDef } from '../types';
+
+export const entardecer: LightDef = {
+  id: 'entardecer',
+  label: 'Entardecer',
+  note: 'O fundo escurece e você continua na luz.',
+  swatch: ['#e3b48f', '#3c3f42'],
+  recipe: {
+    back: { ev: -2.3, level: 0.07, adapt: 0.7, sat: 0.8 },
+    person: { ev: -0.15, hair: -0.5, limb: 0.8 },
+    flash: { ev: 0.45, radius: 1.4 },
+  },
+};
+```
+
+- `id` vai para o projeto salvo: um que já saiu nunca muda de nome.
+- `swatch` são as duas cores do quadrinho antes da busca: a pessoa e o fundo.
+- Cada parte da receita que fica de fora não mexe em nada. Os campos estão em `src/core/light/types.ts`.
+- `ev` é exposição em pontos. `level` e `adapt` dizem onde a região deve terminar, em luz linear, e quanto isso
+  pesa: use quando o número veio de um par só.
+- Tamanhos do contraluz e do flash são em tamanhos de rosto, para a luz ter a mesma cara em foto de perto e de longe.
+
+### Como tirar os números de um par
+
+1. Separe pessoa, pele, cabelo, roupa e fundo nas duas fotos do par com os modelos do app.
+2. Meça, em cada região, a média em luz linear e em Lab, antes e depois. A razão das médias dá a exposição e a cor
+   de cada região, e a razão dos percentis dá o contraste.
+3. Meça o L médio em faixas de distância à borda da pessoa, para dentro e para fora: é ali que aparecem o contraluz
+   e o brilho no fundo.
+4. Escreva a receita com esses números, aplique na foto de antes pelo app e meça de novo contra a foto de depois.
+
+As fotos dos pares mostram pessoas reais e não entram no repositório: os scripts e as folhas de comparação ficam em
+`.tmp/`.
 
 ## Layout
 
