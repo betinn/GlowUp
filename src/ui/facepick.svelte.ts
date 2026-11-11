@@ -6,10 +6,9 @@
 
 import type { Engine } from '../core/engine';
 import type { FaceScan } from '../core/face/detector';
-import { focusPoints } from '../core/face/focus';
 import { faceShare } from '../core/face/makeup';
 import { addHair, faceSize, hairCrop } from '../core/face/hair';
-import { buildFaceMask, type MaskTarget, type Point } from '../core/face/mask';
+import { buildFaceMask, type MaskTarget } from '../core/face/mask';
 import { buildRegionMask, type FaceRegion } from '../core/face/regions';
 import { sliderById } from '../core/face/reshape';
 import { CHIN, type Face } from '../core/face/scan';
@@ -219,7 +218,6 @@ let personStarted = false;
 /** The hair found on a photo, for one mask size and one list of faces. The five hair tools share it. */
 interface HairFound {
   data: Uint8Array | null;
-  spots: Point[][];
   faces: number;
   w: number;
 }
@@ -535,17 +533,16 @@ async function findHair(
     ? faces.map((f) => ({ area: hairCrop(f.box, source.w, source.h), size: faceSize(f.box, target.w, target.h) }))
     : [{ area: { x: 0, y: 0, w: source.w, h: source.h }, size: Math.max(target.w, target.h) * WHOLE_PHOTO_FACE }];
   const out = new Uint8Array(target.w * target.h);
-  const spots: Point[][] = [];
+  let any = false;
   for (const [i, crop] of crops.entries()) {
     await nextPaint();
     if (stopped()) return null;
     const cut = segmentHair(source, crop.area);
     const { x, y, w, h } = crop.area;
-    const box = addHair(out, target, { x: x * kx, y: y * ky, w: w * kx, h: h * ky }, cut, crop.size);
-    if (box) spots.push(box);
+    if (addHair(out, target, { x: x * kx, y: y * ky, w: w * kx, h: h * ky }, cut, crop.size)) any = true;
     task.report((i + 1) / crops.length);
   }
-  const found: HairFound = { data: spots.length ? out : null, spots, faces: faces.length, w: masks.w };
+  const found: HairFound = { data: any ? out : null, faces: faces.length, w: masks.w };
   hairs.set(source, found);
   return found;
 }
@@ -554,8 +551,6 @@ async function findHair(
 interface Found {
   /** The region the brush stays on, when the tool has one and the photo shows it. */
   data: Uint8Array | null;
-  /** The points of each face to frame. */
-  spots: Point[][];
   /** What the automatic mode does. */
   fill: Fill | null;
   /** The tool has something to work on. Without it the brush is the way. */
@@ -578,19 +573,17 @@ async function findFill(
 ): Promise<Found | null> {
   const faces = scan?.list ?? [];
   let data: Uint8Array | null = null;
-  let spots: Point[][] = [];
   if (region === 'hair') {
     const found = await findHair(source, masks, faces, task!, stopped);
     if (!found) return null;
-    ({ data, spots } = found);
+    data = found.data;
   } else if (region) {
     data = buildRegionMask(faces, region, target);
-    spots = focusPoints(faces, region);
   }
   const action = autoAction(tool);
   if (action) {
     const reached = region ? !!data : action.faces !== 'required' || faces.length > 0;
-    return { data, spots, reached, fill: reached ? { kind: 'custom', action, found: { faces, source } } : null };
+    return { data, reached, fill: reached ? { kind: 'custom', action, found: { faces, source } } : null };
   }
   // The automatic mode fills with the region, with its own shape, or for Manchas heals spots in it.
   let fill: Fill | null = data ? { kind: 'mask', mask: data } : null;
@@ -603,7 +596,7 @@ async function findFill(
     const shape = buildRegionMask(faces, meta.fill, target);
     fill = shape ? { kind: 'mask', mask: shape } : null;
   }
-  return { data, spots, fill, reached: !!data };
+  return { data, fill, reached: !!data };
 }
 
 /** Finds faces and shows the rings. With `deeper`, tries the next level of a finished search. */
@@ -734,7 +727,7 @@ async function fillRegion(e: Engine, tool: string): Promise<void> {
 /**
  * Keeps the brush of a tool on the part of the face it is made for. Strokes wait for the search, and
  * when it ends with nothing to hold on to, the brush is free: no photo gets stuck on the detector.
- * In the automatic mode the region also becomes the mask, once the view has shown it. `refill`
+ * In the automatic mode the region also becomes the mask, once the light has shown it. `refill`
  * replaces work already in the mask, for when the person asks for the automatic mode.
  */
 export async function limitTool(e: Engine, tool: string, region: FaceRegion | null, deeper = false, refill = false): Promise<void> {
@@ -758,7 +751,6 @@ export async function limitTool(e: Engine, tool: string, region: FaceRegion | nu
   const searching = !!region || !!autoAction(tool)?.faces;
   const wantsLock = !!autoAction(tool)?.person;
   const task = searching ? openJob(hair, wantsLock) : null;
-  const moves = e.viewMoves;
   if (searching) {
     toolLimit.state = 'searching';
     e.holdStroke = `${limitWords(tool, region)?.finding}. O pincel já vem.`;
@@ -781,7 +773,7 @@ export async function limitTool(e: Engine, tool: string, region: FaceRegion | nu
       const filling = auto && (refill || !hasWork(e, tool));
       e.brushOff = auto;
       // Without a limit there is nothing for the light to show.
-      void showRegion(e, found.spots, e.viewMoves === moves, !!found.data && !shown.has(tool), filling ? () => fillRegion(e, tool) : undefined);
+      void showRegion(e, !!found.data && !shown.has(tool), filling ? () => fillRegion(e, tool) : undefined);
       shown.add(tool);
     } else {
       // Nothing to fill from: the brush is the way.

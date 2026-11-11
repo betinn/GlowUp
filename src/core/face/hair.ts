@@ -7,7 +7,7 @@
  * the whole image would see tiny heads, so each face found gets its own square around the head.
  */
 
-import { guidedFilter, type Area, type MaskTarget, type Point } from './mask';
+import { guidedFilter, type Area, type MaskTarget } from './mask';
 
 /** Side of the square around a face, as a multiple of the face size. Hair goes past the shoulders. */
 const HAIR_SPAN = 3.2;
@@ -30,8 +30,8 @@ const LUMA_ROOM = 0.03;
 /** Reach of the refinement, as a share of the face size. */
 const REFINE_RADIUS = 0.006;
 const REFINE_EPS = 0.002;
-/** A value above this, out of 255, counts as hair when framing the view. */
-const FRAME_LEVEL = 128;
+/** A value above this, out of 255, counts as hair, so a crop with only faint values holds none. */
+const HAIR_LEVEL = 128;
 
 /** Confidence of hair over one crop, row by row, from 0 to 1. */
 export interface HairCut {
@@ -111,10 +111,9 @@ export function lookAlike(shape: Float32Array, reach: Float32Array, luma: Float3
 
 /**
  * Adds the hair of one crop to the limit. `area` is the crop in pixels of the mask grid and `size` the
- * face it belongs to, in the same pixels. Returns the corners of the hair in image UV, for the view to
- * frame, or null when the crop holds no hair.
+ * face it belongs to, in the same pixels. Returns false when the crop holds no hair.
  */
-export function addHair(out: Uint8Array, target: MaskTarget, area: Area, cut: HairCut, size: number): Point[] | null {
+export function addHair(out: Uint8Array, target: MaskTarget, area: Area, cut: HairCut, size: number): boolean {
   const a: Area = {
     x: Math.max(0, Math.floor(area.x)),
     y: Math.max(0, Math.floor(area.y)),
@@ -123,7 +122,7 @@ export function addHair(out: Uint8Array, target: MaskTarget, area: Area, cut: Ha
   };
   a.w = Math.min(target.w, Math.ceil(area.x + area.w)) - a.x;
   a.h = Math.min(target.h, Math.ceil(area.y + area.h)) - a.y;
-  if (a.w < 2 || a.h < 2 || cut.w < 1 || cut.h < 1) return null;
+  if (a.w < 2 || a.h < 2 || cut.w < 1 || cut.h < 1) return false;
   let shape: Float32Array = new Float32Array(a.w * a.h);
   const reach = new Float32Array(a.w * a.h);
   let any = false;
@@ -137,30 +136,21 @@ export function addHair(out: Uint8Array, target: MaskTarget, area: Area, cut: Ha
       if (v > 0) any = true;
     }
   }
-  if (!any) return null;
+  if (!any) return false;
   const guide = target.luma?.(a);
   if (guide) {
     lookAlike(shape, reach, guide);
     shape = guidedFilter(guide, shape, a.w, a.h, Math.max(1, Math.round(size * REFINE_RADIUS)), REFINE_EPS);
     for (let i = 0; i < shape.length; i++) shape[i] = Math.min(shape[i], reach[i]);
   }
-  const box = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+  let found = false;
   for (let y = 0; y < a.h; y++) {
     for (let x = 0; x < a.w; x++) {
       const value = Math.round(clamp(shape[y * a.w + x], 0, 1) * 255);
       const at = (y + a.y) * target.w + x + a.x;
       if (value > out[at]) out[at] = value;
-      if (value > FRAME_LEVEL) {
-        box.x0 = Math.min(box.x0, x);
-        box.y0 = Math.min(box.y0, y);
-        box.x1 = Math.max(box.x1, x + 1);
-        box.y1 = Math.max(box.y1, y + 1);
-      }
+      if (value > HAIR_LEVEL) found = true;
     }
   }
-  if (box.x1 < 0) return null;
-  return [
-    [(box.x0 + a.x) / target.w, (box.y0 + a.y) / target.h],
-    [(box.x1 + a.x) / target.w, (box.y1 + a.y) / target.h],
-  ];
+  return found;
 }

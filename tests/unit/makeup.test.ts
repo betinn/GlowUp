@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { focusPoints } from '../../src/core/face/focus';
 import { addBand, faceShare, fitContour, lidShape, lipsFromPhoto, reached, smoothLoop } from '../../src/core/face/makeup';
 import type { MaskTarget, Point } from '../../src/core/face/mask';
-import { buildRegionMask, type LandmarkRegion } from '../../src/core/face/regions';
+import { buildRegionMask } from '../../src/core/face/regions';
 import { CHEEK_TOPS, CHEEKS, FACE_OVAL, HOLLOWS, makeFace, NOSE_SIDES, readFace, type Face, type FaceParts } from '../../src/core/face/scan';
 import { TOOLS } from '../../src/tools/catalog';
 import { LIMIT_WORDS, PLACES } from '../../src/ui/facepick.svelte';
@@ -481,28 +480,5 @@ describe('the Make group in the catalog', () => {
     expect(shape('brow')).toEqual(['brows', 'browhair']);
     expect(shape('contour')).toEqual(['skin', 'sculpt']);
     expect(shape('freckles')).toEqual(['skin', 'sprinkle']);
-  });
-});
-
-describe('framing the makeup', () => {
-  const top = (region: LandmarkRegion) => focusPoints([face()], region)[0];
-
-  it('frames the mouth for the lips and the eyes with the brows for the lids', () => {
-    expect(top('lips').length).toBe(20);
-    const brows = top('brows');
-    expect(Math.max(...brows.map((p) => p[1]))).toBeLessThan(0.33);
-    const lids = top('lids');
-    expect(Math.min(...lids.map((p) => p[1]))).toBeLessThan(0.31);
-    expect(Math.max(...lids.map((p) => p[1]))).toBeGreaterThan(0.41);
-  });
-
-  it('frames the whole face for what lies on the skin', () => {
-    for (const region of ['cheeks', 'sculpt', 'sprinkle'] as const) expect(top(region).length).toBe(FACE_OVAL.length);
-  });
-
-  it('leaves out a face that does not show the region', () => {
-    expect(focusPoints([makeFace(oval(0.5, 0.5, 0.26, 0.36))], 'lips')).toEqual([]);
-    expect(focusPoints([makeFace(oval(0.5, 0.5, 0.26, 0.36))], 'brows')).toEqual([]);
-    expect(focusPoints([makeFace(oval(0.5, 0.5, 0.26, 0.36))], 'lids')).toEqual([]);
   });
 });

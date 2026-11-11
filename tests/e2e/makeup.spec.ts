@@ -267,7 +267,7 @@ test.describe('make', () => {
     expect(peak).toBeLessThan(0.45);
   });
 
-  test('Dentes segue o padrão: acha, voa, aplica e tira no botão', async ({ page }) => {
+  test('Dentes segue o padrão: acha, acende, aplica e tira no botão', async ({ page }) => {
     const errors = watch(page);
     await openEditor(page);
     const plain = await page.screenshot();
@@ -282,7 +282,7 @@ test.describe('make', () => {
     expectNoErrors(errors);
   });
 
-  test('Batom mostra a região antes: voa até a boca, acende e o efeito chega aos poucos', async ({ page }) => {
+  test('Batom mostra a região antes: acende a boca sem mexer na vista e o efeito chega aos poucos', async ({ page }) => {
     const errors = watch(page);
     await openEditor(page);
     await page.locator('[data-group=makeup]').click();
@@ -292,7 +292,7 @@ test.describe('make', () => {
     await expect(page.locator('[data-limit=on]')).toBeVisible({ timeout: 60_000 });
     await expect(page.locator('[data-region-show=glow]')).toHaveCount(1, { timeout: 10_000 });
     await page.screenshot({ path: shot('ui-make-brilho') });
-    expect(Number(await page.locator('[data-zoom]').getAttribute('data-zoom'))).toBeGreaterThan(1.5);
+    expect(Number(await page.locator('[data-zoom]').getAttribute('data-zoom'))).toBe(1);
     // While the fade runs the undo step is not there yet, and it comes as one step.
     await expect(page.locator('[data-region-show=fill]')).toHaveCount(1, { timeout: 10_000 });
     const during = await page.screenshot();

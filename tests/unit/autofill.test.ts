@@ -49,11 +49,6 @@ vi.mock('../../src/core/face/regions', () => ({
   buildRegionMask: (_faces: unknown, region: string) => (photo.regions.includes(region) ? new Uint8Array([photo.regions.indexOf(region) + 1]) : null),
 }));
 
-vi.mock('../../src/core/face/focus', async (original) => ({
-  ...(await original<typeof import('../../src/core/face/focus')>()),
-  focusPoints: () => [],
-}));
-
 vi.mock('../../src/tools/activate', () => ({
   ensureField: () => Promise.resolve(),
   ensureHeal: () => Promise.resolve(),
@@ -74,7 +69,6 @@ function fakeEngine() {
     history,
     source: { w: 4, h: 4 },
     masks: { w: 4, h: 4 },
-    viewMoves: 0,
     viewport: { w: 1, h: 1, top: 0, right: 0, bottom: 0, left: 0 },
     displaySize: { w: 4, h: 4 },
     view: { zoom: 1, x: 0, y: 0 },
@@ -87,9 +81,7 @@ function fakeEngine() {
     setCropEditing: vi.fn(),
     setPaintLimit: vi.fn(),
     requestRender: vi.fn(),
-    flyTo: () => Promise.resolve(),
     revealLimit: () => Promise.resolve(),
-    stopFlight: vi.fn(),
     stopReveal: vi.fn(),
     clearLayer: vi.fn(() => Promise.resolve()),
     healSpots: vi.fn(() => Promise.resolve(0)),

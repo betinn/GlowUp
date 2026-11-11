@@ -55,8 +55,6 @@ export function facePoint(page: Page, x: number, y: number): [number, number] {
 }
 
 export interface RegionOptions {
-  /** The view stays where a tool for eyes or teeth flew to. Otherwise the photo fits again. */
-  keepView?: boolean;
   /** The automatic mode stays, with what it applied. Otherwise the tool goes to manual, with an empty mask. */
   auto?: boolean;
 }
@@ -70,11 +68,11 @@ export async function pickTool(page: Page, group: string, tool: string, options:
 }
 
 /**
- * The tools for eyes and teeth hold the brush until the detector answers, then fly to the region, light
- * it and fill it. Most tests paint by hand on the whole photo, so by default the fill is undone, the
- * tool goes to manual and the view fits the photo again.
+ * The tools for eyes and teeth hold the brush until the detector answers, then light the region and
+ * fill it. Most tests paint by hand on the whole photo, so by default the fill is undone and the tool
+ * goes to manual.
  */
-export async function limitSettled(page: Page, { keepView = false, auto = false }: RegionOptions = {}): Promise<void> {
+export async function limitSettled(page: Page, { auto = false }: RegionOptions = {}): Promise<void> {
   await page.locator('[data-limit]').waitFor();
   await expect(page.locator('[data-limit=searching]')).toHaveCount(0, { timeout: 60_000 });
   await showSettled(page);
@@ -88,7 +86,6 @@ export async function limitSettled(page: Page, { keepView = false, auto = false 
       await settle(page, 300);
     }
   }
-  if (!keepView) await fitPhoto(page);
 }
 
 export async function chooseMode(page: Page, mode: 'Automático' | 'Manual'): Promise<void> {
@@ -96,7 +93,7 @@ export async function chooseMode(page: Page, mode: 'Automático' | 'Manual'): Pr
   await settle(page, 200);
 }
 
-/** The flight to the region and the light over it are over. */
+/** The light over the region is over. */
 export async function showSettled(page: Page): Promise<void> {
   await expect(page.locator('[data-region-show=idle]')).toHaveCount(1, { timeout: 15_000 });
 }
