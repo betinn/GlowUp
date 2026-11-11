@@ -105,7 +105,7 @@ test.describe('Luzes', () => {
     await expect(page.locator('[data-look]').first()).toBeVisible();
   });
 
-  test('um toque acha a pessoa e refaz a luz, numa etapa do desfazer, e o segundo toque tira', async ({ page }) => {
+  test('um toque lê a cena e refaz a luz, numa etapa do desfazer, e o segundo toque tira', async ({ page }) => {
     await openGlow(page);
     await openLights(page);
     const before = await measure(page);
@@ -184,7 +184,7 @@ test.describe('Luzes', () => {
     expect(await lightDoc(page)).toMatchObject({ light: { id: 'luz-de-estudio' }, look: null });
   });
 
-  test('o arquivo sai igual em qualquer grade de tiles, com grão, poeira, vazamento e data', async ({ page }) => {
+  test('o arquivo sai igual em qualquer grade de tiles, com grão, vazamento e data', async ({ page }) => {
     await openGlow(page);
     await openLights(page);
     for (const id of ['analogica', 'flash-analogico', 'silhueta', 'neon']) {
@@ -198,7 +198,7 @@ test.describe('Luzes', () => {
     expect((await lightDoc(page)).light?.stamp).toMatch(/^\d\d\/\d\d\/\d{4}$/);
   });
 
-  test('o projeto salvo abre com a luz, na prateleira dela, sem baixar o detector', async ({ page }) => {
+  test('o projeto salvo abre com a luz, na prateleira dela, sem baixar detector nem modelo', async ({ page }) => {
     await openGlow(page);
     await openLights(page);
     await tapLight(page, 'contraluz-dourado');
@@ -221,13 +221,77 @@ test.describe('Luzes', () => {
     expect(models).toEqual([]);
   });
 
-  test('foto sem ninguém: a luz não entra e a prateleira diz por quê', async ({ page }) => {
+  test('foto sem ninguém: a luz entra mesmo assim, e cai no que a foto tem', async ({ page }) => {
     await openGlow(page, 'gradient.png');
     await openLights(page);
+    const before = await measure(page);
     await tapLight(page, 'flash-direto');
-    await expect(page.getByTestId('lights')).toHaveAttribute('data-scene', 'nobody');
-    await expect(page.getByText('Não achei ninguém nesta foto')).toBeVisible();
-    expect(await lightDoc(page)).toMatchObject({ light: null, scene: false, depth: 0 });
+    await expect(page.getByTestId('lights')).toHaveAttribute('data-scene', 'ready');
+    await expect(page.getByText('Não achei ninguém nesta foto')).toHaveCount(0);
+    expect(await lightDoc(page)).toMatchObject({ light: { id: 'flash-direto' }, scene: true, depth: 1 });
+    const lit = await measure(page);
+    expect(await shotDiff(page, before.shot, lit.shot)).toBeGreaterThan(1);
+  });
+
+  test('a cena lê a profundidade e o recorte da pessoa, com os dois modelos, e a luz não deixa pontos soltos', async ({ page }) => {
+    const models: string[] = [];
+    page.on('request', (request) => {
+      const name = /(depth_anything_v2_small|modnet)[^/]*\.onnx/.exec(request.url())?.[1];
+      if (name) models.push(name);
+    });
+    await openGlow(page);
+    await openLights(page);
+    expect(models).toEqual([]);
+    await tapLight(page, 'flash-direto');
+    // The dev server asks for each file twice: once for its address and once for its bytes.
+    expect([...new Set(models)].sort()).toEqual(['depth_anything_v2_small', 'modnet']);
+
+    const scene = (await page.evaluate(`(async () => {
+      const { engine } = await import(/* @vite-ignore */ '/src/ui/state.svelte.ts');
+      const s = engine().scene;
+      const at = (u, v) => (Math.floor(v * s.h) * s.w + Math.floor(u * s.w)) * 4;
+      return {
+        cells: s.w * s.h,
+        bytes: s.data.length,
+        floats: s.field.length,
+        long: Math.max(s.w, s.h),
+        faceMatte: s.data[at(0.5, 0.55)],
+        cornerMatte: s.data[at(0.03, 0.03)],
+        faceDepth: s.field[at(0.5, 0.55)],
+        cornerFront: s.field[at(0.03, 0.03)],
+        cornerBehind: s.field[at(0.03, 0.03) + 1],
+        finite: s.field.every(Number.isFinite),
+      };
+    })()`)) as Record<string, number | boolean>;
+    expect(scene.long).toBe(1024);
+    expect(scene.bytes).toBe((scene.cells as number) * 4);
+    expect(scene.floats).toBe((scene.cells as number) * 4);
+    expect(scene.finite).toBe(true);
+    // The person is the matte, and the light is aimed at their depth.
+    expect(scene.faceMatte).toBe(255);
+    expect(scene.cornerMatte).toBe(0);
+    expect(scene.faceDepth as number).toBeGreaterThan(0.8);
+    expect(scene.faceDepth as number).toBeLessThan(1.25);
+    // The wall is farther than the face, on both sides of the edge.
+    expect(scene.cornerFront as number).toBeLessThan(0.8);
+    expect(scene.cornerBehind as number).toBeLessThan(0.8);
+
+    // The dark background of a flash is even: no point of it stands far above the rest, as a speck of dust would.
+    const specks = (await page.evaluate(`(async () => {
+      const { engine } = await import(/* @vite-ignore */ '/src/ui/state.svelte.ts');
+      const { renderImage } = await import(/* @vite-ignore */ '/src/core/export.ts');
+      const canvas = await renderImage(engine(), { tile() {} });
+      const { width: w, height: h } = canvas;
+      const data = canvas.getContext('2d').getImageData(0, 0, w, h).data;
+      const lumas = [];
+      for (let y = 0; y < h * 0.12; y++) for (let x = 0; x < w * 0.12; x++) {
+        const i = (y * w + x) * 4;
+        lumas.push(0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2]);
+      }
+      lumas.sort((a, b) => a - b);
+      return { median: lumas[lumas.length >> 1], top: lumas[lumas.length - 1] };
+    })()`)) as { median: number; top: number };
+    expect(specks.top - specks.median).toBeLessThan(24);
   });
 
   test('Voltar ao original tira a luz, e o desfazer traz de volta', async ({ page }) => {
