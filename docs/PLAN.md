@@ -90,6 +90,7 @@
 - [x] Marca do pincel como opção, com estado claro, e foto sempre com o resultado real
 - [x] Traço limitado à íris, ao branco do olho ou aos dentes, em todos os rostos achados
 - [x] Íris como forma fechada, com o reflexo da luz dentro, e o reflexo branco em cima da cor nova
+- [x] Dentes pelo que a foto mostra: lábio, gengiva, língua e escuro da boca de fora, dente amarelo dentro. Nas 4 fotos reais com dentes a borda fica no dente; nas 14 de boca fechada a máscara fica vazia
 - [x] Pincel livre sem rosto, sem região, sem detector ou pelo interruptor
 - [x] Nada do rosto no projeto salvo
 
