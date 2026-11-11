@@ -7,6 +7,7 @@
 import { buildBrowMask, buildCheekMask, buildLidMask, buildLipMask, buildSculptMask, buildSprinkleMask, lipReach } from './makeup';
 import { bounds, guidedFilter, softBlur, type Area, type MaskTarget, type Point } from './mask';
 import type { Face, FaceParts } from './scan';
+import { teethFromPhoto } from './teeth';
 import { areaAround, buildGlowMask, buildSkinMask, buildUnderEyeMask, cover, place, smooth, toGrid } from './skin';
 
 /**
@@ -387,6 +388,13 @@ function addTeeth(out: Uint8Array, target: MaskTarget, { innerLips, outerLips }:
   const area = areaAround(outer, sigma * 3 + 2, target);
   if (area.w < 1 || area.h < 1) return;
   const opening = inner.map(([x, y], i): Point => [x + (outer[i][0] - x) * reach, y + (outer[i][1] - y) * reach]);
+  const rgba = target.color?.(area);
+  if (rgba) {
+    // With the photo at hand, the teeth are what it shows: an opening with none stays empty.
+    const found = teethFromPhoto(rgba, area, opening, inner, outer, width);
+    if (found) place(out, target, area, found);
+    return;
+  }
   let shape = softBlur(cover(opening, area), area.w, area.h, sigma);
   const guide = target.luma?.(area);
   if (guide) shape = guidedFilter(guide, shape, area.w, area.h, Math.max(1, Math.round(width * REFINE_RADIUS)), REFINE_EPS);

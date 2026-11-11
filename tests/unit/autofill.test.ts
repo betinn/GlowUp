@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'svelte/server';
 import { createDoc, type EditDoc, type LayerId } from '../../src/core/doc';
 import type { Engine } from '../../src/core/engine';
+import type { FaceRegion } from '../../src/core/face/regions';
 import { History } from '../../src/core/history/history';
 import type { RetouchPreset } from '../../src/presets/recipes';
 import { AUTO_ACTIONS, type AutoAction } from '../../src/tools/auto';
@@ -15,6 +16,7 @@ import {
   limitTool,
   placeOf,
   prepareToolFills,
+  setToolLimit,
   setToolMode,
   toolLimit,
 } from '../../src/ui/facepick.svelte';
@@ -49,11 +51,6 @@ vi.mock('../../src/core/face/regions', () => ({
   buildRegionMask: (_faces: unknown, region: string) => (photo.regions.includes(region) ? new Uint8Array([photo.regions.indexOf(region) + 1]) : null),
 }));
 
-vi.mock('../../src/core/face/focus', async (original) => ({
-  ...(await original<typeof import('../../src/core/face/focus')>()),
-  focusPoints: () => [],
-}));
-
 vi.mock('../../src/tools/activate', () => ({
   ensureField: () => Promise.resolve(),
   ensureHeal: () => Promise.resolve(),
@@ -74,7 +71,6 @@ function fakeEngine() {
     history,
     source: { w: 4, h: 4 },
     masks: { w: 4, h: 4 },
-    viewMoves: 0,
     viewport: { w: 1, h: 1, top: 0, right: 0, bottom: 0, left: 0 },
     displaySize: { w: 4, h: 4 },
     view: { zoom: 1, x: 0, y: 0 },
@@ -87,9 +83,7 @@ function fakeEngine() {
     setCropEditing: vi.fn(),
     setPaintLimit: vi.fn(),
     requestRender: vi.fn(),
-    flyTo: () => Promise.resolve(),
     revealLimit: () => Promise.resolve(),
-    stopFlight: vi.fn(),
     stopReveal: vi.fn(),
     clearLayer: vi.fn(() => Promise.resolve()),
     healSpots: vi.fn(() => Promise.resolve(0)),
@@ -143,6 +137,13 @@ function fakeAction(over: Partial<AutoAction> = {}) {
 /** Waits for what `limitTool` leaves running: the show and the fill. */
 const settled = () => new Promise((done) => setTimeout(done, 30));
 
+/** Tools open in Manual: the tool opens, the person picks Automático, and the test waits for it. */
+async function openAuto(e: Engine, tool: string, region: FaceRegion | null): Promise<void> {
+  await limitTool(e, tool, region);
+  setToolMode(e, 'auto');
+  await settled();
+}
+
 beforeEach(() => {
   dropToolLimit();
   forgetFreedTools();
@@ -153,13 +154,43 @@ beforeEach(() => {
   photo.detectorFails = false;
 });
 
+describe('a tool as it opens', () => {
+  it('opens in Manual with the brush free, and looks for nothing', async () => {
+    const { e, filled } = fakeEngine();
+    const action = fakeAction({ faces: 'required' });
+    AUTO_ACTIONS.set('liquify', action);
+    await limitTool(e, 'liquify', null);
+    await settled();
+    expect(action.apply).not.toHaveBeenCalled();
+    expect(toolLimit).toMatchObject({ tool: 'liquify', state: 'off', mode: 'manual' });
+    await limitTool(e, 'smooth', 'skin');
+    await settled();
+    expect(toolLimit).toMatchObject({ tool: 'smooth', state: 'off', mode: 'manual' });
+    expect(e.setPaintLimit).not.toHaveBeenCalled();
+    expect(filled).toEqual([]);
+  });
+
+  it('keeps the brush on the region once the switch is on, and remembers it on this photo', async () => {
+    const { e } = fakeEngine();
+    await limitTool(e, 'smooth', 'skin');
+    setToolLimit(e, true);
+    await settled();
+    expect(toolLimit).toMatchObject({ state: 'on', mode: 'manual' });
+    await limitTool(e, 'undereye', 'undereye');
+    await settled();
+    expect(toolLimit.state).toBe('off');
+    await limitTool(e, 'smooth', 'skin');
+    await settled();
+    expect(toolLimit.state).toBe('on');
+  });
+});
+
 describe('a tool with an automatic action of its own', () => {
   it('runs at once when it asks for no search, and leaves the brush off', async () => {
     const { e } = fakeEngine();
     const action = fakeAction();
     AUTO_ACTIONS.set('adjust', action);
-    await limitTool(e, 'adjust', null);
-    await settled();
+    await openAuto(e, 'adjust', null);
     expect(action.apply).toHaveBeenCalledTimes(1);
     expect(toolLimit).toMatchObject({ tool: 'adjust', region: null, state: 'on', mode: 'auto' });
     expect(e.brushOff).toBe(true);
@@ -170,8 +201,7 @@ describe('a tool with an automatic action of its own', () => {
     const { e } = fakeEngine();
     const action = fakeAction({ faces: 'required' });
     AUTO_ACTIONS.set('liquify', action);
-    await limitTool(e, 'liquify', null);
-    await settled();
+    await openAuto(e, 'liquify', null);
     expect(action.apply).toHaveBeenCalledWith(e, { faces: photo.faces, source: e.source });
   });
 
@@ -180,8 +210,7 @@ describe('a tool with an automatic action of its own', () => {
     photo.faces = [];
     const action = fakeAction({ faces: 'required' });
     AUTO_ACTIONS.set('liquify', action);
-    await limitTool(e, 'liquify', null);
-    await settled();
+    await openAuto(e, 'liquify', null);
     expect(action.apply).not.toHaveBeenCalled();
     expect(toolLimit).toMatchObject({ state: 'no-face', mode: 'manual' });
     expect(e.brushOff).toBe(false);
@@ -192,8 +221,7 @@ describe('a tool with an automatic action of its own', () => {
     photo.faces = [];
     const action = fakeAction({ faces: 'optional' });
     AUTO_ACTIONS.set('blur', action);
-    await limitTool(e, 'blur', null);
-    await settled();
+    await openAuto(e, 'blur', null);
     expect(action.apply).toHaveBeenCalledWith(e, { faces: [], source: e.source });
     expect(toolLimit.state).toBe('on');
   });
@@ -202,8 +230,7 @@ describe('a tool with an automatic action of its own', () => {
     const { e } = fakeEngine();
     const action = fakeAction();
     AUTO_ACTIONS.set('liquify', action);
-    await limitTool(e, 'liquify', 'skin');
-    await settled();
+    await openAuto(e, 'liquify', 'skin');
     expect(action.apply).toHaveBeenCalledTimes(1);
     expect(e.setPaintLimit).toHaveBeenCalledWith(new Uint8Array([1]));
   });
@@ -214,8 +241,7 @@ describe('a tool with an automatic action of its own', () => {
     AUTO_ACTIONS.set('adjust', action);
     expect(switchable('adjust')).toBe(true);
     expect(hasWork(e, 'adjust')).toBe(false);
-    await limitTool(e, 'adjust', null);
-    await settled();
+    await openAuto(e, 'adjust', null);
     expect(hasWork(e, 'adjust')).toBe(true);
     expect(placeOf('adjust')).toBe('no rosto');
 
@@ -242,8 +268,7 @@ describe('a tool with an automatic action of its own', () => {
     const { e } = fakeEngine();
     const action = fakeAction();
     AUTO_ACTIONS.set('adjust', action);
-    await limitTool(e, 'adjust', null);
-    await settled();
+    await openAuto(e, 'adjust', null);
     setToolMode(e, 'manual');
     expect(e.brushOff).toBe(false);
     setToolMode(e, 'auto');
@@ -255,8 +280,7 @@ describe('a tool with an automatic action of its own', () => {
     const { e } = fakeEngine();
     const error = vi.spyOn(console, 'error').mockImplementation(() => {});
     AUTO_ACTIONS.set('adjust', fakeAction({ apply: () => Promise.reject(new Error('no')) }));
-    await limitTool(e, 'adjust', null);
-    await settled();
+    await openAuto(e, 'adjust', null);
     expect(ui.toast).toMatch(/Não consegui aplicar/);
     error.mockRestore();
   });
@@ -281,8 +305,7 @@ describe('the tools that keep working as before', () => {
   it('fill the mask of a mask tool with its own shape', async () => {
     const { e, spy, filled } = fakeEngine();
     e.doc.layers.blush = { enabled: true, painted: false, params: {} };
-    await limitTool(e, 'blush', 'skin');
-    await settled();
+    await openAuto(e, 'blush', 'skin');
     expect(spy.setPaintLimit).toHaveBeenCalledWith(new Uint8Array([1]));
     expect(filled).toEqual([{ id: 'blush', data: new Uint8Array([2]), label: 'Automático' }]);
   });
@@ -291,8 +314,7 @@ describe('the tools that keep working as before', () => {
     const { e, filled } = fakeEngine();
     photo.regions = [];
     e.doc.layers.smooth = { enabled: true, painted: false, params: {} };
-    await limitTool(e, 'smooth', 'skin');
-    await settled();
+    await openAuto(e, 'smooth', 'skin');
     expect(toolLimit).toMatchObject({ state: 'no-region', mode: 'manual' });
     expect(filled).toEqual([]);
   });
@@ -425,8 +447,7 @@ describe('the selector, in any panel', () => {
   it('needs no props and no region', async () => {
     const { e } = fakeEngine();
     AUTO_ACTIONS.set('adjust', fakeAction());
-    await limitTool(e, 'adjust', null);
-    await settled();
+    await openAuto(e, 'adjust', null);
     for (const panel of [ModeSelector, AutoMode]) {
       const { body } = render(panel);
       expect(body).toContain('data-testid="tool-mode"');
@@ -454,7 +475,7 @@ describe('the selector, in any panel', () => {
     const { e } = fakeEngine();
     photo.faces = [];
     AUTO_ACTIONS.set('liquify', fakeAction({ faces: 'required' }));
-    await limitTool(e, 'liquify', null);
+    await openAuto(e, 'liquify', null);
     const { body } = render(AutoMode);
     expect(body).toContain('Sem rosto aqui.');
     expect(body).not.toContain('tool-mode');

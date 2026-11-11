@@ -105,8 +105,8 @@ que separa cabeça, corpo e fundo, 15 MB, e o que completa o fundo, 29 MB com o 
 precache, e a foto continua no aparelho. Os cartões de download mostram quanto falta, e só num celular dizem o
 tamanho, em todos os downloads do app.
 
-Ao abrir uma delas, a foto aproxima do rosto, dos olhos, da boca ou do cabelo e um brilho rápido mostra onde
-o pincel alcança. No modo Automático, que vem ligado, a ferramenta já aplica em todos os rostos achados,
+Ao abrir uma delas, um brilho rápido mostra onde o pincel alcança, sem mexer no zoom nem
+na posição da foto. No modo Automático, que vem ligado, a ferramenta já aplica em todos os rostos achados,
 numa etapa só que dá para desfazer, e os controles ajustam o efeito: o efeito chega aos poucos, e em Manchas
 cada mancha some por vez. Cada mancha corrigida fica marcada por um círculo, e um toque nele desfaz só
 aquela correção. O Iluminador vai nas maçãs, na ponte do nariz, no meio da testa, no arco do

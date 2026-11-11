@@ -196,6 +196,8 @@ export interface HealOp {
   /** Texture source offset in image UV. */
   du: number;
   dv: number;
+  /** Who placed it: the automatic mode of Manchas or the brush. Older projects leave this out: the brush. */
+  origin?: 'auto' | 'manual';
 }
 
 export interface EditDoc {

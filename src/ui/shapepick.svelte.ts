@@ -1,6 +1,7 @@
 /**
- * The sliders of the face menu: finding the faces and the person when a tool of the menu opens, and which face
- * the sliders work on. Faces stay in memory for the open photo and never reach the saved project.
+ * The sliders of the face menu: finding the faces and the person the first time a slider moves, and which face
+ * the sliders work on. Opening a tool of the menu downloads nothing. Faces stay in memory for the open photo and
+ * never reach the saved project.
  */
 
 import type { Engine } from '../core/engine';
@@ -23,6 +24,8 @@ export const shapePick = $state({
   showing: false,
   /** The list of faces, for the panel and the overlay. */
   faces: [] as Face[],
+  /** The slider moved before the face was found, with its last number. It lands when the search ends. */
+  pending: null as { id: string; value: number } | null,
 });
 
 /** Why the double chin slider is not there, for each face. */
@@ -57,8 +60,25 @@ function biggest(faces: readonly Face[]): number {
   return best;
 }
 
-/** Finds what the sliders need, when a tool of the menu opens. */
-export async function openShapeTool(e: Engine): Promise<void> {
+/**
+ * A tool of the menu opens. What was found on this photo comes back at once, and a project with numbers of its own
+ * finds their face, as the person already asked for it. Otherwise nothing is searched until a slider moves.
+ */
+export function openShapeTool(e: Engine): void {
+  shapePick.pending = null;
+  const found = shapePick.faces.length > 0 && e.shapeFaces === shapePick.faces;
+  if (found || e.doc.shapes?.length) void findShape(e);
+  else shapePick.state = 'idle';
+}
+
+/** A slider moved before the face was found: the search starts, and the number waits for it. */
+export function holdShapeValue(e: Engine, id: string, value: number): void {
+  shapePick.pending = { id, value };
+  if (shapePick.state === 'idle' || shapePick.state === 'failed') void findShape(e);
+}
+
+/** Finds what the sliders need: the faces and the person apart from the background. */
+export async function findShape(e: Engine): Promise<void> {
   const { source } = e;
   if (!source) return;
   const mine = ++current;
@@ -82,10 +102,12 @@ export async function openShapeTool(e: Engine): Promise<void> {
     // Numbers saved in a project find their face now, and the field is worked out from them again.
     if (e.doc.shapes?.length) e.syncShape();
     shapePick.state = faces.length ? 'on' : 'no-face';
+    landPending(e);
   } catch (err) {
     console.error(err);
     if (!stopped()) shapePick.state = 'failed';
   } finally {
+    if (mine === current) shapePick.pending = null;
     task.stop();
     if (mine === current) closeJob();
     bump();
@@ -118,6 +140,18 @@ export async function searchMoreFaces(e: Engine): Promise<void> {
   }
 }
 
+/** The number of the slider that moved during the search goes on the chosen face, as one undo step. */
+function landPending(e: Engine): void {
+  const held = shapePick.pending;
+  shapePick.pending = null;
+  const face = chosenFace();
+  if (!held || !face) return;
+  const section = sliderById(held.id)?.section;
+  if (section && e.doc.shapesOff?.includes(section)) e.setShapeSectionOff(section, false);
+  e.setShapeValue(placeOf(e, face), held.id, held.value, true);
+  e.commit();
+}
+
 function closeJob(): void {
   if (facePick.task === shapePick.task) facePick.task = null;
   shapePick.task = null;
@@ -130,6 +164,7 @@ export function dropShapeTool(): void {
   closeJob();
   shapePick.state = 'idle';
   shapePick.showing = false;
+  shapePick.pending = null;
 }
 
 export function forgetShapeFaces(): void {
@@ -150,6 +185,7 @@ export function chosenFace(): Face | null {
 
 /** The number of a slider on the chosen face. */
 export function valueOf(e: Engine, id: string): number {
+  if (shapePick.pending?.id === id) return shapePick.pending.value;
   const face = chosenFace();
   if (!face) return 0;
   const [u, v] = placeOf(e, face);

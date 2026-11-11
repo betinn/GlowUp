@@ -58,8 +58,6 @@
   function down(ev: PointerEvent) {
     const e = engine();
     if (!e.loaded) return;
-    // A touch on the photo takes the view back from any flight.
-    e.stopFlight();
     canvas!.setPointerCapture(ev.pointerId);
     const [x, y] = rel(ev);
     pointers.set(ev.pointerId, { x, y });

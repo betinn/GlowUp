@@ -4,7 +4,8 @@
    * the search finds nothing. A tool with a region also gets the switch that keeps the brush on it. It
    * takes no props and shows nothing while no tool is under `toolLimit`.
    */
-  import { facePick, hasWork, limitTool, limitWords, placeOf, refillRegion, setToolLimit, toolLimit } from '../facepick.svelte';
+  import { toolById } from '../../tools/catalog';
+  import { autoSpotsOn, facePick, hasWork, limitTool, limitWords, placeOf, refillRegion, setToolLimit, toolLimit } from '../facepick.svelte';
   import ProgressCard from '../ProgressCard.svelte';
   import { regionShow } from '../regionshow.svelte';
   import Switch from '../Switch.svelte';
@@ -15,7 +16,13 @@
   const words = $derived(limitWords(toolLimit.tool, toolLimit.region));
   const on = $derived(toolLimit.state === 'on');
   const auto = $derived(toolLimit.mode === 'auto');
-  const filled = $derived((ui.rev, !!toolLimit.tool && hasWork(e, toolLimit.tool)));
+  /** For Manchas, the spots of the automatic mode: those of the brush are not what it applied. */
+  const filled = $derived.by(() => {
+    void ui.rev;
+    const { tool } = toolLimit;
+    if (!tool) return false;
+    return toolById(tool)?.kind === 'heal' ? autoSpotsOn(e) : hasWork(e, tool);
+  });
   const place = $derived(placeOf(toolLimit.tool));
   const applied = $derived(words && 'applied' in words ? words.applied : undefined);
   /** Without a region there is no brush to promise, and the words of the tool say it all. */

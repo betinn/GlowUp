@@ -54,6 +54,7 @@ test.describe('cabelo', () => {
     const plain = await page.screenshot();
     await page.locator('[data-group=hair]').click();
     await page.locator('[data-tool=haircolor]').click();
+    await chooseMode(page, 'Automático');
     // The search says what it looks for, and the first time that it downloads. The size is only said on a phone.
     await expect(page.locator('[data-limit=searching]')).toBeVisible();
     await expect(page.getByText('Só na primeira vez. A foto não sai do seu aparelho.')).toBeVisible();
@@ -131,6 +132,7 @@ test.describe('cabelo, celular', () => {
     expect(scroll).toBeLessThanOrEqual(width);
     await page.locator('[data-group=hair]').tap();
     await page.locator('[data-tool=haircolor]').tap();
+    await chooseMode(page, 'Automático');
     await expect(page.getByText(/Aplicado no cabelo que achei/)).toBeVisible({ timeout: 60_000 });
     await expect(page.locator('[data-region-show=idle]')).toHaveCount(1, { timeout: 15_000 });
     await page.screenshot({ path: shot('ui-celular-cabelo') });

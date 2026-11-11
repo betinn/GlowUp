@@ -1,5 +1,5 @@
 /**
- * The menu of Brincar: finding the faces when it opens, which face the effects work on, which sticker is
+ * The menu of Brincar: finding the faces the first time a careta or a sticker asks for them, which face the effects work on, which sticker is
  * chosen, and putting stickers on. Faces stay in memory for the open photo and never reach the saved project.
  */
 
@@ -25,9 +25,14 @@ export const funPick = $state({
   chosen: 0,
   /** The sticker the handles are on, by its id. */
   selected: null as number | null,
+  /** A slider moved before the faces were found, with its last number, for the slider to show. */
+  pending: null as { id: string; value: number } | null,
 });
 
 let current = 0;
+
+/** What the person asked for before the faces were found. `face` says it needs one, as a careta does. */
+let waiting: { run: () => void; face: boolean } | null = null;
 
 /** The biggest face goes first: it is the one a person usually means. */
 function biggest(faces: readonly Face[]): number {
@@ -38,7 +43,11 @@ function biggest(faces: readonly Face[]): number {
   return best;
 }
 
-/** Loads Brincar and finds the faces, when its menu opens. */
+/**
+ * Loads Brincar when its menu opens, with no model: the faces found on this photo come back, and a project with
+ * caretas of its own finds their face, as the person already asked for it. Otherwise the first careta or sticker
+ * starts the search.
+ */
 export async function openFun(e: Engine): Promise<void> {
   const { source } = e;
   if (!source) return;
@@ -51,6 +60,38 @@ export async function openFun(e: Engine): Promise<void> {
     bump();
     return;
   }
+  if (e.doc.fun?.faces?.length) {
+    await findFaces(e);
+    return;
+  }
+  funPick.state = 'idle';
+  bump();
+}
+
+/**
+ * Runs what the person asked for once the faces are known, finding them first if needed. Without a face, what
+ * needs one is dropped, and a sticker goes to the middle of the photo.
+ */
+function withFaces(e: Engine, run: () => void, face: boolean): void {
+  if (funPick.state === 'on') {
+    run();
+    return;
+  }
+  if (funPick.state !== 'searching' && funPick.state !== 'idle' && funPick.state !== 'failed') {
+    if (!face) run();
+    return;
+  }
+  waiting = { run, face };
+  if (funPick.state !== 'searching') void findFaces(e);
+  bump();
+}
+
+/** Finds the faces of the photo, then runs what waited for them. */
+export async function findFaces(e: Engine): Promise<void> {
+  const { source } = e;
+  if (!source) return;
+  const mine = ++current;
+  const stopped = () => mine !== current || e.source !== source;
   const task = openJob(false, false);
   funPick.task = task;
   funPick.state = 'searching';
@@ -72,6 +113,12 @@ export async function openFun(e: Engine): Promise<void> {
     console.error(err);
     if (!stopped()) funPick.state = 'failed';
   } finally {
+    const next = mine === current ? waiting : null;
+    if (mine === current) {
+      waiting = null;
+      funPick.pending = null;
+    }
+    if (next && (funPick.state === 'on' || (!next.face && funPick.state !== 'searching'))) next.run();
     task.stop();
     if (facePick.task === task) facePick.task = null;
     if (funPick.task === task) funPick.task = null;
@@ -82,6 +129,8 @@ export async function openFun(e: Engine): Promise<void> {
 /** The menu closes. What it found stays for the next time. */
 export function closeFun(): void {
   current++;
+  waiting = null;
+  funPick.pending = null;
   funPick.task?.stop();
   if (facePick.task === funPick.task) facePick.task = null;
   funPick.task = null;
@@ -109,6 +158,7 @@ export function funPlaceOf(e: Engine, face: Face): [number, number] {
 
 /** The strength of an effect on the chosen face. */
 export function funValueOf(e: Engine, id: string): number {
+  if (funPick.pending?.id === id) return funPick.pending.value;
   const face = chosenFunFace();
   if (!face) return 0;
   const [u, v] = funPlaceOf(e, face);
@@ -117,6 +167,19 @@ export function funValueOf(e: Engine, id: string): number {
 
 /** Moves the slider of an effect on the chosen face. An effect that moves a head alone asks for the person apart. */
 export function setFunValue(e: Engine, id: string, value: number, layered: boolean): void {
+  if (funPick.state !== 'on') {
+    // The number waits for the face, and the last one moved lands, as one undo step.
+    funPick.pending = { id, value };
+    withFaces(
+      e,
+      () => {
+        setFunValue(e, id, value, layered);
+        e.commit();
+      },
+      true,
+    );
+    return;
+  }
   const face = chosenFunFace();
   if (!face) return;
   e.setFunValue(funPlaceOf(e, face), id, value, true);
@@ -138,6 +201,10 @@ export function funComboOn(e: Engine): FunCombo | null {
  * face that already has it, it takes it off.
  */
 export function applyCombo(e: Engine, combo: FunCombo): void {
+  if (funPick.state !== 'on') {
+    withFaces(e, () => applyCombo(e, combo), true);
+    return;
+  }
   const face = chosenFunFace();
   if (!face) return;
   const off = funComboOn(e)?.id === combo.id;
@@ -152,6 +219,10 @@ export function applyCombo(e: Engine, combo: FunCombo): void {
 
 /** Puts a sticker on the chosen face, or in the middle of the photo when there is none, and chooses it. */
 export function putSticker(e: Engine, def: StickerDef): void {
+  if (funPick.state === 'idle' || funPick.state === 'searching') {
+    withFaces(e, () => putSticker(e, def), false);
+    return;
+  }
   const face = chosenFunFace();
   const { width, height } = e.doc;
   const place = face

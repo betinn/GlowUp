@@ -24,7 +24,7 @@ import { buildPlate, extendMouth } from './face/plate';
 import { RenderContext } from './pipeline/context';
 import type { ToolPass } from './pipeline/types';
 import { SourceImage } from './source';
-import { blendViews, clampView, fitView, outputToScreen, panBy, screenToOutput, viewScale, zoomAt, type Size, type ViewState, type Viewport } from './view';
+import { clampView, fitView, outputToScreen, panBy, screenToOutput, viewScale, zoomAt, type Size, type ViewState, type Viewport } from './view';
 import VIEW_FRAG from './shaders/view.frag?raw';
 
 /** Mask key of the healing brush. It is a scratch mask and never reaches the render chain. */
@@ -259,9 +259,6 @@ export class Engine {
   split = -1;
   compareBase: CompareBase = 'original';
 
-  /** Counts the moves of the view the person made, so a flight never undoes one. */
-  viewMoves = 0;
-  private flight: { frame: number; done: () => void } | null = null;
   /** The light over the reach of the brush, while it plays. */
   private reveal: { start: number; still: boolean; frame: number; done: () => void } | null = null;
 
@@ -349,7 +346,6 @@ export class Engine {
     this.fun?.destroy();
     this.fun = null;
     this.funFaces = [];
-    this.stopFlight();
     this.stopReveal();
     cancelAnimationFrame(this.frame);
     this.needsRender = false;
@@ -1238,10 +1234,7 @@ export class Engine {
     this.track('Recorte');
     this.doc.crop = crop;
     this.ctx?.invalidate('global');
-    if (!this.cropEditing) {
-      this.stopFlight();
-      this.view = fitView();
-    }
+    if (!this.cropEditing) this.view = fitView();
     this.requestRender();
     this.emit('view');
   }
@@ -1340,10 +1333,7 @@ export class Engine {
       }
       if (this.pipeline) this.pipeline.lutMix = this.doc.filter.intensity;
       this.onFilterRestore?.();
-      if (cropMoved && !this.cropEditing) {
-        this.stopFlight();
-        this.view = fitView();
-      }
+      if (cropMoved && !this.cropEditing) this.view = fitView();
       this.ctx?.invalidate('healed');
       this.emit('view');
       this.requestRender();
@@ -1691,6 +1681,7 @@ export class Engine {
       this.requestRender();
       return;
     }
+    op.origin = 'manual';
     this.doc.heals.push(op);
     this.applyNewestHeal(ctx);
     this.requestRender();
@@ -1713,30 +1704,43 @@ export class Engine {
   /**
    * Replaces every healed spot with one heal at each of `spots`, as one undo step. Each spot is fitted
    * as a touch of the healing brush would be, and the photo shows them going one by one: `each` runs
-   * after every spot. Returns how many were healed.
+   * after every spot. With `keep` the healed spots stay and the new ones join them, leaving out a spot
+   * already healed. The new ones are the automatic mode's. Returns how many were healed.
    */
-  async healSpots(spots: HealOp['dabs'], label: string, each?: () => Promise<void>): Promise<number> {
+  async healSpots(spots: HealOp['dabs'], label: string, each?: () => Promise<void>, keep = false): Promise<number> {
     const { heal, ctx, pipeline } = this;
     if (!heal || !ctx || !pipeline || this.healingSpots) return 0;
     this.commit();
     this.healingSpots = true;
     const before = this.doc.heals.slice();
-    const made: HealOp[] = [];
+    const made: HealOp[] = keep ? before.slice() : [];
+    const { width, height } = this.doc;
+    const long = Math.max(width, height);
+    // A spot whose middle is inside a healed one is healed already.
+    const covered = (spot: HealOp['dabs'][number]) =>
+      keep && before.some((op) => op.dabs.some((d) => Math.hypot((d.u - spot.u) * width, (d.v - spot.v) * height) < Math.max(d.r, spot.r) * long));
     try {
-      this.doc.heals = [];
-      ctx.invalidate('healed');
-      pipeline.update(ctx, this.doc);
-      // The update above leaves nothing marked to redraw, so the detail kept for a zoomed view would
-      // stay healed. With no spot to heal, or none that holds, the photo would keep showing them.
-      this.dropRoi();
-      this.unfilteredFresh = false;
-      this.requestRender();
+      if (keep) {
+        // The spots are fitted on the photo as it stands, with the spots already healed.
+        pipeline.update(ctx, this.doc);
+      } else {
+        this.doc.heals = [];
+        ctx.invalidate('healed');
+        pipeline.update(ctx, this.doc);
+        // The update above leaves nothing marked to redraw, so the detail kept for a zoomed view would
+        // stay healed. With no spot to heal, or none that holds, the photo would keep showing them.
+        this.dropRoi();
+        this.unfilteredFresh = false;
+        this.requestRender();
+      }
       for (const spot of spots) {
+        if (covered(spot)) continue;
         // A touch refits the spot. When it sees a contour instead, the search already found a spot
         // that stays inside the skin, so its circle is healed as it is.
         const op = (await heal.commit(ctx, [spot], AUTO_HEAL_EDGE, true)) ?? (await heal.commit(ctx, [spot], AUTO_HEAL_EDGE, false));
         if (this.ctx !== ctx) return 0;
         if (!op) continue;
+        op.origin = 'auto';
         this.doc.heals.push(op);
         made.push(op);
         this.applyNewestHeal(ctx);
@@ -1754,14 +1758,15 @@ export class Engine {
       this.ctx?.invalidate('healed');
       this.requestRender();
     };
-    if (made.length === 0 && before.length === 0) return 0;
+    const added = made.length - (keep ? before.length : 0);
+    if (keep ? added === 0 : made.length === 0 && before.length === 0) return 0;
     this.history.push({
       label,
       bytes: 128 + (before.length + after.length) * 96,
       undo: () => set(before),
       redo: () => set(after),
     });
-    return made.length;
+    return added;
   }
 
   /**
@@ -1828,53 +1833,7 @@ export class Engine {
     this.emit('view');
   }
 
-  /** Moves the view smoothly to `target`. Any move of the person stops it where it is. */
-  flyTo(target: ViewState, duration: number): Promise<void> {
-    this.stopFlight();
-    const from = { ...this.view };
-    const to = clampView(this.viewport, this.displaySize, target);
-    if (duration <= 0) {
-      this.view = to;
-      this.requestRender();
-      this.emit('view');
-      return Promise.resolve();
-    }
-    return new Promise((done) => {
-      const start = performance.now();
-      const tick = () => {
-        const f = this.flight;
-        if (!f) return;
-        const t = Math.min(1, (performance.now() - start) / duration);
-        this.view = clampView(this.viewport, this.displaySize, blendViews(from, to, easeInOut(t)));
-        this.requestRender();
-        this.emit('view');
-        if (t >= 1) this.stopFlight();
-        else f.frame = requestAnimationFrame(tick);
-      };
-      this.flight = { frame: requestAnimationFrame(tick), done };
-    });
-  }
-
-  get flying(): boolean {
-    return !!this.flight;
-  }
-
-  stopFlight(): void {
-    const f = this.flight;
-    if (!f) return;
-    this.flight = null;
-    cancelAnimationFrame(f.frame);
-    f.done();
-  }
-
-  /** A move of the view by the person: it wins over any flight. */
-  private moved(): void {
-    this.stopFlight();
-    this.viewMoves++;
-  }
-
   zoomBy(x: number, y: number, factor: number): void {
-    this.moved();
     const dpr = this.dpr;
     this.view = zoomAt(this.viewport, this.displaySize, this.view, x * dpr, y * dpr, factor);
     this.requestRender();
@@ -1882,7 +1841,6 @@ export class Engine {
   }
 
   panBy(dx: number, dy: number): void {
-    this.moved();
     const dpr = this.dpr;
     this.view = panBy(this.viewport, this.displaySize, this.view, dx * dpr, dy * dpr);
     this.requestRender();
@@ -1890,7 +1848,6 @@ export class Engine {
   }
 
   resetView(): void {
-    this.moved();
     this.view = fitView();
     this.requestRender();
     this.emit('view');
@@ -1912,7 +1869,6 @@ export class Engine {
   }
 
   setCropEditing(on: boolean): void {
-    this.stopFlight();
     this.cropEditing = on;
     this.view = fitView();
     this.requestRender();

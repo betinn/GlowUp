@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { DEV_ORIGIN } from '../../playwright.config';
-import { expectNoErrors, imageRect, meanDiff, settle, skipIntro } from './helpers';
+import { expectNoErrors, imageRect, meanDiff, settle, skipIntro, findFunFaces } from './helpers';
 
 /** The dev server serves each module by address, so a test can read the document. */
 test.use({ baseURL: DEV_ORIGIN });
@@ -20,7 +20,7 @@ async function openBrincar(page: Page): Promise<void> {
   await page.addInitScript(() => localStorage.setItem('glowup.startPath', '"fun"'));
   await page.goto('/');
   await page.setInputFiles('[data-testid=file-input]', 'tests/fixtures/portrait.png');
-  await expect(page.locator('[data-fun=on]')).toHaveCount(1, { timeout: 90_000 });
+  await findFunFaces(page);
   await expect(page.getByTestId('opening')).toHaveCount(0);
   await settle(page);
 }

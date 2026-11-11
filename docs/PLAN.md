@@ -90,13 +90,13 @@
 - [x] Marca do pincel como opção, com estado claro, e foto sempre com o resultado real
 - [x] Traço limitado à íris, ao branco do olho ou aos dentes, em todos os rostos achados
 - [x] Íris como forma fechada, com o reflexo da luz dentro, e o reflexo branco em cima da cor nova
+- [x] Dentes pelo que a foto mostra: lábio, gengiva, língua e escuro da boca de fora, dente amarelo dentro. Nas 4 fotos reais com dentes a borda fica no dente; nas 14 de boca fechada a máscara fica vazia
 - [x] Pincel livre sem rosto, sem região, sem detector ou pelo interruptor
 - [x] Nada do rosto no projeto salvo
 
 ## M13. Foco, brilho e modo automático
 
-- [x] Voo animado até os olhos ou a boca, com escolha entre todos os rostos e o maior
-- [x] Voo que cede a qualquer gesto, respeita movimento reduzido, recorte, giro e liquify
+- [x] Escolher uma parte não mexe na vista: o brilho mostra a região e o zoom fica com a pessoa (decisão 345, o voo animado saiu)
 - [x] Brilho sobre o alcance do pincel, fora da exportação e diferente da marca do pincel
 - [x] Automático e Manual, com o automático aplicado numa etapa e a máscara salva como pintada
 
@@ -105,7 +105,7 @@
 - [x] Grupo Cabelo na barra, entre Make e Forma
 - [x] Segmentador de cabelo no próprio site, baixado só na primeira ferramenta de cabelo
 - [x] Cabelo achado ao redor de cada rosto, ou na foto toda quando não há rosto
-- [x] Cor, Escurecer, Clarear, Contraste e Nitidez, com Automático, voo e brilho como nos olhos
+- [x] Cor, Escurecer, Clarear, Contraste e Nitidez, com Automático e brilho como nos olhos
 
 ## M15. Voltar ao original
 
@@ -113,7 +113,7 @@
 
 ## M16. Make pelo detector
 
-- [x] Batom, blush, sombra, sobrancelha, contorno e sardas com busca, voo, brilho, Automático e Manual
+- [x] Batom, blush, sombra, sobrancelha, contorno e sardas com busca, brilho, Automático e Manual
 - [x] Batom ajusta o contorno dos lábios à cor da foto, com linha limpa e sem os dentes
 - [x] Sobrancelha lê os fios do brilho da foto
 - [x] Sardas soltas, sem padrão, com tipo, quantidade e tamanho na escala do rosto
@@ -189,7 +189,7 @@
 - [x] Conferido nas seis fotos reais: mandíbula em -100, -50, +50 e +100 e queixo em -100, com linhas finas
 - [x] Arrastar um controle não trava, nem a 6x de lentidão: rascunho na hora, resultado completo igual ao de antes, fio de luz enquanto ele não chega
 - [x] O preenchimento em segundo plano cede a vez à página entre os passos pesados
-- [ ] Separar a pessoa do fundo fora da página: ao abrir o menu, o MediaPipe e a primeira placa ainda prendem a página por 0,2 a 0,5 s de cada vez, cerca de 2 s no total
+- [ ] Separar a pessoa do fundo fora da página: o MediaPipe e a primeira placa ainda prendem a página por 0,2 a 0,5 s de cada vez, cerca de 2 s no total. Abrir o menu já não faz isso: a separação vem no primeiro controle que se mexe ou no primeiro traço do Liquify (M25)
 - [ ] Desfazer e refazer dos controles também pelos workers: hoje o campo é refeito na hora, 0,1 a 0,25 s num computador rápido
 - [ ] Placa na resolução da foto: hoje ela tem a da prévia, e numa foto de 12 MP o que aparece atrás sai mais suave
 - [ ] Retoques de pele chegarem à placa: o pescoço que aparece vem da foto sem Suavizar nem Tom de pele
@@ -296,6 +296,32 @@ Três famílias, medidas nos pares:
 - [ ] As miniaturas só mostram a foto depois da primeira leitura da cena. Antes disso mostram duas cores de cada luz
 - [ ] A medição contra os pares roda em scripts fora do repositório, porque lê as fotos reais
 - [ ] As luzes só aparecem no Glow na Hora. Do Meu Jeito ainda não tem entrada para elas
+
+## M25. Seletor de cor e Cor dos olhos
+
+As cores prontas passavam da borda da tela e não havia como rolar até elas. E a Cor dos olhos, no Automático,
+começava forte demais: o primeiro resultado já parecia um olho falso.
+
+- [x] Um só seletor para todas as ferramentas de cor (olhos, cabelo, make e sardas), com as cores prontas quebrando em linhas, alcançáveis no celular e no computador
+- [x] Cor própria por quadrado de saturação e brilho e faixa de matiz, com toque, mouse e setas do teclado, mais o código hex e a amostra da cor
+- [x] A foto acompanha o arraste sem travar, e cada escolha é uma etapa do desfazer
+- [x] As últimas cinco cores próprias guardadas por ferramenta, ao lado das prontas
+- [x] Cor dos olhos começa em 50, escolhido nas fotos reais com azul, verde, mel e cinza; o controle ainda vai até a força de antes
+- [x] A luz da íris muda pelo todo e não pixel a pixel: fibras e anel escuro da borda ficam
+- [ ] A cor nova é uma só em toda a íris: não há o anel dourado em volta da pupila nem a variação de tom de um olho de verdade
+- [ ] Atrás de lente clara ou com a borda da máscara passando pela sombra da pálpebra, a íris ainda pode sair como um disco em 100
+
+## M26. Ferramentas sob demanda
+
+- [x] Toda ferramenta abre no Manual, com o pincel livre, sem baixar nem rodar modelo (e2e olha a rede)
+- [x] O modelo baixa no Automático, na chave "Só na…" ou no primeiro controle que precisa do rosto, com o cartão de progresso
+- [x] Formato do rosto e Brincar esperam o primeiro controle, careta ou adesivo, e o número que se mexeu entra quando o rosto chega
+- [x] Liquify separa o fundo no primeiro traço, e não ao abrir
+- [x] Manchas: Automático e Manual no mesmo conjunto de correções, cada uma com a origem, no desfazer e no projeto salvo
+- [x] Manchas: o Automático procura uma vez por foto, e voltar a ele não refaz nem devolve o que foi tirado
+- [x] Manchas: círculos nos dois modos, e um toque tira a correção, do Automático ou do pincel
+- [ ] Um projeto salvo não lembra quais manchas do Automático a pessoa tirou: se ela tirou todas, o Automático põe de novo ao reabrir
+- [ ] No Manual, um círculo ocupa o lugar do toque do pincel: para tratar de novo bem em cima de uma correção, é preciso tirar o círculo antes
 
 ## Metas medidas
 
@@ -556,6 +582,8 @@ SwiftShader no e2e, retrato procedural de 1500 x 1875, tela de 1280 x 800.
 | Voo e brilho | 650 ms e 1,1 s, aviso por 2,6 s |
 | JS da primeira visita em gzip | 27,2 KB, eram 27,3 KB |
 | Chunk do editor em gzip | 37,4 KB, eram 34,8 KB |
+
+O voo e os zooms de chegada desta tabela saíram com a decisão 345: a vista não se mexe ao escolher uma parte.
 
 O brilho custa uma leitura de textura a mais por pixel, só enquanto toca. O detector continua fora do
 precache e só baixa quando uma ferramenta de olhos ou dentes abre.

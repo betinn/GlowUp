@@ -222,10 +222,9 @@ rostos achados.
   interruptor e "Procurar mais rostos" aparece, para o rosto que a primeira busca deixou de lado.
 - **Nada a limitar.** Sem rosto, sem dentes à mostra ou sem detector, o painel diz o motivo e o pincel fica
   livre.
-- **Foco.** Quando a região fica pronta, a vista voa até os olhos, ou até a boca em Dentes. Dois rostos
-  próximos entram juntos; numa foto de grupo vai o maior. Qualquer gesto na foto para o voo, e quem mexeu na
-  vista durante a busca fica com a vista que escolheu.
-- **Brilho.** Em seguida uma luz fria acende sobre o que o pincel alcança, com borda clara e uma faixa que
+- **Vista.** Quando a região fica pronta, a vista fica onde a pessoa deixou: sem zoom e sem arrastar a foto.
+  Pinça, roda, teclas e enquadrar seguem com ela.
+- **Brilho.** Uma luz fria acende sobre o que o pincel alcança, com borda clara e uma faixa que
   atravessa a tela, e apaga em pouco mais de um segundo. O aviso "O brilho mostra onde o pincel alcança"
   fica um pouco mais. A luz é fria para nunca ser confundida com a marca laranja, que é o que se pintou, e
   não aparece na exportação. Volta a tocar quando o interruptor liga.
@@ -294,8 +293,7 @@ Cada uma segue o mesmo caminho dos olhos e dentes, com as palavras do cabelo.
 
 - **Busca.** O cartão diz "Procurando o cabelo" e, depois dos rostos, "Achando os fios". Na primeira vez
   avisa cerca de 7 MB, ou menos de 1 MB se o detector de rostos já veio.
-- **Foco e brilho.** A vista voa até o cabelo do maior rosto quando ele não está na tela, e a luz fria
-  acende sobre os fios. Num retrato o cabelo já está na tela, então só o brilho toca.
+- **Brilho.** A luz fria acende sobre os fios, e a vista fica onde está.
 - **Automático e Manual.** O Automático aplica nos fios achados numa etapa. O Manual traz pincel, borracha
   e "Só no cabelo".
 - **Controles.** Cor tem a paleta e a intensidade. Escurecer e Nitidez têm intensidade. Clarear tem

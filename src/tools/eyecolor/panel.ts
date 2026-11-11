@@ -1,7 +1,8 @@
 import type { Params } from '../../core/doc';
 import type { Control } from '../types';
 
-export const defaults: Params = { color: '#5c8fb0', amount: 75, lift: 20 };
+/** Half strength looks like a real eye on first sight: at 75 the new color read as a painted disc. */
+export const defaults: Params = { color: '#5c8fb0', amount: 50, lift: 20 };
 
 export const controls: Control[] = [
   {

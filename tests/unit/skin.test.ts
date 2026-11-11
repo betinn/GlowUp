@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import type { MaskTarget, Point } from '../../src/core/face/mask';
-import { focusPoints } from '../../src/core/face/focus';
 import { buildRegionMask } from '../../src/core/face/regions';
 import { BROWS, FACE_OVAL, makeFace, MIDLINE, readFace, type Face, type FaceParts } from '../../src/core/face/scan';
 import { closeSmallHoles, skinArea, skinLikeness, spotGuard, underEyeShape, withForehead } from '../../src/core/face/skin';
@@ -196,14 +195,5 @@ describe('the forehead', () => {
     const mask = buildRegionMask([f], 'skin', photo((_u, v) => (v < 0.2 ? HAIR : SKIN)))!;
     expect(at(mask, 0.5, 0.25)).toBeGreaterThan(200);
     expect(at(mask, 0.5, 0.17)).toBeLessThan(40);
-  });
-});
-
-describe('framing the skin', () => {
-  it('frames the whole face for the skin and the eyes for the dark circles', () => {
-    const [skin] = focusPoints([face()], 'skin');
-    expect(skin.length).toBe(FACE_OVAL.length);
-    const [under] = focusPoints([face()], 'undereye');
-    expect(Math.max(...under.map((p) => p[1]))).toBeGreaterThan(0.44);
   });
 });

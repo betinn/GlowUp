@@ -2,7 +2,7 @@
   import type { LayerId } from '../../core/doc';
   import type { ToolModule } from '../../tools/types';
   import BrushControls from '../BrushControls.svelte';
-  import ColorRow from '../ColorRow.svelte';
+  import ColorPicker from '../ColorPicker.svelte';
   import { toolLimit } from '../facepick.svelte';
   import AutoMode from './AutoMode.svelte';
   import Segment from '../Segment.svelte';
@@ -59,7 +59,14 @@
       {:else if c.type === 'segment'}
         <Segment label={c.label} value={String(state.params[c.key] ?? tool.defaults[c.key])} options={c.options} onchange={(v) => setAndCommit(c.key, v)} />
       {:else}
-        <ColorRow label={c.label} value={String(state.params[c.key])} palette={c.palette} onchange={(v) => setAndCommit(c.key, v)} />
+        <ColorPicker
+          id="{layer}.{c.key}"
+          label={c.label}
+          value={String(state.params[c.key])}
+          palette={c.palette}
+          oninput={(v) => set(c.key, v)}
+          onchange={() => e.commit()}
+        />
       {/if}
     {/if}
   {/each}

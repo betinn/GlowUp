@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { DEV_ORIGIN } from '../../playwright.config';
-import { expectNoErrors, openEditor, pickTool, setSlider, settle, skipIntro } from './helpers';
+import { expectNoErrors, openEditor, pickTool, setSlider, settle, skipIntro, findFunFaces } from './helpers';
 
 /**
  * "Aumentar resolução", as a tool and as an option of the export. The bundled Chromium has no WebGPU, so the model
@@ -301,7 +301,7 @@ test.describe('Aumentar resolução com o Brincar', () => {
     });
     await page.goto('/');
     await page.setInputFiles('[data-testid=file-input]', 'tests/fixtures/portrait.png');
-    await expect(page.locator('[data-fun=on]')).toHaveCount(1, { timeout: 90_000 });
+    await findFunFaces(page);
     await expect(page.getByTestId('opening')).toHaveCount(0);
     await settle(page);
 
