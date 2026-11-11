@@ -36,6 +36,22 @@ function tileFor(how: Backend): number {
   return how === 'webgpu' && !onPhone() ? 256 : 128;
 }
 
+/**
+ * The model could not be brought to this device: no connection, or the site did not answer. Nothing is wrong with
+ * the photo or the device, and the next try downloads again.
+ */
+export class ModelDownloadError extends Error {
+  constructor(cause: unknown) {
+    super(`model-download: ${cause instanceof Error ? cause.message : String(cause)}`, { cause });
+    this.name = 'ModelDownloadError';
+  }
+}
+
+/** Why an upscale failed, in the terms the person can act on. */
+export type UpscaleFailure = 'download' | 'upscale';
+
+export const upscaleFailure = (err: unknown): UpscaleFailure => (err instanceof ModelDownloadError ? 'download' : 'upscale');
+
 export interface UpscaleHooks {
   /** The model is downloading: the share that arrived, and the time left in words. */
   downloading(fraction: number, left: string): void;
@@ -121,16 +137,24 @@ function loadModel(hooks: UpscaleHooks): Promise<Backend> {
   const controller = new AbortController();
   abort = controller;
   loading = (async () => {
-    const [{ default: modelUrl }, { default: runtimeUrl }] = await Promise.all([import('../core/superres/realesrgan_x4plus.onnx?url'), import('onnxruntime-web/ort-wasm-simd-threaded.asyncify.wasm?url')]);
-    const total = UPSCALE_MODEL_BYTES + FILL_RUNTIME_BYTES;
-    const began = performance.now();
-    let received = 0;
-    const count = (bytes: number) => {
-      received += bytes;
-      const fraction = Math.min(1, received / total);
-      hooks.downloading(fraction, leftFrom(performance.now() - began, fraction));
-    };
-    const [model, runtime, gpu] = await Promise.all([download(modelUrl, count, controller.signal), download(runtimeUrl, count, controller.signal), gpuFits()]);
+    // All of this comes from the site: with no connection, or a server that went away, it fails here, and the
+    // person is told to check the connection rather than to try another format.
+    const [model, runtime, gpu] = await (async () => {
+      try {
+        const [{ default: modelUrl }, { default: runtimeUrl }] = await Promise.all([import('../core/superres/realesrgan_x4plus.onnx?url'), import('onnxruntime-web/ort-wasm-simd-threaded.asyncify.wasm?url')]);
+        const total = UPSCALE_MODEL_BYTES + FILL_RUNTIME_BYTES;
+        const began = performance.now();
+        let received = 0;
+        const count = (bytes: number) => {
+          received += bytes;
+          const fraction = Math.min(1, received / total);
+          hooks.downloading(fraction, leftFrom(performance.now() - began, fraction));
+        };
+        return await Promise.all([download(modelUrl, count, controller.signal), download(runtimeUrl, count, controller.signal), gpuFits()]);
+      } catch (err) {
+        throw new ModelDownloadError(err);
+      }
+    })();
     hooks.starting(timeLeft(keptStart()));
     const startedAt = performance.now();
     const w = new Worker(new URL('../core/superres/upscale.worker.ts', import.meta.url), { type: 'module' });
@@ -171,7 +195,7 @@ function loadModel(hooks: UpscaleHooks): Promise<Backend> {
 
 /**
  * Upscales a photo by `scale`. Null when it was stopped. Throws when the model does not load or fails, and the
- * photo given stays as it was.
+ * photo given stays as it was: a `ModelDownloadError` when the model could not be downloaded.
  */
 export async function upscaleImage(image: ImageData, scale: Scale, hooks: UpscaleHooks): Promise<ImageData | null> {
   if (current) throw new Error('upscale-busy');

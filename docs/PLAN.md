@@ -242,6 +242,7 @@ adesivos (S7), que trabalham em paralelo, cada efeito e cada adesivo no seu arqu
 - [x] Progresso com tempo que falta e cancelar, no download e no processamento; tamanho do download só no celular
 - [x] Conferido nas seis fotos reais: sem emenda nos cruzamentos de tiles, borda, fio e cílio mais nítidos que o bicúbico
 - [x] Com o Brincar: caretas e adesivos entram na foto maior, na ferramenta e na exportação, conferido nas seis fotos reais e no e2e
+- [x] Sem conexão com o site, o modelo não baixa e a exportação e a ferramenta dizem isso, em vez de sugerir outro formato; com a conexão de volta, funciona. Conferido em 2× e 4×, PNG, JPG e WebP, nas seis fotos reais, com WebGPU
 - [ ] Sem WebGPU leva cerca de 40 min por megapixel: threads pediriam isolamento de origem no servidor
 - [ ] A pele sai mais lisa que a da foto: o modelo tira o bloco do JPEG e junto um pouco do poro
 
