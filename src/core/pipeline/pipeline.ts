@@ -4,8 +4,12 @@ import { imageToOutput, outputSize } from '../geometry';
 import COLOR_GLSL from '../shaders/color.glsl?raw';
 import DEVELOP_FRAG from '../shaders/develop.frag?raw';
 import FINISH_FRAG from '../shaders/finish.frag?raw';
+import LIGHT_FRAG from '../shaders/light.frag?raw';
 import STICKER_FRAG from '../shaders/sticker.frag?raw';
 import { COPY_FRAG, REGION_FRAG } from '../shaders/small';
+import { lightById } from '../light/lights';
+import { lightUniforms, readsStrands } from '../light/resolve';
+import type { SceneStats } from '../light/types';
 import type { RenderContext } from './context';
 import type { Healer, MaskProvider, PassEnv, ToolPass } from './types';
 
@@ -97,6 +101,15 @@ export interface FunLayer {
   draws(ctx: RenderContext): StickerDraw[];
 }
 
+/** The scene of the photo, as Luzes reads it: its two textures and what was measured with it. */
+export interface SceneLayer {
+  /** The matte of the person, their skin, their hair and the shade of the skin. */
+  tex: Tex;
+  /** The depth on each side of the edge of the person, and the matte blurred a little and blurred wide. */
+  field: Tex;
+  stats: SceneStats;
+}
+
 export class Pipeline {
   readonly tools = new Map<LayerId, ToolPass>();
   healer: Healer | null = null;
@@ -105,6 +118,8 @@ export class Pipeline {
   fun: FunLayer | null = null;
   /** Set while the photo has its mattes: warps then move each layer alone. */
   lock: Layers | null = null;
+  /** Set once the photo has its scene: a light of Luzes then has where to fall. */
+  scene: SceneLayer | null = null;
   lut: Tex3D;
   lutMix = 0;
   /** What the current filter adds to the last stage, on the scales of the Ajustes panel. */
@@ -235,7 +250,7 @@ export class Pipeline {
 
     if (dirty.global) {
       // A soft mask reaches past the brush, so a partial update would leave a seam.
-      if (doc.hasField || doc.blur.mode !== 'off' || this.filterArea(doc)?.lod || (this.fun && (this.fun.tex || doc.fun?.stickers?.length))) rect = null;
+      if (doc.hasField || doc.blur.mode !== 'off' || this.filterArea(doc)?.lod || (this.fun && (this.fun.tex || doc.fun?.stickers?.length)) || this.lightOn(doc)) rect = null;
       this.develop(ctx, doc, rect ? inflate(rect, 6, ctx) : null);
       dirty.global = false;
     }
@@ -262,10 +277,16 @@ export class Pipeline {
     return { mask, lod };
   }
 
+  /** The light of Luzes on the document, when the photo has a scene for it. */
+  private lightOn(doc: EditDoc) {
+    const light = doc.light && doc.light.intensity > 0 && this.scene ? lightById(doc.light.id) : undefined;
+    return light ? { recipe: light.recipe, scene: this.scene!, state: doc.light! } : null;
+  }
+
   private develop(ctx: RenderContext, doc: EditDoc, rect: Rect | null, target = ctx.slot('final'), lutMix = doc.filter.id ? this.lutMix : 0): void {
     const { glc } = this;
     const a = doc.adjust;
-    const dev = ctx.slot('dev');
+    let dev = ctx.slot('dev');
     const hasField = doc.hasField && !!this.field;
     const funTex = this.fun?.tex ?? null;
     const lock = hasField || funTex ? this.lock : null;
@@ -320,14 +341,38 @@ export class Pipeline {
       },
       rect,
     );
+    const out = outputSize(doc.crop);
+    const toOutput = imageToOutput(doc.crop, doc.width, doc.height);
+    // The light falls on the developed photo and under the stickers, which are neither person nor background.
+    const light = this.lightOn(doc);
+    if (light) {
+      if (readsStrands(light.recipe)) glc.generateMips(dev);
+      const lit = ctx.slot('lit');
+      glc.run(
+        glc.program(shader(LIGHT_FRAG)),
+        lit,
+        {
+          uInput: dev,
+          uScene: light.scene.tex,
+          uField: light.scene.field,
+          uRegion: ctx.regionUv,
+          uPixels: [doc.width, doc.height],
+          uToOutput: toOutput,
+          uOutSize: [out.w, out.h],
+          // The screen and the file read strands at the same scale of the photo.
+          uStrandLod: Math.max(0, Math.log2(ctx.longSide / 128)),
+          ...lightUniforms(light.recipe, light.scene.stats, doc, light.state.intensity, light.state.stamp),
+        },
+        rect,
+      );
+      dev = lit;
+    }
     if (this.fun && doc.fun?.stickers?.length) this.drawStickers(ctx, dev);
 
     const b = doc.blur;
     const blurOn = b.mode !== 'off' && b.strength > 0;
     if (blurOn) glc.generateMips(dev);
-    const out = outputSize(doc.crop);
     const maxBlurPx = (b.strength / 100) * 0.035 * ctx.longSide;
-    const toOutput = imageToOutput(doc.crop, doc.width, doc.height);
     glc.run(
       glc.program(shader(FINISH_FRAG)),
       target,

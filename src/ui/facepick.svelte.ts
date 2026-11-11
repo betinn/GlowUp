@@ -23,6 +23,7 @@ import { finishMattes, personConfidence } from '../core/face/person';
 import { autoAction, type AutoAction, type AutoFound, type AutoWords } from '../tools/auto';
 import { toolById } from '../tools/catalog';
 import { reducedMotion } from './motion';
+import { loadSceneModels, readScene, SCENE_DOWNLOAD_MB, sceneModelsStarted } from './scenemodels';
 import type { SourceImage } from '../core/source';
 import { showRegion, stopRegionShow } from './regionshow.svelte';
 import { bump, engine, hasEngine, toast, ui } from './state.svelte';
@@ -51,9 +52,17 @@ const SCAN: Stage = { id: 'scan', label: 'Procurando rostos', weight: 32 };
 const HAIR: Stage = { id: 'hair', label: 'Achando os fios', weight: 30 };
 const PERSON_LOAD: Stage = { id: 'personload', label: 'Baixando o separador de pessoa e fundo', weight: 40 };
 const PERSON: Stage = { id: 'person', label: 'Separando a pessoa do fundo', weight: 24 };
+const LIGHT_LOAD: Stage = { id: 'lightload', label: 'Baixando o leitor de profundidade', weight: 90 };
+const LIGHT: Stage = { id: 'light', label: 'Lendo a profundidade da foto', weight: 30 };
 
-/** The steps of a search. The downloads happen once, and each segmenter only for the tools that need it. */
-function stagesFor(hair: boolean, person = false): Stage[] {
+/** Whether the models of Luzes are loaded, as far as this page knows. */
+let lightStarted = false;
+
+/**
+ * The steps of a search. The downloads happen once, and each segmenter only for the tools that need it. `light`
+ * adds the models of Luzes, which read the depth of the photo and the matte of the person.
+ */
+function stagesFor(hair: boolean, person = false, light = false): Stage[] {
   const list: Stage[] = [];
   if (!detectorStarted) {
     list.push({ id: 'download', label: 'Baixando o detector', weight: 62 }, { id: 'start', label: 'Ligando o detector', weight: 6, estimate: 400 });
@@ -67,6 +76,8 @@ function stagesFor(hair: boolean, person = false): Stage[] {
   if (hair) list.push(HAIR);
   if (person && !personStarted) list.push(PERSON_LOAD);
   if (person) list.push(PERSON);
+  if (light && !lightStarted) list.push(LIGHT_LOAD);
+  if (light) list.push(LIGHT);
   return list;
 }
 
@@ -74,12 +85,14 @@ function stagesFor(hair: boolean, person = false): Stage[] {
  * What the first search still has to download, in the words of the progress card. Empty when nothing is left to
  * download. The size is a warning for a phone, which may be on mobile data, and for nobody else.
  */
-function downloadNote(hair: boolean, person = false): string {
-  // Sizes on the wire, with brotli: detector 6 MB, hair 0.7 MB, person and background 15 MB.
-  let size = '';
-  if (person && !personStarted) size = !detectorStarted ? 'cerca de 22 MB' : hairStarted ? 'cerca de 15 MB' : 'cerca de 16 MB';
-  else if (!detectorStarted) size = hair ? 'cerca de 7 MB' : 'cerca de 6 MB';
-  else if (hair && !hairStarted) size = 'cerca de 1 MB';
+function downloadNote(hair: boolean, person = false, light = false): string {
+  // Sizes on the wire, with brotli: detector 6 MB, hair 0.7 MB, person and background 15 MB, the models of Luzes 59 MB.
+  let mb = 0;
+  if (person && !personStarted) mb = !detectorStarted ? 22 : hairStarted ? 15 : 16;
+  else if (!detectorStarted) mb = hair ? 7 : 6;
+  else if (hair && !hairStarted) mb = 1;
+  if (light && !lightStarted) mb += SCENE_DOWNLOAD_MB;
+  const size = mb ? `cerca de ${mb} MB` : '';
   if (!size) return '';
   if (!onPhone()) return 'Só na primeira vez. A foto não sai do seu aparelho.';
   return `Só na primeira vez, ${size}: melhor no Wi-Fi. A foto não sai do seu aparelho.`;
@@ -233,10 +246,10 @@ export async function paintArea(e: Engine): Promise<void> {
   bump();
 }
 
-export function openJob(hair = false, person = false): Task {
-  const task = new Task(stagesFor(hair, person));
+export function openJob(hair = false, person = false, light = false): Task {
+  const task = new Task(stagesFor(hair, person, light));
   facePick.task = task;
-  facePick.download = downloadNote(hair, person);
+  facePick.download = downloadNote(hair, person, light);
   return task;
 }
 
@@ -340,6 +353,69 @@ export async function findLock(e: Engine, faces: readonly Face[], task: Task | n
     lockState.state = 'failed';
     return true;
   }
+}
+
+/**
+ * Works out the scene of the photo for Luzes: how far each point is from the camera, the matte of the person,
+ * and their skin and hair. Skin and hair come from the same two segmenters as the lock, and depth and matte
+ * from the two models of Luzes. The engine holds the scene from here on. False when the search was stopped. A
+ * model that does not load throws.
+ */
+export async function findScene(e: Engine, faces: readonly Face[], task: Task | null, stopped: () => boolean): Promise<boolean> {
+  const { source } = e;
+  if (!source) return false;
+  const loads = !personStarted || !hairStarted;
+  if (loads) task?.stage('personload');
+  const { loadDetector, segmentHair, segmentParts } = await import('../core/face/detector');
+  await loadDetector(
+    (fraction) => {
+      if (loads) task?.timed(fraction);
+    },
+    () => undefined,
+    true,
+    true,
+  );
+  hairStarted = true;
+  personStarted = true;
+  if (stopped()) return false;
+  task?.stage('person');
+  const { buildScene, sceneSize } = await import('../core/light/scene');
+  const grid = sceneSize(source.w, source.h);
+  const seen = await personConfidence(
+    { w: source.w, h: source.h },
+    grid,
+    faces,
+    { parts: (area) => segmentParts(source, area), hair: (area) => segmentHair(source, area) },
+    nextPaint,
+    (fraction) => task?.timed(fraction),
+    stopped,
+  );
+  if (!seen) return false;
+  await nextPaint();
+  if (stopped()) return false;
+  if (!sceneModelsStarted()) {
+    // A task made after the first download has no step for it: the models then come from the cache.
+    const downloads = !lightStarted;
+    if (downloads) task?.stage('lightload');
+    await loadSceneModels((fraction) => {
+      if (downloads) task?.timed(fraction);
+    });
+  }
+  lightStarted = true;
+  if (stopped()) return false;
+  task?.stage('light');
+  const read = await readScene(source, (fraction) => task?.timed(fraction));
+  if (stopped()) return false;
+  await nextPaint();
+  const rgba = source.draw(0, 0, source.w, source.h, grid.w, grid.h).getContext('2d')!.getImageData(0, 0, grid.w, grid.h).data;
+  e.setScene(
+    buildScene(
+      { ...read, skin: seen.skin, hair: seen.hair },
+      faces.map((f) => f.box),
+      { ...grid, rgba },
+    ),
+  );
+  return true;
 }
 
 /** Runs the search for the lock on its own, for a brush that went free before it ended. */

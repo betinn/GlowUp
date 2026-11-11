@@ -5,6 +5,7 @@
 
 import { DEFAULT_ADJUST, FILTER_MASK, PHOTO_MASKS, type EditDoc, type LayerId } from './doc';
 import type { Engine } from './engine';
+import { packScene } from './light/scene';
 
 const DB_NAME = 'glowup';
 const STORE = 'projects';
@@ -31,6 +32,8 @@ export interface ProjectRecord extends ProjectSummary {
   shape?: Blob | null;
   /** The field of Brincar, so a project opens with no detector. Older projects leave this out: nothing playful. */
   fun?: Blob | null;
+  /** The scene of the photo for Luzes, so a project opens with its light and no detector. Older projects leave this out. */
+  scene?: Blob | null;
 }
 
 /**
@@ -71,6 +74,7 @@ function docProblem(doc: unknown): string | null {
   if (!isObject(layers) || !Object.values(layers).every((l) => isObject(l) && isObject(l.params))) return 'layers';
   if (!Array.isArray(heals)) return 'heals';
   if (doc.fun !== undefined && !funOk(doc.fun)) return 'fun';
+  if (doc.light !== undefined && !(isObject(doc.light) && typeof doc.light.id === 'string' && Number.isFinite(doc.light.intensity) && (doc.light.stamp === undefined || typeof doc.light.stamp === 'string'))) return 'light';
   const healOk = (h: unknown) =>
     isObject(h) && allNumbers(h, ['hardness', 'du', 'dv']) && Array.isArray(h.dabs) && h.dabs.every((d) => isObject(d) && allNumbers(d, ['u', 'v', 'r']));
   if (!heals.every(healOk)) return 'heals';
@@ -88,6 +92,7 @@ export function validProject(record: unknown, original: unknown): { record: Proj
   if (!(field === null || field instanceof Blob)) throw new InvalidProjectError('field');
   if (!(record.shape === undefined || record.shape === null || record.shape instanceof Blob)) throw new InvalidProjectError('shape');
   if (!(record.fun === undefined || record.fun === null || record.fun instanceof Blob)) throw new InvalidProjectError('fun');
+  if (!(record.scene === undefined || record.scene === null || record.scene instanceof Blob)) throw new InvalidProjectError('scene');
   if (!(thumb instanceof Blob)) throw new InvalidProjectError('thumb');
   return { record: record as unknown as ProjectRecord, original };
 }
@@ -172,6 +177,8 @@ export class Autosave {
   private shape: Blob | null = null;
   private fun: Blob | null = null;
   private savedFunRev = -1;
+  private scene: Blob | null = null;
+  private savedSceneRev = -1;
   private thumb: Blob | null = null;
   private originalSaved = false;
   private savedFieldRev = -1;
@@ -188,6 +195,8 @@ export class Autosave {
       this.shape = restored.shape ?? null;
       this.fun = restored.fun ?? null;
       this.savedFunRev = engine.funRev;
+      this.scene = restored.scene ?? null;
+      this.savedSceneRev = engine.sceneRev;
       this.thumb = restored.thumb;
       this.originalSaved = true;
       this.savedFieldRev = engine.fieldRev;
@@ -251,6 +260,11 @@ export class Autosave {
         const fun = engine.fun?.data();
         this.fun = fun ? await pack(new Uint8Array(fun.buffer, fun.byteOffset, fun.byteLength)) : null;
       }
+      // The scene of Luzes is of the photo: it is written once, when it comes.
+      if (this.savedSceneRev !== engine.sceneRev) {
+        this.savedSceneRev = engine.sceneRev;
+        this.scene = engine.scene ? await pack(packScene(engine.scene)) : null;
+      }
       if (!this.originalSaved) {
         // The original is written once. Later saves touch only the small edit stack.
         await tx('readwrite', (s) => s.put(source.blob, this.id), ORIGINALS);
@@ -269,6 +283,7 @@ export class Autosave {
         field: this.field,
         shape: this.shape,
         fun: this.fun,
+        scene: this.scene,
       };
       await tx('readwrite', (s) => s.put(structuredClone(record)));
       await this.prune();

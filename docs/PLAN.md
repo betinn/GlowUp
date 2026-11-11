@@ -156,7 +156,7 @@
 - [x] Sugestão automática pelo tom da foto
 - [x] Script de réplica a partir de fotos antes e depois, com relatório e aviso de efeito local
 - [x] Entrada de Filtros na tela de escolha de caminho
-- [ ] Filtros replicados dos pares reais
+- [x] Pares reais lidos e medidos: são de luz refeita, não de cor, e seguem no M24
 
 ## M21. Formato do rosto
 
@@ -246,6 +246,57 @@ adesivos (S7), que trabalham em paralelo, cada efeito e cada adesivo no seu arqu
 - [ ] Sem WebGPU leva cerca de 40 min por megapixel: threads pediriam isolamento de origem no servidor
 - [ ] A pele sai mais lisa que a da foto: o modelo tira o bloco do JPEG e junto um pouco do poro
 
+## M24. Luzes
+
+Os dez pares reais de antes e depois (B, c, D, E, F, H, I, J, K, L) não são filtros de cor. Em todos a luz da
+cena foi refeita: o fundo escurece ou muda de cor enquanto a pessoa clareia, ou uma luz aparece atrás dela. Uma
+tabela de cor trata os dois do mesmo jeito e não chega lá. Por isso eles ganham um passe próprio e uma prateleira
+própria, Luzes, dentro do Glow na Hora.
+
+A primeira entrega (PR 18) separava a pessoa do fundo com uma máscara e tratava cada lado como uma camada. Na
+foto de quem usa, a pessoa parecia recortada e colada: borda dura com halo, roupa escura em blocos e pontos
+brancos espalhados. Esta entrega refaz a luz como uma luz de verdade cai: pela profundidade da foto.
+
+Três famílias, medidas nos pares:
+
+| Família | Pares | O que muda |
+| --- | --- | --- |
+| Flash | B, c, D, F, H, I | A exposição cai de 1,2 a 4 pontos no que está longe e sobe até 3,5 pontos na pessoa. A passagem segue a profundidade: o chão perto da câmera fica aceso (par c) e a parede atrás some |
+| Luz por trás | J, K, L | A pessoa cai de 0,3 a 1,3 ponto, o fundo de 0 a 3,6, e uma lâmpada atrás dela estoura o que está em volta e acende fios do cabelo |
+| Cor de cena | E | O fundo cinza vira azul de um lado e magenta do outro, e a pessoa esfria |
+
+- [x] Os alvos foram refeitos por um modelo generativo: fios, reflexos, rostos e fundos mudam de desenho. A meta é a luz e a cor de cada alvo, não o pixel
+- [x] Cada alvo alinhado ao original (só deslocamento, escala 1,000) e medido na imagem inteira, sem a interface do print: SSIM, ΔE2000 e LPIPS
+- [x] Profundidade da foto com o Depth Anything V2 Small (Apache 2.0, 49,6 MB), no WebGPU quando há e no WASM quando não
+- [x] Recorte da pessoa com borda mole de cabelo, com o MODNet (Apache 2.0, 13 MB), levado para as cores da própria foto
+- [x] Os dois modelos baixam do próprio site no primeiro toque numa luz, 59 MB no fio, e rodam num worker
+- [x] Cena da foto, uma vez por foto: profundidade de cada lado da borda da pessoa, recorte, pele, cabelo e sombra da pele, em duas texturas
+- [x] A luz cai pela profundidade, sem linha de corte: a borda da luz é a borda que a foto tem
+- [x] Preenchimento das sombras da pele, como faz uma luz que vem da câmera
+- [x] Lâmpada atrás da pessoa como um campo contínuo sobre a borda dela, sem linha desenhada
+- [x] Curva de filme (contraste, pé e ombro), vinheta, vazamento de luz, data e grão medido nos alvos. Sem poeira e sem pontos de luz inventados
+- [x] Uma luz é um arquivo de números, e uma lista registra todas: par novo, arquivo novo
+- [x] A receita segue a foto: diz o brilho que o fundo e a pele tinham na foto do par e acompanha uma foto diferente
+- [x] Flash: Flash Direto (D), Flash Analógico (c), Noite de Festa (B), Entardecer (I), Analógica com data (F), Luz de Estúdio (H)
+- [x] Luz por trás: Contraluz (J), Silhueta (K), Contraluz Dourado (L)
+- [x] Cor de cena: Néon (E)
+- [x] Prateleira Luzes no Glow na Hora, ao lado de Looks: miniaturas na própria foto, um toque põe, outro tira, intensidade, uma etapa do desfazer
+- [x] Soma com look, filtro, ajustes, desfoque e recorte, e "Voltar ao original" tira a luz
+- [x] Projeto salvo guarda a cena e abre com a luz, na prateleira dela, sem baixar detector nem modelo
+- [x] Foto sem ninguém também recebe luz: ela cai no que está mais perto
+- [x] Conferido nos dez pares pelo app, e nas seis fotos reais de teste, as dez luzes em cada uma
+- [ ] Nenhuma luz chega a 95% do alvo. O SSIM fica entre 0,51 e 0,78 e o teto de qualquer filtro que guarda os pixels da foto fica entre 0,75 e 0,91 (tabela em Metas medidas). Igualar o alvo pede um modelo generativo de relight, de mais de 2 GB, que não cabe no site
+- [ ] Luz por trás (J, K, L) é a família mais longe do alvo: os alvos desenham fios soltos acesos que a foto não tem. A luz acende o que está em volta e alguns fios de dentro do cabelo, e não desenha fio novo
+- [ ] Contraluz no par J: o SSIM e o LPIPS ficam piores que os da foto sem luz (0,648 contra 0,660, e 0,36 contra 0,29). O clarão não tem a forma do do alvo
+- [ ] Néon: sem os pontos de luz e sem o reflexo na água do alvo. Um ponto inventado não sabe onde fica o horizonte
+- [ ] Nenhuma luz muda a direção da sombra no rosto: a pele é preenchida por igual
+- [ ] A cena é da foto como foi aberta: depois de Formato do rosto, Liquify ou Brincar, a luz cai onde a pessoa estava
+- [ ] O recorte roda só no processador: no WebGPU este runtime devolve um recorte errado para o MODNet, sem erro. Custa 2,2 s no computador
+- [ ] Celular não foi medido: não havia aparelho. Pela conta do computador, de 7 a 9 s com WebGPU e de 15 a 20 s sem, uma vez por foto
+- [ ] As miniaturas só mostram a foto depois da primeira leitura da cena. Antes disso mostram duas cores de cada luz
+- [ ] A medição contra os pares roda em scripts fora do repositório, porque lê as fotos reais
+- [ ] As luzes só aparecem no Glow na Hora. Do Meu Jeito ainda não tem entrada para elas
+
 ## Metas medidas
 
 Foto gerada de 12 MP (4000 x 3000), Chromium com aceleração, em uma placa dedicada (`node scripts/perf.mjs`):
@@ -263,6 +314,54 @@ Foto gerada de 12 MP (4000 x 3000), Chromium com aceleração, em uma placa dedi
 A primeira abertura é mais lenta porque compila os shaders. Pincel oscilou entre 57 e 60 fps entre medições.
 
 Notebook comum e celular médio não foram medidos: não havia esses aparelhos no ambiente de desenvolvimento.
+
+### Luzes
+
+Cada alvo foi alinhado ao seu original (um deslocamento, achado por pontos em comum: a escala fica em 1,000) e a
+luz do app entrou no original pela exportação do próprio app. A conta é na imagem inteira, sem a interface do
+print (título, botões, ícones):
+
+- **SSIM**, de 0 a 1, onde 1 é igual.
+- **ΔE2000** médio: a distância de cor que o olho vê. Abaixo de 2 quase não se nota.
+- **LPIPS** (AlexNet): a distância que uma rede treinada com julgamentos de pessoas vê. Menor é mais perto.
+
+"Sem luz" é o original contra o alvo. "Teto" é o melhor que um filtro pode fazer guardando os pixels da foto: em
+volta de cada ponto, num raio de 24 px, o ganho e o deslocamento de cor que mais aproximam o original do alvo,
+tirados do próprio alvo. Nenhum filtro de verdade passa dele, porque ele lê a resposta.
+
+| Par | Luz | SSIM sem luz | SSIM com a luz | SSIM teto | ΔE sem luz | ΔE com a luz | ΔE teto | LPIPS sem luz | LPIPS com a luz | LPIPS teto |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| D | Flash Direto | 0,445 | 0,508 | 0,841 | 17,3 | 6,5 | 3,1 | 0,471 | 0,283 | 0,284 |
+| c | Flash Analógico | 0,462 | 0,551 | 0,753 | 25,6 | 10,3 | 4,4 | 0,486 | 0,364 | 0,328 |
+| B | Noite de Festa | 0,616 | 0,648 | 0,913 | 16,8 | 4,3 | 2,3 | 0,328 | 0,218 | 0,147 |
+| I | Entardecer | 0,640 | 0,710 | 0,789 | 14,5 | 5,8 | 3,2 | 0,277 | 0,244 | 0,237 |
+| F | Analógica | 0,568 | 0,666 | 0,885 | 17,0 | 5,9 | 2,9 | 0,363 | 0,265 | 0,186 |
+| H | Luz de Estúdio | 0,714 | 0,782 | 0,882 | 16,5 | 6,0 | 2,9 | 0,325 | 0,207 | 0,214 |
+| E | Néon | 0,620 | 0,699 | 0,906 | 26,4 | 6,0 | 2,1 | 0,411 | 0,232 | 0,138 |
+| J | Contraluz | 0,660 | 0,648 | 0,858 | 12,9 | 12,6 | 3,6 | 0,289 | 0,358 | 0,231 |
+| K | Silhueta | 0,544 | 0,659 | 0,819 | 18,0 | 10,0 | 3,6 | 0,348 | 0,330 | 0,212 |
+| L | Contraluz Dourado | 0,547 | 0,740 | 0,874 | 21,7 | 9,2 | 3,3 | 0,398 | 0,309 | 0,203 |
+
+- **Nenhuma luz chega à meta de 95%.** O SSIM pedido era 0,95. O teto fica entre 0,75 e 0,91: os alvos foram
+  refeitos por um modelo generativo, que redesenha fios, pele, reflexos e fundo. Só passa de 0,95 quem copia o
+  alvo quase ponto a ponto (o mesmo cálculo com raio de 2 px dá de 0,90 a 0,97).
+- **Flash, Luz de Estúdio e Néon** fecham a cor: o ΔE cai de 14 a 26 para 4 a 10, e o LPIPS encosta no teto em
+  Flash Direto, Entardecer e Luz de Estúdio.
+- **Luz por trás** é a família mais longe: ΔE de 9 a 13. No Contraluz (par J) a luz quase não aproxima a foto do
+  alvo: o ΔE vai de 12,9 para 12,6, o SSIM cai de 0,660 para 0,648 e o LPIPS piora, de 0,29 para 0,36. Os alvos
+  desenham fios soltos acesos em volta do cabelo, que a foto não tem.
+- **Grão** medido nas partes lisas de cada alvo, depois de tirar um borrão pequeno: desvio de 0,6 a 2,5 em 255.
+  As luzes ficam na mesma faixa, de 0,7 a 2,7.
+- **Tempo de ler a cena**, com os modelos já baixados, numa foto de 800 x 1300 no computador (RTX 3070 Ti):
+  profundidade 0,02 a 0,14 s no WebGPU e 2,8 s no WASM; recorte 2,2 s, sempre no WASM. Do toque até a luz numa
+  página recém-aberta, com WebGPU e sem contar a rede, de 6,4 a 7,5 s: ligar o detector, os separadores e os dois
+  modelos, e ler a foto.
+- **Download**, no primeiro toque numa luz: 43,6 MB da profundidade, 11,3 MB do recorte e 4,3 MB do runtime, com
+  brotli. O runtime já veio se a pessoa usou o preenchimento ou o aumento de resolução.
+- A exportação em tiles de 384 px difere da exportação inteira em menos de 0,6 de 255 na média, com grão,
+  vazamento e data (e2e).
+- Nas seis fotos reais de teste, as dez luzes entram sem linha de corte e sem contorno desenhado. Numa selfie
+  de rosto grande em parede clara o Flash Analógico estoura a pele mais do que no par.
 
 ### Aumentar resolução
 

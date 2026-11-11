@@ -2,6 +2,7 @@
   import { onDestroy, onMount, tick, untrack, type Component } from 'svelte';
   import { scale } from 'svelte/transition';
   import { Engine, type EngineEvents } from '../core/engine';
+  import { unpackScene } from '../core/light/scene';
   import { Autosave, InvalidProjectError, loadOriginal, loadProject, unpack, validProject } from '../core/project';
   import { nextPaint } from '../core/progress';
   import { readFile, SourceImage } from '../core/source';
@@ -165,6 +166,10 @@
         const size = e.fun.gridSize.w * e.fun.gridSize.h * 8;
         if (![1, 2].includes(bytes.byteLength / size)) throw new InvalidProjectError('fun size');
         e.fun.restore(new Float32Array(bytes.buffer as ArrayBuffer, bytes.byteOffset, bytes.byteLength / 4));
+      }
+      if (record.scene) {
+        // A scene that does not read is left out, and the light waits for the menu to look at the photo again.
+        e.setScene(unpackScene(await unpack(record.scene)));
       }
       // Before this field, the automatic mode was written into the strokes, so there is no strength to move.
       if (record.shape === undefined) delete e.doc.shapeAmount;
