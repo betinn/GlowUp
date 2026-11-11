@@ -297,6 +297,20 @@ Três famílias, medidas nos pares:
 - [ ] A medição contra os pares roda em scripts fora do repositório, porque lê as fotos reais
 - [ ] As luzes só aparecem no Glow na Hora. Do Meu Jeito ainda não tem entrada para elas
 
+## M25. Seletor de cor e Cor dos olhos
+
+As cores prontas passavam da borda da tela e não havia como rolar até elas. E a Cor dos olhos, no Automático,
+começava forte demais: o primeiro resultado já parecia um olho falso.
+
+- [x] Um só seletor para todas as ferramentas de cor (olhos, cabelo, make e sardas), com as cores prontas quebrando em linhas, alcançáveis no celular e no computador
+- [x] Cor própria por quadrado de saturação e brilho e faixa de matiz, com toque, mouse e setas do teclado, mais o código hex e a amostra da cor
+- [x] A foto acompanha o arraste sem travar, e cada escolha é uma etapa do desfazer
+- [x] As últimas cinco cores próprias guardadas por ferramenta, ao lado das prontas
+- [x] Cor dos olhos começa em 50, escolhido nas fotos reais com azul, verde, mel e cinza; o controle ainda vai até a força de antes
+- [x] A luz da íris muda pelo todo e não pixel a pixel: fibras e anel escuro da borda ficam
+- [ ] A cor nova é uma só em toda a íris: não há o anel dourado em volta da pupila nem a variação de tom de um olho de verdade
+- [ ] Atrás de lente clara ou com a borda da máscara passando pela sombra da pálpebra, a íris ainda pode sair como um disco em 100
+
 ## Metas medidas
 
 Foto gerada de 12 MP (4000 x 3000), Chromium com aceleração, em uma placa dedicada (`node scripts/perf.mjs`):

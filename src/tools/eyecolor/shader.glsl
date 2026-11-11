@@ -26,6 +26,8 @@ vec3 tool(vec3 c, float m) {
   // Darker fibers take less chroma, like real pigment. Light a glint adds is not lightness of the fiber under it.
   float fiber = min(lab.x, around);
   lab.yz = mix(lab.yz, t.yz * (0.45 + 0.75 * clamp(fiber / 55.0, 0.0, 1.0)) * lit, k);
-  lab.x += ((t.x - lab.x) * 0.26 + uLift * 7.0) * k * lit;
+  // The lightness moves as a whole toward the new color, by the iris around and not by each pixel: pulling
+  // each pixel toward one lightness flattened the fibers and the dark ring at the edge into a painted disc.
+  lab.x += ((t.x - around) * 0.26 + uLift * 7.0) * k * lit;
   return labToRgb(lab);
 }
