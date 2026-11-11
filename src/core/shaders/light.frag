@@ -167,8 +167,9 @@ void main() {
     float reach = exp(-d2 / (uLamp.w * uLamp.w));
     float wide = field.a;
     // Its light is one smooth field over the edge of the person: all of it on what is around them, fading a
-    // little way into them, so no line shows where the matte ends.
-    float over = 1.0 - smoothstep(0.5, 0.88, wide);
+    // few pixels into them, so no line shows where the matte ends. The small blur measures those pixels: with
+    // the wide one, an arm thinner than the blur would burn through.
+    float over = 1.0 - smoothstep(0.5, 0.95, field.b);
     float hug = (1.0 - smoothstep(0.3, 0.6, wide)) * clamp(wide * 5.0, 0.0, 1.0);
     float bloom = uGlow.x * core * over + uGlow.y * reach * hug;
     // Near the lamp the light burns whatever it falls on, a dark shadow as much as a pale wall.
@@ -177,15 +178,17 @@ void main() {
       // In hair near the edge the strands that stand out take the light, and the gaps between them stay dark.
       float fine = luma(srgbToLinear(clamp(textureLod(uInput, vUv, max(uStrandLod - 3.0, 0.0)).rgb, 0.0, 1.0)));
       float local = luma(srgbToLinear(clamp(textureLod(uInput, vUv, uStrandLod).rgb, 0.0, 1.0)));
-      float strand = clamp((fine / max(local, 0.01) - 0.75) * 2.5, 0.0, 1.6);
+      float strand = clamp((fine / max(local, 0.01) - 1.05) * 3.0, 0.0, 1.6);
       // An edge of the matte counts only where it is an edge in depth too.
       float real = smoothstep(0.03, 0.2, field.r - field.g);
-      float band = (1.0 - smoothstep(0.5, 0.82, wide)) * smoothstep(0.25, 0.5, wide);
+      // The light is taken a little way in from the edge, where a point is hair for sure and not the wall
+      // beside it, which is brighter than the hair around it as a strand is.
+      float band = (1.0 - smoothstep(0.62, 0.9, wide)) * smoothstep(0.54, 0.62, wide);
       // What comes through has some of the color of what it came through.
       vec3 own = clamp(lin / max(y, 0.02), 0.0, 3.0);
-      // Only what is surely the person: at the very edge a point is part background, and a bright wall there
-      // would pass for a strand and draw a line around the person.
-      float solid = smoothstep(0.75, 1.0, matte);
+      // Only what is surely the person, a little way in from their edge: right at the edge a point is part
+      // background, and a bright wall there would pass for a strand and draw a line around the person.
+      float solid = smoothstep(0.8, 0.98, field.b) * smoothstep(0.75, 1.0, matte);
       c += uStrandColor * (0.5 + 0.5 * own) * (uGlow.z * reach * band * (0.1 + 0.9 * hair) * strand * real * solid);
     }
   }

@@ -156,6 +156,19 @@ describe('receita ajustada à foto', () => {
     expect(u.uGlow[3]).toBe(1);
   });
 
+  it('um rosto que enche a foto não leva a lâmpada para fora do quadro nem aumenta o clarão', () => {
+    const recipe: LightRecipe = { lamp: { at: [-1, 0], reach: 1, glow: 1 } };
+    const close = lightUniforms(recipe, { ...STATS, faceSize: 0.6 }, SIZE, 1) as { uLamp: number[] };
+    // The measure stops growing at 0.3 of the long side.
+    expect(close.uLamp[0]).toBeCloseTo(0.4 - 0.3, 5);
+    expect(close.uLamp[2]).toBeCloseTo(0.3, 5);
+  });
+
+  it('a borda mole do recorte vai com o fundo: a luz da pessoa só começa acima de 0,6', () => {
+    const u = lightUniforms({}, STATS, SIZE, 1) as { uFall: number[] };
+    expect(u.uFall).toEqual([0.35, 0.85, 0.6, 1]);
+  });
+
   it('só a lâmpada que acende fios lê a foto borrada', () => {
     expect(readsStrands({ lamp: { at: [0, 0], reach: 1, strands: 0.5 } })).toBe(true);
     expect(readsStrands({ lamp: { at: [0, 0], reach: 1, glow: 1 } })).toBe(false);

@@ -9,8 +9,8 @@ const WHITE: Rgb = [1, 1, 1];
 /** A recipe never follows a photo by more than this many stops, either way. */
 const MAX_ADAPT = 3;
 /** The matte of the person between these goes from the background's light to the person's. See `light.frag`. */
-const EDGE_LOW = 0.3;
-const EDGE_HIGH = 0.95;
+const EDGE_LOW = 0.6;
+const EDGE_HIGH = 1;
 
 /**
  * The stops a part of the photo takes. A recipe was made on one photo, where that part had the brightness
@@ -35,10 +35,17 @@ export function stampOf(day: Date): string {
   return `${two(day.getDate())}/${two(day.getMonth() + 1)}/${String(day.getFullYear()).padStart(4, '0')}`;
 }
 
+/**
+ * The size of the face as the lamp measures with it. A face that fills the photo would put the lamp off the
+ * frame and make its glow as big as the photo, so the measure stops growing at this share of the long side.
+ */
+const LAMP_FACE_MAX = 0.3;
+const lampFace = (stats: SceneStats) => Math.min(LAMP_FACE_MAX, Math.max(stats.faceSize, 0.02));
+
 /** A place given from the face, in sizes of the face, as the shader wants it: the long side of the photo is the unit. */
 function lampAt(at: readonly [number, number], stats: SceneStats, size: { width: number; height: number }): [number, number] {
   const long = Math.max(size.width, size.height);
-  const face = Math.max(stats.faceSize, 0.02);
+  const face = lampFace(stats);
   return [(stats.face[0] * size.width) / long + at[0] * face, (stats.face[1] * size.height) / long + at[1] * face];
 }
 
@@ -48,7 +55,7 @@ function lampAt(at: readonly [number, number], stats: SceneStats, size: { width:
  */
 export function lightUniforms(recipe: LightRecipe, stats: SceneStats, size: { width: number; height: number }, mix: number, stamp?: string): Numbers {
   const { fall = {}, far = {}, near = {}, skin = {}, lamp, film = {} } = recipe;
-  const face = Math.max(stats.faceSize, 0.02);
+  const face = lampFace(stats);
   const lift = film.lift ?? 0;
   const liftTint = film.liftTint ?? WHITE;
   return {
