@@ -32,19 +32,27 @@ test.describe('olhos e dentes em destaque', () => {
   test('abrir a ferramenta não mexe na vista, e um brilho mostra onde o pincel alcança', async ({ page }) => {
     const errors = watch(page);
     await openEditor(page);
-    await openTool(page, 'eyes', 'eyecolor');
+    await page.locator('[data-group=eyes]').click();
+    await page.locator('[data-tool=eyecolor]').click();
+    await settle(page, 300);
+    // The tool opens in Manual, with nothing on the photo yet.
+    const before = await page.screenshot();
+    await page.getByRole('radiogroup', { name: 'Modo' }).getByRole('radio', { name: 'Automático' }).click();
     await show(page, 'glow').waitFor({ timeout: 60_000 });
     expect(await viewZoom(page)).toBe(1);
-    // The light lasts about a second, and a screenshot here takes a good part of it.
+    // The light rises for about 0.3 s and lasts about a second, and a screenshot takes a good part of it.
+    await page.waitForTimeout(250);
     const lit = await page.screenshot({ path: shot('ui-regiao-brilho') });
+    // The light is on the photo before the new color is: over the whole photo the eyes are a small part,
+    // and at its height the light moves the mean by about 0.17.
+    expect(await meanDiff(page, before, lit, stage(page))).toBeGreaterThan(0.08);
     await expect(page.getByTestId('reach-chip')).toBeVisible();
     await showSettled(page);
     expect(await viewZoom(page)).toBe(1);
     await expect(page.getByTestId('reach-chip')).toHaveCount(0, { timeout: 5_000 });
     await settle(page, 300);
     const plain = await page.screenshot({ path: shot('ui-regiao-olhos') });
-    // The light was on the photo, and it left nothing behind.
-    expect(await meanDiff(page, lit, plain, stage(page))).toBeGreaterThan(0.05);
+    // The light left nothing behind.
     await settle(page, 500);
     expect(await meanDiff(page, plain, await page.screenshot())).toBeLessThan(0.002);
     // The orange mark stays off: the light is not the mark.
