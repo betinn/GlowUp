@@ -14,7 +14,7 @@ import { fillSettled } from './fill.svelte';
 import { openFile } from './open';
 import { autosave, bump, toast } from './state.svelte';
 import { Task } from './task.svelte';
-import { cancelUpscale, upscaleCanvas, upscaleReady } from './upscale';
+import { cancelUpscale, upscaleCanvas, upscaleFailure, upscaleReady } from './upscale';
 
 export type GrowState = 'idle' | 'running' | 'failed';
 
@@ -88,7 +88,11 @@ export async function startGrow(e: Engine, scale: Scale): Promise<void> {
     console.error(err);
     if (live()) {
       grow.state = 'failed';
-      toast('Não deu para aumentar a foto dessa vez. Ela continua como estava.');
+      toast(
+        upscaleFailure(err) === 'download'
+          ? 'Não deu para baixar o modelo que aumenta a resolução. Confere a internet e tenta de novo. A foto continua como estava.'
+          : 'Não deu para aumentar a foto dessa vez. Ela continua como estava.',
+      );
     }
   } finally {
     task.stop();

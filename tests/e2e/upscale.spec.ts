@@ -149,6 +149,42 @@ test.describe('Aumentar resolução', () => {
     await expect(page.getByText('Prontinho. Tá na sua pasta.')).toBeVisible();
   });
 
+  test('sem conexão, a exportação e a ferramenta dizem que o modelo não baixou, e a exportação volta com ela', async ({ page, context }) => {
+    // The case the person met: the server of the site went away with the editor open, so the model could not come.
+    await openSmall(page, 100, 60);
+    // The panel of the tool comes while online: only the model is missing.
+    await pickTool(page, 'frame', 'upscale');
+    await context.setOffline(true);
+    await page.getByTestId('export-open').click();
+    await page.getByRole('radio', { name: 'PNG' }).click();
+    await page.getByTestId('export-upscale-switch').click();
+    let saved = false;
+    page.on('download', () => (saved = true));
+    await page.getByTestId('export-go').click();
+    const failed = page.getByTestId('export-failed');
+    await expect(failed).toHaveAttribute('data-failed', 'download');
+    await expect(failed).toContainText('Não deu para baixar o modelo');
+    await expect(failed).toContainText('Confere a internet');
+    // Not the advice of a format that failed to encode: PNG is the one chosen.
+    await expect(failed).not.toContainText('tenta PNG');
+    expect(saved).toBe(false);
+    await page.getByRole('button', { name: 'Fechar' }).click();
+
+    await page.getByTestId('upscale-go').click();
+    await expect(page.getByText('Não deu para baixar o modelo que aumenta a resolução. Confere a internet e tenta de novo.')).toBeVisible();
+    await expect(page.getByTestId('upscale-size')).toHaveText('Agora: 100 × 60 px. Fica: 400 × 240 px.');
+
+    // Back online, the same export downloads the model and saves the larger photo.
+    await context.setOffline(false);
+    await page.getByTestId('export-open').click();
+    await page.getByRole('radio', { name: 'PNG' }).click();
+    await page.getByTestId('export-upscale-switch').click();
+    const [download] = await Promise.all([page.waitForEvent('download', { timeout: 170_000 }), page.getByTestId('export-go').click()]);
+    expect(pngSize(readFileSync((await download.path())!))).toEqual({ w: 400, h: 240 });
+    // What failed while offline was logged; nothing else was.
+    errors = errors.filter((e) => !/ERR_INTERNET_DISCONNECTED|Failed to fetch|model-download/.test(e));
+  });
+
   test('cancelar no download, na exportação, não salva nada e volta às opções', async ({ page }) => {
     await openSmall(page, 100, 60);
     // A slow network, so the download of the model takes long enough to be stopped.
