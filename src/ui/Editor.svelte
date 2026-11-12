@@ -2,16 +2,13 @@
   import { onDestroy, onMount, tick, untrack, type Component } from 'svelte';
   import { scale } from 'svelte/transition';
   import { Engine, type EngineEvents } from '../core/engine';
-  import { keptLight } from '../core/light/lights';
-  import { unpackScene } from '../core/light/scene';
-  import { Autosave, InvalidProjectError, loadOriginal, loadProject, unpack, validProject } from '../core/project';
+  import { renderImage } from '../core/export';
+  import { Autosave, loadOriginal, loadProject, validProject } from '../core/project';
   import { nextPaint } from '../core/progress';
   import { readFile, SourceImage } from '../core/source';
-  import { FILTER_MASK, PHOTO_MASKS, type LayerId } from '../core/doc';
-  import { startFill } from './fill.svelte';
+  import { fillSettled, startFill } from './fill.svelte';
   import { forgetGrow } from './upscaletool.svelte';
   import { syncFilter } from '../presets/apply';
-  import { ensureDocTools } from '../tools/activate';
   import { GROUPS, TOOLS, toolById, type GroupId } from '../tools/catalog';
   import CompareOverlay from './CompareOverlay.svelte';
   import ExportSheet from './ExportSheet.svelte';
@@ -23,8 +20,9 @@
   import { autoHint, dropToolLimit, hasWork, strokeOutside, toolLimit } from './facepick.svelte';
   import { reveal, rise } from './motion';
   import { regionShow } from './regionshow.svelte';
+  import { restoreProject } from './restore';
   import { groupChanged, groupsChanged, photoChanged, resetGroups, resetPhoto } from './reset';
-  import { cancelOpening, finishOpening, reportOpenFailure } from './open';
+  import { cancelOpening, finishOpening, openProject, reportOpenFailure } from './open';
   import { choosePath, pathById, PATHS, startPaths } from './paths';
   import HealPanel from './panels/HealPanel.svelte';
   import MaskPanel from './panels/MaskPanel.svelte';
@@ -121,54 +119,17 @@
       const { record, original } = validProject(await loadProject(pending.projectId), await loadOriginal(pending.projectId));
       await stage('decode');
       const source = await SourceImage.decode(original);
-      if (source.w !== record.doc.width || source.h !== record.doc.height) {
-        source.close();
-        throw new InvalidProjectError('the document is of another photo');
-      }
       await stage('upload');
-      // A light that left the menu is dropped: the photo opens with its own light.
-      const light = keptLight(record.doc.light);
-      if (light) record.doc.light = light;
-      else delete record.doc.light;
-      await e.open(source, record.doc);
-      await stage('retouch');
-      await ensureDocTools(e);
-      const masks = Object.entries(record.masks) as [LayerId, Blob][];
-      for (const [i, [id, blob]] of masks.entries()) {
-        const bytes = await unpack(blob);
-        const store = e.masks!;
-        // The mask of a tool that no longer exists stays out, so the next save drops it.
-        if (id !== FILTER_MASK && !PHOTO_MASKS.includes(id) && !e.doc.layers[id]) continue;
-        if (bytes.length === store.w * store.h) store.write(id, bytes);
-        // A mask made for another screen size is lost, and a filter with no mask would just vanish.
-        else if (id === FILTER_MASK) e.doc.filter = { ...e.doc.filter, masked: false, reach: undefined };
-        ui.opening?.task.report((i + 1) / masks.length, `${i + 1} de ${masks.length}`);
+      try {
+        await restoreProject(e, record, source, {
+          opened: () => stage('retouch'),
+          mask: (done, total) => ui.opening?.task.report(done / total, `${done} de ${total}`),
+        });
+      } catch (err) {
+        // A photo that never reached the engine is still open here.
+        if (e.source !== source) source.close();
+        throw err;
       }
-      if (record.field && e.field) {
-        const bytes = await unpack(record.field);
-        if (bytes.byteLength !== e.field.serialize().byteLength) throw new InvalidProjectError('field size');
-        e.field.restore(new Float32Array(bytes.buffer as ArrayBuffer, bytes.byteOffset, bytes.byteLength / 4));
-      }
-      if (record.shape && e.field) {
-        const bytes = await unpack(record.shape);
-        // The whole, and after it the shares of the lips and of the head, when the project has them.
-        if (![1, 2, 3].includes(bytes.byteLength / e.field.serialize().byteLength)) throw new InvalidProjectError('field size');
-        e.field.restoreShape(new Float32Array(bytes.buffer as ArrayBuffer, bytes.byteOffset, bytes.byteLength / 4));
-      }
-      if (record.fun && e.fun) {
-        const bytes = await unpack(record.fun);
-        // The whole, and after it the share of the head, when the project has one.
-        const size = e.fun.gridSize.w * e.fun.gridSize.h * 8;
-        if (![1, 2].includes(bytes.byteLength / size)) throw new InvalidProjectError('fun size');
-        e.fun.restore(new Float32Array(bytes.buffer as ArrayBuffer, bytes.byteOffset, bytes.byteLength / 4));
-      }
-      if (record.scene) {
-        // A scene that does not read is left out, and the light waits for the menu to look at the photo again.
-        e.setScene(unpackScene(await unpack(record.scene)));
-      }
-      // Before this field, the automatic mode was written into the strokes, so there is no strength to move.
-      if (record.shape === undefined) delete e.doc.shapeAmount;
-      await e.refreshLock();
       startFill(e, 'project');
       await syncFilter(e);
       e.ctx?.invalidate('healed');
@@ -292,9 +253,37 @@
     e.setSplit(ui.compareHold ? 2 : ui.splitOn ? ui.splitX : -1);
   });
 
+  /**
+   * A photo of a post leaves the editor with a picture of itself as it is, at full size, which is what the post
+   * shows and what goes into its files. A photo with no retouch needs none: the original is that picture.
+   */
+  async function keepPrint() {
+    const a = autosave();
+    if (!a?.post) return;
+    if (!photoChanged()) {
+      a.setPrint(null);
+      return;
+    }
+    if (a.printFresh) return;
+    ui.busy = 'Guardando o retoque';
+    try {
+      // A completion still running would leave its quick guess in the picture.
+      await fillSettled();
+      const canvas = await renderImage(engine(), { tile: () => {} });
+      const blob = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.97 });
+      a.setPrint({ blob, w: canvas.width, h: canvas.height });
+    } catch (err) {
+      // The post keeps the picture it had, and says that the retouch is newer than it.
+      console.error(err);
+    } finally {
+      ui.busy = null;
+    }
+  }
+
   async function shutDown(next: () => void) {
     if (ready) {
       engine().commit();
+      await keepPrint();
       await autosave()?.flush();
     }
     if (hasEngine()) engine().destroy();
@@ -304,10 +293,21 @@
 
   setEditorCloser(shutDown);
 
+  /** The way back: the table of the post, for a photo of one, and the home screen for the others. */
   const leave = () =>
     closeEditor(() => {
-      ui.screen = 'home';
+      ui.screen = ui.post ? 'post' : 'home';
     });
+
+  /** Another photo of the same post takes the editor. This one is saved first, with its picture. */
+  async function openSibling(delta: number) {
+    const post = ui.post;
+    const index = (post?.index ?? 0) + delta;
+    const id = post?.ids[index];
+    if (!post || !id || ui.opening) return;
+    const project = await loadProject(id).catch(() => undefined);
+    openProject(id, project?.thumb as Blob, { ...post, index });
+  }
 
   /** A tap on another tab goes there. On the tab in sight, it opens a folded panel again. */
   function pickPath(id: string) {
@@ -448,8 +448,16 @@
   {/if}
 
   <header class="bar" bind:clientHeight={barH}>
-    <button type="button" class="icon-btn" aria-label="Voltar para o início" onclick={leave}><Icon name="back" /></button>
+    <button type="button" class="icon-btn" aria-label={ui.post ? 'Voltar para a montagem' : 'Voltar para o início'} onclick={leave}><Icon name="back" /></button>
     <span class="brand serif">Glowup</span>
+    {#if ui.post && ui.post.ids.length > 1}
+      <!-- The photo is one of a post: its neighbors are one tap away, with no trip to the table. -->
+      <div class="pager" role="group" aria-label="Fotos da montagem" data-testid="post-pager">
+        <button type="button" class="icon-btn" aria-label="Foto anterior da montagem" disabled={!ready || ui.post.index === 0} onclick={() => openSibling(-1)}><Icon name="back" size={18} /></button>
+        <span aria-label="Foto {ui.post.index + 1} de {ui.post.ids.length}">{ui.post.index + 1}/{ui.post.ids.length}</span>
+        <button type="button" class="icon-btn" aria-label="Próxima foto da montagem" disabled={!ready || ui.post.index >= ui.post.ids.length - 1} onclick={() => openSibling(1)}><Icon name="next" size={18} /></button>
+      </div>
+    {/if}
     <div class="grow"></div>
     <button type="button" class="icon-btn" aria-label="Voltar ao original" title="Voltar ao original" data-testid="reset-photo"
       disabled={!photoDirty} onclick={() => void resetPhoto()}><Icon name="reset" /></button>
@@ -465,9 +473,16 @@
       disabled={!ready}
       use:comparePress={'all'}><Icon name="compare" /></button
     >
-    <button type="button" class="btn primary export" data-testid="export-open" disabled={!ready} onclick={() => (ui.exportOpen = true)}>
-      <Icon name="export" size={20} /><span class="label">Exportar</span>
-    </button>
+    {#if ui.post}
+      <!-- The files are made at the table, from all the photos: here the photo just goes back to it. -->
+      <button type="button" class="btn primary export" data-testid="post-done" disabled={!ready} aria-label="Pronto: voltar para a montagem" onclick={leave}>
+        <Icon name="check" size={20} /><span class="label">Pronto</span>
+      </button>
+    {:else}
+      <button type="button" class="btn primary export" data-testid="export-open" disabled={!ready} onclick={() => (ui.exportOpen = true)}>
+        <Icon name="export" size={20} /><span class="label">Exportar</span>
+      </button>
+    {/if}
   </header>
 
   {#if ready && path}
@@ -627,6 +642,30 @@
 
   .grow {
     flex: 1;
+  }
+
+  .pager {
+    display: flex;
+    align-items: center;
+    margin-left: 2px;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    color: var(--paper-2);
+  }
+
+  .pager .icon-btn {
+    width: 34px;
+  }
+
+  /* A narrow phone has the whole bar in use: the buttons give up a little width, never height. */
+  @media (max-width: 420px) {
+    .bar .icon-btn {
+      width: 40px;
+    }
+
+    .pager .icon-btn {
+      width: 30px;
+    }
   }
 
   .export {
@@ -823,13 +862,15 @@
     padding: 2px 4px;
   }
 
+  /* Each tab is as wide as its name and shares what is left, so a long name never touches its neighbor. */
   .tab {
     position: relative;
-    flex: 1;
+    flex: 1 0 auto;
     min-width: 0;
     min-height: 50px;
-    padding: 6px 0 4px;
+    padding: 6px 4px 4px;
     border-radius: 12px;
+    white-space: nowrap;
   }
 
   .tab.on {
@@ -896,7 +937,11 @@
     .tab {
       flex: none;
       min-height: 62px;
+      padding: 7px 2px 5px;
       border-radius: 14px;
+      white-space: normal;
+      line-height: 1.15;
+      text-align: center;
     }
 
     .tab.on {
