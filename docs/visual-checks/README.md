@@ -35,6 +35,12 @@ de propósito manchas, olheiras, olho vermelho e dentes amarelados. Nenhuma pess
   controle "Luz do look". No retrato procedural a profundidade é quase plana, então a luz aqui mostra o
   comportamento, não a aparência: os looks de luz foram conferidos nas sete fotos reais, que ficaram fora.
 
+- `ui-montagem-carrossel`, `ui-montagem-colagem`, `ui-montagem-continuo`: a mesa da montagem nos três jeitos, com as
+  três fotos de teste. `ui-montagem-previa` é a prévia deslizando, `ui-montagem-exportada` a folha depois de
+  exportar, com os slides acesos, e `ui-montagem-editor` o editor de uma foto da montagem, com "1/3" e "Pronto" na
+  barra e as cinco abas no trilho. `ui-celular-montagem`, `ui-celular-montagem-colagem` e
+  `ui-celular-montagem-continuo`: a mesa no celular, com a fila de fotos, os nomes dos controles e as três abas.
+
 Os anéis destas imagens vêm do detector real: o retrato procedural basta para ele. A borda e o pescoço
 foram ajustados em fotos reais de domínio público, que ficaram fora do repositório.
 

@@ -33,7 +33,22 @@ npm run dev
 | `npm run replicate:validate` | prova o script de réplica com filtros conhecidos, em uma pasta de fotos |
 
 O e2e roda na GPU do aparelho e em 75% dos núcleos. `E2E_GPU=0` volta ao SwiftShader, para máquina
-sem GPU, e `E2E_PORT` troca a porta do preview, para duas cópias do repositório testarem ao mesmo tempo.
+sem GPU, `E2E_PORT` troca a porta do preview, para duas cópias do repositório testarem ao mesmo tempo, e
+`E2E_CHROME` aponta para um Chromium que já está na máquina. `DIST_COMPRESS=0 npm run build` pula os `.br` e `.gz`,
+que o preview não usa: é o build rápido para rodar o e2e.
+
+## Abas
+
+O editor tem cinco abas sempre à vista, embaixo no celular e à esquerda no computador. A foto abre na última que
+você usou, sem pergunta, e trocar de aba não perde nada.
+
+| Aba | O que tem |
+| --- | --- |
+| Glow na Hora | looks de um toque no rosto todo |
+| Do Meu Jeito | o rosto, ferramenta por ferramenta: Pele, Olhos, Make, Cabelo e Formato do rosto |
+| Filtros | filtros de cor e as Luzes |
+| Foto | Ajustes, Desfoque, Recorte e Aumentar resolução |
+| Brincar | caretas e adesivos |
 
 ## Ferramentas
 
@@ -72,7 +87,7 @@ adesivos desenhados no projeto, em quatro abas: Óculos, Cabeça (coroa, chapéu
 (bigodes, nariz de palhaço, bochechas, lágrima, sardas) e Em volta (corações, estrelas e brilhos em volta da cabeça).
 Cada adesivo entra no seu lugar no rosto escolhido, segue a inclinação e as caretas, e se arrasta, gira e muda de
 tamanho com o dedo ou o mouse. Vários ficam juntos na foto, o último por cima, e qualquer um pode vir para a frente.
-Fica num caminho próprio, longe do retoque: nada daqui mexe nos controles do Formato do rosto.
+Fica numa aba própria, longe do retoque: nada daqui mexe nos controles do Formato do rosto.
 
 **Luzes:** quatro filtros que refazem a luz da cena, numa aba dos Filtros: Néon, Contraluz Dourado, Brasa e Flash
 Analógico. A luz cai pela profundidade da foto, como uma luz de verdade: o que está na distância da pessoa acende,
@@ -84,16 +99,34 @@ outro tira, e um controle dá a intensidade.
 da cor. Retrato, Luz de Janela, Luz de Vela e Fim de Tarde também leem a profundidade da foto: clareiam um rosto
 escuro, aliviam as sombras da pele e fazem o fundo recuar, só onde a foto pede. Olhar cuida só dos olhos.
 
-**Geral:** 11 ajustes, desfoque radial e tilt-shift, recorte com rotação, espelho, endireitar e proporções,
+**Foto:** 11 ajustes, desfoque radial e tilt-shift, recorte com rotação, espelho, endireitar e proporções,
 antes/depois (segurar ou dividir, com a foto original ou só sem o filtro), exportação em JPG, PNG e WebP.
 
 **Aumentar resolução:** dobra ou quadruplica o tamanho da foto com o Real-ESRGAN, que refaz detalhe de rosto, cabelo e
-pele em vez de só esticar os pixels. Fica em dois lugares. A ferramenta, no menu Quadro, aumenta a foto como ela está,
+pele em vez de só esticar os pixels. Fica em dois lugares. A ferramenta, na aba Foto, aumenta a foto como ela está,
 com os retoques, e abre a foto maior no editor como uma foto nova; o projeto de antes continua na lista. Na exportação é
 uma chave, desligada por padrão, que aumenta só o arquivo salvo. O resultado tem no máximo 20 MP, ou 8 MP num celular,
 e 8192 px no lado maior, para a memória não acabar no meio: o painel diz qual aumento cabe e por quê. Roda no aparelho,
 na GPU com WebGPU ou no processador, com progresso, tempo que falta e botão de cancelar no download e no
 processamento. O modelo baixa só no primeiro uso, cerca de 36 MB com o runtime.
+
+## Montagem: várias fotos num post
+
+Escolha "Várias fotos" na tela inicial, solte mais de uma foto na tela, ou toque em "Montar carrossel ou colagem com
+esta foto" ao exportar. As fotos vão para a mesa, onde saem juntas de três jeitos, e trocar de jeito não perde nada:
+
+- **Carrossel:** uma foto por slide. Cada uma preenche o slide ou aparece inteira, com a própria foto desfocada ou
+  uma cor em volta.
+- **Colagem:** todas numa imagem só, com modelos para 1 a 10 fotos, espaço, cantos e cor de fundo.
+- **Contínuo:** uma faixa só, cortada em slides. A foto continua no slide seguinte, e uma panorâmica vira dois, três
+  ou mais slides.
+
+Formatos 4:5, 1:1, 3:4, 9:16 e 16:9. Cada foto se arrasta e se aproxima dentro do lugar dela, muda de ordem, e
+abre no editor com todas as ferramentas: "Retocar" leva, "Pronto" traz de volta com o retoque, e as setas da barra
+passam para a foto vizinha. O filtro de uma foto vai para todas as outras num toque, para o conjunto ter a mesma
+cor. A prévia mostra os slides deslizando, como no feed. Na exportação os slides saem
+numerados, em 1080, 1440 ou 2160 px de largura: pela folha de compartilhar do aparelho, ou num zip. A montagem
+fica salva no aparelho, até 10 fotos por montagem.
 
 Um filtro vale para a foto toda ou para um rosto escolhido: um anel aparece em cada rosto, um toque
 escolhe, e pincel e borracha acertam a área. Sem rosto na foto, a área é pintada à mão.
@@ -132,6 +165,7 @@ passo atual, com a própria foto revelando na tela.
 | Espaço (segurar) | arrastar a foto |
 | `0`, `+`, `-` | enquadrar, aproximar, afastar |
 | `Esc` | fechar painel |
+| `←`, `→` | na montagem, slide anterior e seguinte |
 
 ## Arquitetura
 
@@ -166,9 +200,11 @@ passo atual, com a própria foto revelando na tela.
 | `src/core/face` | busca de rostos em tiles, máscara do rosto, limites de pele, olhos, dentes e cabelo, busca de manchas e detector carregado sob demanda |
 | `src/core/fun` | Brincar: campo próprio, caretas em `effects/` e adesivos em `stickers/`, um arquivo cada |
 | `src/core/superres` | aumento de resolução: modelo, worker, tiles com emenda suave e limite de tamanho |
+| `src/core/post` | montagem de várias fotos: layout em números, desenho de um slide, armazenamento e zip |
 | `src/tools/<ferramenta>` | shader, lógica e painel de cada ferramenta, carregados sob demanda |
 | `src/presets` | LUTs procedurais, looks e miniaturas |
 | `src/ui` | interface em Svelte |
+| `src/ui/post` | a mesa da montagem, a prévia e a exportação dos slides |
 | `tests` | testes de unidade, fluxos e imagens de teste procedurais |
 | `deploy` | exemplos de servidor estático |
 | `docs` | plano, decisões, design e validação visual |
@@ -186,6 +222,9 @@ Algumas decisões do pipeline:
 - O aumento de resolução roda num worker, em tiles que se sobrepõem: a borda de cada tile não conta, e no meio da
   sobreposição um passa para o outro aos poucos, com pesos que somam 1. Só uma fileira de tiles fica em ponto
   flutuante, então a memória cresce com a largura da foto e não com a área.
+- Uma montagem não tem motor próprio: cada foto é um projeto, retocado no editor, que ao sair guarda uma cópia
+  de si mesmo com o retoque. A mesa e os arquivos são desenhados em canvas 2D a partir dessas cópias, pelo mesmo
+  código, um slide por vez.
 - O filtro pode ter máscara própria, presa à foto original: ela acompanha o liquify e vale igual no
   preview, no zoom, na exportação e no projeto salvo.
 
