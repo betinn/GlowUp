@@ -526,3 +526,9 @@ na exportação em resolução total, e a linha dos olhos com zoom.
 | 358 | Manchas guarda um conjunto só de correções por foto, e cada uma diz se veio do Automático ou do pincel. O projeto salvo guarda isso, e uma correção de projeto antigo, sem origem, conta como do pincel | Automático e Manual convivem: a pessoa usa o Automático, vai ao Manual tirar o que ele fez, e volta |
 | 359 | O Automático de Manchas procura uma vez por foto e guarda o que achou. Voltar para o Automático não procura de novo nem devolve uma mancha que a pessoa tirou. Só "Aplicar de novo" e o segundo toque na ferramenta põem as manchas de novo. As do Automático entram junto das do pincel, sem tratar de novo uma mancha já tratada | Refazer tudo ao voltar desmanchava o que a pessoa tinha acertado à mão |
 | 360 | Os círculos das correções aparecem no Automático e no Manual, e um toque num círculo tira aquela correção, venha ela do Automático ou do pincel, numa etapa do desfazer | Assim a pessoa tira uma mancha do Automático sem sair do Manual |
+
+## Brilho sem aviso
+
+| # | Decisão | Motivo |
+| --- | --- | --- |
+| 361 | Ao escolher uma parte, só o brilho aparece: saiu o aviso "O brilho mostra onde o pincel alcança" (decisão 69) | Pedido de quem usa: o aviso não foi pedido, e o brilho sozinho já mostra a parte que está sendo editada |

@@ -46,10 +46,10 @@ test.describe('olhos e dentes em destaque', () => {
     // The light is on the photo before the new color is: over the whole photo the eyes are a small part,
     // and at its height the light moves the mean by about 0.17.
     expect(await meanDiff(page, before, lit, stage(page))).toBeGreaterThan(0.08);
-    await expect(page.getByTestId('reach-chip')).toBeVisible();
+    // Only the light: no words over the photo.
+    await expect(page.getByText('O brilho mostra onde o pincel alcança')).toHaveCount(0);
     await showSettled(page);
     expect(await viewZoom(page)).toBe(1);
-    await expect(page.getByTestId('reach-chip')).toHaveCount(0, { timeout: 5_000 });
     await settle(page, 300);
     const plain = await page.screenshot({ path: shot('ui-regiao-olhos') });
     // The light left nothing behind.
