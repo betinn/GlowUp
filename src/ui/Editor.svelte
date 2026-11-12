@@ -807,8 +807,7 @@
   .groups {
     order: 1;
     display: flex;
-    gap: 2px;
-    padding: 0 8px;
+    padding: 0 6px;
   }
 
   /* The word is a pill of 30 px inside a target of 44. */
@@ -818,7 +817,7 @@
     display: grid;
     place-items: center;
     min-height: 44px;
-    padding: 0 4px;
+    padding: 0 2px;
     font-size: 13.5px;
     color: var(--paper-2);
     white-space: nowrap;
@@ -827,11 +826,12 @@
       transform var(--t-fast) var(--ease-reveal);
   }
 
+  /* Five names fit a phone of 360 px with this much room around each. */
   .group > span {
     display: grid;
     place-items: center;
     min-height: 30px;
-    padding: 0 12px;
+    padding: 0 10px;
     border-radius: 999px;
     transition: background var(--t-fast);
   }

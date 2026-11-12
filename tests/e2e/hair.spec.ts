@@ -126,13 +126,15 @@ test.describe('cabelo, celular', () => {
   test('os cinco menus de retoque aparecem inteiros sobre as cinco abas, e Cabelo aplica no Automático', async ({ page }) => {
     const errors = watch(page);
     await openEditor(page);
-    // The tabs never scroll. The row of menus sits over them, with every word whole on the screen and a
-    // target a thumb can hit.
+    // Neither the tabs nor the row of menus scroll. The row sits over the tabs, with every word whole on the
+    // screen and a target a thumb can hit. The name of each tab is whole too.
     const tabs = page.getByTestId('tabs');
-    const [scroll, width] = await tabs.evaluate((el) => [el.scrollWidth, el.clientWidth]);
-    expect(scroll).toBeLessThanOrEqual(width);
+    const fits = (el: Element) => el.scrollWidth <= el.clientWidth;
+    expect(await tabs.evaluate(fits)).toBe(true);
+    for (const name of await tabs.locator('[data-path] span').all()) expect(await name.evaluate(fits)).toBe(true);
     const top = (await tabs.boundingBox())!.y;
     const bar = page.getByRole('navigation', { name: 'Categorias' });
+    expect(await bar.evaluate(fits)).toBe(true);
     await expect(bar.locator('[data-group]')).toHaveCount(5);
     for (const chip of await bar.locator('[data-group]').all()) {
       const box = (await chip.boundingBox())!;
