@@ -42,6 +42,8 @@ export function glowupDist(): Plugin {
         join(outDir, 'sw.js'),
         template.replace('__VERSION__', version).replace('"__PRECACHE__"', JSON.stringify(urls)),
       );
+      // The preview server sends the files as they are, so a build made only for the tests can skip this.
+      if (process.env.DIST_COMPRESS === '0') return;
       for (const file of walk(outDir)) {
         if (!COMPRESSIBLE.test(file)) continue;
         const raw = readFileSync(file);

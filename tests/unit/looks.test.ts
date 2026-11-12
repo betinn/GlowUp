@@ -4,7 +4,8 @@ import { lutById } from '../../src/presets/luts';
 import { isLookLight, lightById } from '../../src/core/light/lights';
 import { appliedLook, applyPresetToDoc, LOOKS, readsScene } from '../../src/presets/recipes';
 import { lookMessage } from '../../src/ui/looks';
-import { pathById, PATHS } from '../../src/ui/paths';
+import { GROUPS } from '../../src/tools/catalog';
+import { pathById, pathOfGroup, PATHS } from '../../src/ui/paths';
 
 vi.stubGlobal('matchMedia', () => ({ matches: true }));
 
@@ -17,17 +18,28 @@ const wearing = (index: number): EditDoc => {
 };
 
 describe('the paths', () => {
-  it('offers Glow na Hora, Do Meu Jeito, Filtros and Brincar, each with its own id', () => {
-    expect(PATHS.map((p) => p.label)).toEqual(['Glow na Hora', 'Do Meu Jeito', 'Filtros', 'Brincar']);
+  it('offers Glow na Hora, Do Meu Jeito, Filtros, Foto and Brincar as tabs, each with its own id', () => {
+    expect(PATHS.map((p) => p.label)).toEqual(['Glow na Hora', 'Do Meu Jeito', 'Filtros', 'Foto', 'Brincar']);
     expect(new Set(PATHS.map((p) => p.id)).size).toBe(PATHS.length);
   });
 
-  it('only a path with its own menu leaves the tools out', () => {
+  it('a tab shows a menu of its own or the tools of its groups, never both', () => {
     expect(pathById('glow')?.menu).toBeTypeOf('function');
     expect(pathById('manual')?.menu).toBeUndefined();
     expect(pathById('fun')?.menu).toBeTypeOf('function');
     expect(pathById('other')).toBeUndefined();
     expect(pathById(null)).toBeUndefined();
+    for (const path of PATHS) expect(!!path.menu).not.toBe(!!path.groups?.length);
+  });
+
+  it('every menu of tools is on one tab, and Filtros is a tab of its own', () => {
+    const shown = PATHS.flatMap((p) => p.groups ?? []);
+    expect(new Set(shown).size).toBe(shown.length);
+    expect([...shown].sort()).toEqual(GROUPS.map((g) => g.id).filter((id) => id !== 'filters').sort());
+    for (const group of shown) expect(pathOfGroup(group)?.groups).toContain(group);
+    expect(pathOfGroup('filters')).toBeUndefined();
+    // The names of the tabs are short enough to sit five across a narrow phone, on one line each.
+    expect(PATHS.reduce((sum, path) => sum + path.label.length, 0)).toBeLessThanOrEqual(42);
   });
 });
 

@@ -43,10 +43,8 @@ export const ui = $state({
   /** The same, for an effect of Brincar. */
   funShaping: false,
   toast: null as string | null,
-  /** The path the person is on, from the list in `paths.ts`. Null until one is chosen. */
+  /** The tab the person is on, from the list in `paths.ts`. Null until a photo is open. */
   path: null as string | null,
-  /** The screen of choice is up. */
-  choosingPath: false,
   /** The cards that teach the gestures, when they are due. */
   onboarding: null as OnboardingCards | null,
   group: 'skin' as GroupId,

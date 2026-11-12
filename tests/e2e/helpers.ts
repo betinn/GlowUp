@@ -61,8 +61,23 @@ export interface RegionOptions {
   free?: boolean;
 }
 
+/** The tab that shows each menu of tools, when it is not Retoque. Those tabs have no row of menus. */
+const TAB_OF_GROUP: Record<string, string> = { filters: 'filters', light: 'photo', frame: 'photo' };
+
+/** Goes to a tab of the editor, unless it is the one in sight. */
+export async function openTab(page: Page, id: string): Promise<void> {
+  const tab = page.locator(`[data-path=${id}]`);
+  if ((await tab.getAttribute('aria-pressed')) !== 'true') await tab.click();
+}
+
+/** Brings the tools of a menu in sight: its tab, and its name on the row of menus when the tab has one. */
+export async function openGroup(page: Page, group: string): Promise<void> {
+  await openTab(page, TAB_OF_GROUP[group] ?? 'manual');
+  if (!TAB_OF_GROUP[group]) await page.locator(`[data-group=${group}]`).click();
+}
+
 export async function pickTool(page: Page, group: string, tool: string, options: RegionOptions = {}): Promise<void> {
-  await page.locator(`[data-group=${group}]`).click();
+  await openGroup(page, group);
   const button = page.locator(`[data-tool=${tool}]`);
   if ((await button.getAttribute('aria-pressed')) !== 'true') await button.click();
   if (TOOLS.find((t) => t.id === tool)?.region) await limitSettled(page, options);
