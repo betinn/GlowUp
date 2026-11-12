@@ -1,10 +1,13 @@
-import type { LightDef } from '../types';
+import type { MenuLight } from '../types';
 
-/** Night falls on the place, its lamps stay lit, and a warm flash tans the person. */
-export const noiteDeFesta: LightDef = {
+/**
+ * Night falls on the place, its lamps stay lit, and a warm light tans the person, as embers do. The id is the
+ * name this light shipped with, Noite de Festa, and stays in saved projects.
+ */
+export const brasa: MenuLight = {
   id: 'noite-de-festa',
-  label: 'Noite de Festa',
-  note: 'O fundo vira noite e a pele ganha luz quente.',
+  label: 'Brasa',
+  note: 'O fundo vira noite e a pele ganha luz quente, de brasa.',
   swatch: ['#d99a62', '#0d0f16'],
   recipe: {
     fall: { lo: 0.1, hi: 0.98 },

@@ -361,7 +361,7 @@ export class Pipeline {
           uOutSize: [out.w, out.h],
           // The screen and the file read strands at the same scale of the photo.
           uStrandLod: Math.max(0, Math.log2(ctx.longSide / 128)),
-          ...lightUniforms(light.recipe, light.scene.stats, doc, light.state.intensity, light.state.stamp),
+          ...lightUniforms(light.recipe, light.scene.stats, doc, light.state.intensity),
         },
         rect,
       );

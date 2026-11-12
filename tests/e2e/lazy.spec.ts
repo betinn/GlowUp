@@ -78,6 +78,9 @@ test.describe('ferramentas sem download', () => {
     await expect(page.locator('[data-fun=idle]')).toHaveCount(1);
     await switchPath(page, 'filters');
     await settle(page, 600);
+    await page.getByRole('tab', { name: 'Luzes' }).click();
+    await expect(page.locator('[data-light]')).toHaveCount(4);
+    await settle(page, 300);
 
     expect(asked, asked.join('\n')).toEqual([]);
     expectNoErrors(errors);

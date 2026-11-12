@@ -381,7 +381,7 @@ describe('applying a recipe from code', () => {
   it('fills the masks of its tools as one undo step, and leaves out what the photo does not show', async () => {
     const { e, filled } = fakeEngine();
     const outcome = await applyRecipe(RECIPE, { fadeMs: 0 });
-    expect(outcome).toEqual({ filled: ['smooth', 'undereye'], missed: ['whiten'], failed: false, stopped: false });
+    expect(outcome).toEqual({ filled: ['smooth', 'undereye'], missed: ['whiten'], failed: false, unlit: false, stopped: false });
     expect(filled.map((f) => f.id)).toEqual(['smooth', 'undereye']);
     expect(e.doc.adjust.contrast).toBe(12);
     expect(e.doc.layers.smooth?.params.strength).toBe(70);

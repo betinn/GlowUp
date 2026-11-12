@@ -1,7 +1,7 @@
-import type { LightDef } from '../types';
+import type { MenuLight } from '../types';
 
 /** A night of colored signs: the place goes blue on one side and magenta on the other. */
-export const neon: LightDef = {
+export const neon: MenuLight = {
   id: 'neon',
   label: 'Néon',
   note: 'Noite de néon: azul de um lado, magenta do outro.',

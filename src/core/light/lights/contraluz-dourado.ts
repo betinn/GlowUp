@@ -1,7 +1,7 @@
-import type { LightDef } from '../types';
+import type { MenuLight } from '../types';
 
 /** The last sun behind the person: the place goes dark and the hair lights up in gold. */
-export const contraluzDourado: LightDef = {
+export const contraluzDourado: MenuLight = {
   id: 'contraluz-dourado',
   label: 'Contraluz Dourado',
   note: 'Fim de tarde por trás, com fios dourados.',

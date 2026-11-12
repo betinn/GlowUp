@@ -480,16 +480,16 @@ na exportação em resolução total, e a linha dos olhos com zoom.
 | 332 | O grão de cada luz é o medido no alvo dela: desvio de 0,6 a 2,5 em 255 nas partes lisas | O grão de antes era de 2 a 3 vezes o dos alvos e aparecia como sujeira |
 | 333 | Curva de filme no fim: contraste em volta de um meio, um pé que derruba o que é escuro e um ombro que leva o claro até o branco | É o que deixa o preto fundo e a pele estourada sem degrau dos alvos de flash. O pé também tira os blocos do JPEG da roupa escura |
 | 334 | Foto sem ninguém também recebe luz, mirada no que está mais perto | Com profundidade a luz não precisa de pessoa. O aviso de "não achei ninguém" saiu |
-| 335 | Lugar: uma segunda prateleira, Luzes, no menu do Glow na Hora, ao lado de Looks | Foi a ideia de quem usa. Os dois são de um toque, e se somam: o look cuida do rosto e a luz da cena |
+| 335 | Lugar: uma segunda prateleira, Luzes, no menu do Glow na Hora, ao lado de Looks | Foi a ideia de quem usa. Os dois são de um toque, e se somam: o look cuida do rosto e a luz da cena. Revista pela 364: as luzes que ficaram moram nos Filtros |
 | 336 | Uma luz por vez. Um toque põe, outro na mesma tira, e trocar de luz mantém a intensidade escolhida | É o gesto dos looks. Duas luzes somadas não têm par para conferir |
 | 337 | A primeira luz que se toca lê a cena, com o cartão de progresso; abrir a prateleira não lê nada | Abrir um menu não deve baixar 59 MB no celular. Antes da leitura os quadrinhos mostram duas cores de cada luz, e depois a própria foto |
 | 338 | A luz entra depois do filtro e dos ajustes e antes dos adesivos | Um adesivo não é pessoa nem fundo: um chapéu escureceria com o fundo e óculos estourariam com o flash |
 | 339 | Vinheta, vazamento de luz, grão e data seguem o quadro depois do recorte; a luz em si segue a foto | O que é da câmera fica no canto do que se vê. O que é da cena não muda de lugar quando se recorta, e sai igual em qualquer grade de tiles |
-| 340 | A data é a do dia em que a luz entrou, guardada no documento, desenhada em sete traços no shader. Foto em pé leva a data de lado, na borda esquerda | A foto não muda de um dia para o outro. Sem fonte e sem textura. No par F a câmera deitada imprime embaixo à direita, e a foto em pé é a câmera virada |
+| 340 | A data é a do dia em que a luz entrou, guardada no documento, desenhada em sete traços no shader. Foto em pé leva a data de lado, na borda esquerda | A foto não muda de um dia para o outro. Sem fonte e sem textura. No par F a câmera deitada imprime embaixo à direita, e a foto em pé é a câmera virada. Saiu com a Analógica, a única luz com data (decisão 362) |
 | 341 | A cena vai no projeto salvo com a profundidade em 16 bits, e não entra no desfazer. Uma cena de antes da profundidade não abre | Ela é da foto, como as máscaras da pessoa. O projeto abre com a luz sem baixar modelo. Sem profundidade a luz não tem onde cair, e espera a foto ser lida de novo |
 | 342 | A medição contra os pares é na imagem inteira: alvo alinhado ao original, sem a interface do print, com SSIM, ΔE2000 e LPIPS, e o teto de um filtro ao lado | As médias por região da entrega anterior fechavam em ΔE 1 com a foto visivelmente errada: a média não vê borda, halo nem ponto solto |
 | 343 | Sem relight generativo no navegador | Só um modelo que redesenha a foto iguala os alvos. Os abertos passam de 2 GB, e o GitHub não aceita arquivo acima de 100 MB. Mesmo com um, a foto sairia outra a cada vez, e não a do alvo |
-| 344 | Nomes das luzes são do GlowUp: Luz de Estúdio, Flash Direto, Flash Analógico, Analógica, Entardecer, Noite de Festa, Contraluz, Contraluz Dourado, Silhueta, Néon | Dizem o que a luz faz. Nenhum nome vem do aplicativo de onde saíram os pares |
+| 344 | Nomes das luzes são do GlowUp: Luz de Estúdio, Flash Direto, Flash Analógico, Analógica, Entardecer, Noite de Festa, Contraluz, Contraluz Dourado, Silhueta, Néon | Dizem o que a luz faz. Nenhum nome vem do aplicativo de onde saíram os pares. Revista pelas 362 e 363: ficaram quatro, e Noite de Festa virou Brasa |
 
 ## Vista ao escolher uma parte
 
@@ -532,3 +532,31 @@ na exportação em resolução total, e a linha dos olhos com zoom.
 | # | Decisão | Motivo |
 | --- | --- | --- |
 | 361 | Ao escolher uma parte, só o brilho aparece: saiu o aviso "O brilho mostra onde o pincel alcança" (decisão 69) | Pedido de quem usa: o aviso não foi pedido, e o brilho sozinho já mostra a parte que está sendo editada |
+
+## Luzes enxutas e looks com luz
+
+Pedido de quem usa: das dez luzes, só quatro deram certo, quatro é pouco para uma prateleira, e o Glow na Hora
+pede mais looks, que usem os modelos que o site já serve. Os looks novos foram conferidos nas sete fotos reais de
+teste, olhando a foto inteira, o rosto e a borda da cabeça em tamanho de pixel, e não por média de região.
+
+| # | Decisão | Motivo |
+| --- | --- | --- |
+| 362 | Das dez luzes ficam quatro: Néon, Contraluz Dourado, Brasa e Flash Analógico. Luz de Estúdio, Flash Direto, Analógica, Entardecer, Contraluz e Silhueta saem do código, dos testes e dos documentos. Com a Analógica sai a data impressa: shader, documento e projeto salvo | Pedido de quem usa: as seis não deram certo. A data só existia para a Analógica |
+| 363 | Noite de Festa passa a se chamar Brasa. O id continua `noite-de-festa` | Quem usa achou o nome ruim. Brasa diz o que a luz faz: o lugar vira noite e a pele fica com a luz quente de uma brasa. O nome é do GlowUp (decisão 344). O id vai no projeto salvo e nunca muda (decisão 325) |
+| 364 | As quatro luzes moram nos Filtros, numa aba Luzes entre as categorias, logo depois de Todos | Quatro é pouco para uma prateleira própria. Quem usa já chama essas luzes de filtros, e elas nasceram de pares de filtro. Uma aba não gasta altura no celular e aparece nos dois lugares onde os filtros já estão: o caminho Filtros e a ferramenta Filtros do Do Meu Jeito, o que fecha o item aberto do M24. Virar looks foi descartado: look é retoque leve em qualquer rosto, e essas luzes refazem a cena inteira |
+| 365 | Uma luz e um filtro ficam juntos, cada um com a sua intensidade, e a aba Luzes ganha um ponto quando há luz na foto | São dois passes: o filtro muda a cor e a luz muda a cena. O ponto diz que há uma luz acesa mesmo com outra aba à vista |
+| 366 | Um projeto salvo com uma das seis luzes que saíram abre sem luz, e o que uma luz antiga guardava além da intensidade fica para trás | Uma luz que o site não conhece já não desenhava nada. Tirar do documento ao abrir evita um projeto que diz ter edição e não mostra nenhuma |
+| 367 | Um projeto com look aceso reabre no Glow na Hora, e um projeto só com luz reabre nos Filtros, já na aba Luzes | A luz mora nos Filtros agora. Revisa a parte da luz da decisão 162 |
+| 368 | Um look pode trazer uma luz própria: o campo `light` da receita aponta para uma luz de `src/core/light/looklights.ts`, que nenhum menu mostra | Luz no rosto e separação do fundo pedem a profundidade e o recorte da pessoa, que o passe de luz já lê. O look reaproveita a cena, o shader, o desfazer, o projeto salvo e a exportação, sem código novo de imagem |
+| 369 | A luz de um look só segue a foto num sentido, e com limite: `only` e `limit` na receita. O rosto escuro sobe até o limite e o rosto já claro fica; o fundo claro recua e o fundo já escuro fica | É o retoque só onde a foto pede: a cena mede o brilho da pele e do fundo, e a receita só corrige o que falta. Seguindo nos dois sentidos, como as Luzes, um look escurecia um rosto bem iluminado e clareava um fundo de noite |
+| 370 | Cinco looks novos: Retrato (fundo recua, sombra do rosto alivia, olhos), Luz de Janela (luz macia no rosto, dentes e olhos), Luz de Vela, Fim de Tarde (tudo mais quente) e Olhar (olheiras, branco e brilho dos olhos). Os quatro primeiros leem a cena; Olhar usa só o detector | Cada um junta o que os modelos acham: pele e olheiras pelos pontos do rosto e pelo separador de pele, olhos pela íris, dentes pela boca, luz e fundo pela profundidade e pelo recorte. Os cinco de antes ficam como estavam |
+| 371 | Luz de Vela é o look no espírito da Brasa: o lugar baixa e esquenta, e a pele fica com brilho quente, pelo iluminador com glow. Sem grão, sem preto esmagado, e o fundo desce no máximo 1 ponto | Pedido de quem usa: um look com o glow da Noite de Festa. Com o fundo 1,5 ponto abaixo, uma parede branca virava marrom numa foto real |
+| 372 | O look com luz baixa os dois modelos da cena no toque, com o cartão de progresso de sempre, que troca o título para "Lendo a luz da foto". Abrir o menu, os looks de antes e Olhar não baixam nada a mais | Decisões 353 e 354: nada baixa ao abrir. Os 59 MB só vêm para quem toca num look que precisa deles |
+| 373 | Se o leitor de profundidade não carrega, o look entra sem a luz, com aviso, e não aparece aceso: outro toque tenta de novo | A cor e o retoque do look não dependem da cena. Sem a luz o look não está inteiro (decisão 163), então o segundo toque aplica de novo em vez de tirar |
+| 374 | A luz do look sai com o look e troca com ele. Uma luz de Luzes fica embaixo de um look sem luz, e um look com luz toma o lugar dela | O documento guarda uma luz por vez (decisão 336). A do look é parte dele; a de Luzes é uma escolha à parte da pessoa |
+| 375 | O look aceso que tem luz mostra o controle "Luz do look", de 0 a 100, e a intensidade não conta para o look estar aceso | É a opção de quem acha a luz forte ou fraca na própria foto. O resto do look fica como está |
+| 376 | Na aba Luzes, a luz de um look aparece como um aviso com o botão "Tirar a luz", e a intensidade vale para ela | Um look mexido à mão deixa de estar aceso, e a luz dele ficaria na foto sem dono e sem botão |
+| 377 | Fim de Tarde não acende fios nem clareia o cabelo | Nas fotos reais a lâmpada de trás, mesmo fraca, deixou pontos claros soltos na têmpora, e Clarear cabelo deixou o cabelo preto com um véu marrom |
+| 378 | Brilho no olhar entra em 30 a 35 de contraste nos looks novos | Em 55, o padrão da ferramenta, uma íris castanha ficou preta numa foto real |
+| 379 | A miniatura de um look com luz segue mostrando só a cor do look | A luz pede a cena, e a cena só é lida no toque (decisões 171 e 372) |
+

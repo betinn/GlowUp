@@ -39,7 +39,7 @@ export const PATHS: EditPath[] = [
   {
     id: 'filters',
     label: 'Filtros',
-    note: 'Cor e clima na foto toda, sem mexer no rosto.',
+    note: 'Cor, clima e luz de cena na foto toda, sem mexer no rosto.',
     icon: 'filters',
     menu: () => import('./FiltersMenu.svelte'),
   },
@@ -81,9 +81,10 @@ function pathOfProject(): EditPath | undefined {
   if (!photoChanged()) return undefined;
   // A photo with nothing but Brincar on it opens in Brincar.
   if (!engine().changed({ ...wholeScope(), fun: false })) return pathById('fun');
-  // A light of Luzes lives in Glow na Hora, as the looks do.
-  if (!engine().changed({ ...wholeScope(), light: false })) return pathById('glow');
-  return pathById(appliedLook(engine().doc) ? 'glow' : 'manual');
+  if (appliedLook(engine().doc)) return pathById('glow');
+  // A light of Luzes lives in Filtros.
+  if (!engine().changed({ ...wholeScope(), light: false })) return pathById('filters');
+  return pathById('manual');
 }
 
 /** The photo just opened. Either a path is already known, or the screen of choice shows. */

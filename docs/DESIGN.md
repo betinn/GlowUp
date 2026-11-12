@@ -338,7 +338,9 @@ que brinca com a forma fica para outro menu. Um filtro de cada vez.
 - **Sugestão.** No topo, um filtro escolhido pelo tom da foto, com a miniatura e o motivo em uma frase. Ela só
   sugere: nada muda na foto até o toque, e a pessoa escolhe outro quando quiser. O motivo diz o que o filtro alivia
   de fato, então nunca promete o que ele não faz.
-- **Categorias.** Em linha, com Todos e Favoritos na frente. A estrela de cada miniatura guarda o favorito.
+- **Categorias.** Em linha, com Todos, Luzes e Favoritos na frente. A estrela de cada miniatura guarda o favorito.
+- **Luzes.** A aba logo depois de Todos troca a grade pelos quatro filtros que refazem a luz da cena. Eles não são
+  tabela de cor: leem a profundidade da foto. Um filtro e uma luz ficam juntos. Veja "Luzes" abaixo.
 - **Intensidade.** Aparece com o primeiro filtro e vale para tudo que ele traz: cor, grão e vinheta.
 - **No celular.** Os filtros correm em uma linha logo abaixo da foto, com a intensidade em seguida. Com um filtro
   ligado, a sugestão sai para dar lugar à intensidade, e volta quando ele sai.
@@ -415,7 +417,7 @@ simplesmente não toca, e pode deixar passar rosto de perfil, que ela pinta.
 Depois de abrir, a foto pergunta "Como vai ser?". Cada caminho é uma entrada em `src/ui/paths.ts`, e todos
 editam o mesmo documento, então trocar de caminho não perde nada. A pergunta aparece por cima da foto, que
 continua acesa, e o botão com o nome do caminho, na barra, traz a pergunta de volta. Um projeto com edição
-reabre sem perguntar: no Glow na Hora se está num look ou só numa luz, nas ferramentas se não. Os cartões de gesto vêm
+reabre sem perguntar: no Glow na Hora se está num look, nos Filtros se só tem uma luz, nas ferramentas se não. Os cartões de gesto vêm
 depois da escolha, e o caminho sem pincel não ensina a pintar.
 
 - **Glow na Hora.** O menu mostra looks, não ferramentas. Um toque aplica no rosto todo, numa etapa do
@@ -423,11 +425,15 @@ depois da escolha, e o caminho sem pincel não ensina a pintar.
   segundo toque tira o look. O look aceso é lido do documento, então acompanha o desfazer. Se os ajustes do
   look mudarem à mão, ele deixa de aparecer aceso.
 - **Do Meu Jeito.** O menu de sempre, ferramenta por ferramenta.
-- **Looks.** Natural, Glow, Editorial, Domingo e Retrato P&B. Precisam cair bem em qualquer rosto, então
-  nenhum põe cor na boca. A miniatura mostra a cor do look nesta foto, na intensidade certa.
+- **Looks.** Natural, Glow, Editorial, Domingo, Retrato P&B, Retrato, Luz de Janela, Luz de Vela, Fim de Tarde e
+  Olhar. Precisam cair bem em qualquer rosto, então nenhum põe cor na boca. A miniatura mostra a cor do look nesta
+  foto, na intensidade certa.
+- **Looks com luz.** Retrato, Luz de Janela, Luz de Vela e Fim de Tarde também mexem na luz do rosto e no que
+  está atrás da pessoa. Veja "Looks com luz" abaixo.
 - **Avisos.** Boca fechada deixa Dentes de fora, e o aviso diz isso. Sem rosto ou sem detector, entra só a
   cor do look e o aviso diz por quê. Sem detector, um segundo toque tenta de novo em vez de tirar o look.
-- **Luzes.** A segunda prateleira do Glow na Hora: um toque refaz a luz da foto inteira. Veja "Luzes" abaixo.
+- **Filtros.** Cor e clima na foto toda. Entre as categorias fica a aba Luzes: quatro filtros que refazem a luz
+  da cena. Veja "Luzes" abaixo.
 - **Brincar.** Caretas e adesivos, ao lado de Filtros. Um projeto só com Brincar reabre no Brincar. Veja abaixo.
 
 ## Brincar
@@ -563,8 +569,11 @@ export const coroa: StickerDef = {
 ## Luzes
 
 Filtros que mudam a luz da cena, não só a cor: um flash que acende a pessoa e apaga o fundo, uma lâmpada atrás
-dela, uma noite de néon. Ficam numa prateleira própria no menu do Glow na Hora, ao lado de Looks. O look cuida do
-rosto e a luz cuida da cena, e os dois podem estar na foto ao mesmo tempo.
+dela, uma noite de néon. São quatro: Néon, Contraluz Dourado, Brasa e Flash Analógico. Ficam na aba Luzes dos
+Filtros, entre as categorias, no caminho Filtros e na ferramenta Filtros do Do Meu Jeito. O filtro cuida da cor e
+a luz cuida da cena, e os dois podem estar na foto ao mesmo tempo, com um look por cima.
+
+- **Aba.** Luzes vem logo depois de Todos. Um ponto na aba diz que há uma luz na foto, mesmo com outra aba à vista.
 
 - **Um toque.** O primeiro toque numa luz lê a cena da foto, com o cartão de progresso, e põe a luz. Dali em
   diante trocar de luz é na hora. Um segundo toque na luz acesa tira.
@@ -572,11 +581,13 @@ rosto e a luz cuida da cena, e os dois podem estar na foto ao mesmo tempo.
   A foto não sai do aparelho.
 - **Quadrinhos.** Antes da leitura, cada um mostra duas cores: a da pessoa e a do fundo naquela luz. Depois, a
   própria foto, em volta do rosto, com a luz.
-- **Intensidade.** Um controle de 0 a 100 embaixo da prateleira, que aparece com a luz. A escolha fica quando se
+- **Intensidade.** Um controle de 0 a 100 embaixo das luzes, que aparece com a luz. A escolha fica quando se
   troca de luz.
+- **Luz de um look.** Se a foto está com a luz de um look do Glow na Hora, a aba diz isso, com o botão "Tirar a
+  luz". Uma luz daqui entra no lugar dela.
 - **Desfazer.** Pôr, trocar, tirar e soltar o controle são uma etapa cada. "Voltar ao original" também tira a luz.
 - **Sem ninguém na foto.** A luz entra do mesmo jeito, e cai no que está mais perto da câmera.
-- **Projeto salvo.** Abre com a luz, já na prateleira Luzes, sem ler a cena de novo.
+- **Projeto salvo.** Abre com a luz, já na aba Luzes, sem ler a cena de novo. Uma luz que saiu do site não abre.
 
 ### Como a luz é feita
 
@@ -608,7 +619,7 @@ O passe `light.frag` roda depois da revelação e antes dos adesivos, e lê a fo
 3. **Lâmpada de trás.** Um clarão no que está em volta da pessoa, mais forte perto da lâmpada, que entra poucos
    pixels nela. No cabelo, os fios mais claros que a vizinhança acendem, um pouco para dentro da borda.
 4. **Filme.** Contraste, pé e ombro.
-5. **Câmera.** Vazamento de luz, vinheta, grão e a data. Seguem o quadro depois do recorte.
+5. **Câmera.** Vazamento de luz, vinheta e grão. Seguem o quadro depois do recorte.
 
 A intensidade mistura o resultado com a foto de antes.
 
@@ -617,29 +628,29 @@ A intensidade mistura o resultado com a foto de antes.
 Uma luz é um arquivo em `src/core/light/lights/` e uma linha em `index.ts`. Nada mais muda.
 
 ```ts
-import type { LightDef } from '../types';
+import type { MenuLight } from '../types';
 
-export const entardecer: LightDef = {
-  id: 'entardecer',
-  label: 'Entardecer',
-  note: 'O fundo escurece e você continua na luz.',
-  swatch: ['#e3b48f', '#3c3f42'],
+export const brasa: MenuLight = {
+  id: 'noite-de-festa',
+  label: 'Brasa',
+  note: 'O fundo vira noite e a pele ganha luz quente, de brasa.',
+  swatch: ['#d99a62', '#0d0f16'],
   recipe: {
-    fall: { lo: 0.42, hi: 0.86 },
-    far: { ev: -1.68, level: 0.318, adapt: 0.8, sat: 1.5, tint: [0.811, 1.046, 1.105] },
-    near: { ev: 1.14, hair: -1.47, level: 0.192, adapt: 1, sat: 1.11 },
-    skin: { ev: -0.16, fill: 0.55 },
-    film: { gamma: 1.05, knee: 0.02, vignette: 0.8, grain: 0.15 },
+    fall: { lo: 0.1, hi: 0.98 },
+    far: { ev: -1.16, level: 0.155, adapt: 0.8, sat: 0.58, tint: [1.467, 0.914, 0.474] },
+    near: { ev: -0.1, close: -0.15, hair: 0.6, level: 0.208, adapt: 1, sat: 1.2 },
+    skin: { ev: 0.15, sat: 0.94 },
+    film: { gamma: 1.42, black: 0.199, knee: 0.25, vignette: 0.45, grain: 0.22 },
   },
 };
 ```
 
-- `id` vai para o projeto salvo: um que já saiu nunca muda de nome.
+- `id` vai para o projeto salvo: um que já saiu nunca muda de nome. Brasa saiu como Noite de Festa, e o id ficou.
 - `swatch` são as duas cores do quadrinho antes da leitura: a pessoa e o fundo.
 - Cada parte da receita que fica de fora não mexe em nada. Os campos estão em `src/core/light/types.ts`.
 - `fall` são as duas profundidades entre as quais a luz chega. Abaixo de `lo` um ponto está longe.
 - `ev` é exposição em pontos. `level` é o brilho que aquela parte tinha na foto do par, em luz linear, e `adapt`
-  quanto a receita segue uma foto diferente.
+  quanto a receita segue uma foto diferente. `only` faz ela seguir num sentido só, e `limit` segura quantos pontos.
 - `lamp` põe uma lâmpada atrás da pessoa. O lugar e o alcance são em tamanhos de rosto, para a luz ter a mesma cara
   em foto de perto e de longe.
 
@@ -658,6 +669,34 @@ export const entardecer: LightDef = {
 
 As fotos dos pares mostram pessoas reais e não entram no repositório: os scripts e as folhas de comparação ficam em
 `.tmp/`.
+
+### Looks com luz
+
+Um look do Glow na Hora pode trazer uma luz própria. Ela usa a mesma cena e o mesmo passe das Luzes, com outra
+intenção: é retoque, não uma cena nova. Por isso nenhum menu mostra essas luzes. Elas ficam em
+`src/core/light/looklights.ts`, e o look aponta para uma pelo campo `light` da receita, em
+`src/presets/recipes.ts`.
+
+| Look | Luz | O que a luz faz |
+| --- | --- | --- |
+| Retrato | `look-retrato` | O fundo recua de 0,2 a 0,55 ponto e perde um pouco de cor, as sombras da pele aliviam, e um rosto escuro sobe |
+| Luz de Janela | `look-janela` | Luz macia na pele: sombras preenchidas e um rosto escuro sobe até 0,8 ponto. O lugar fica como está |
+| Luz de Vela | `look-vela` | O lugar baixa de 0,5 a 1 ponto e esquenta, a pele ganha luz quente, e a foto ganha uma vinheta leve |
+| Fim de Tarde | `look-dourado` | Tudo mais quente, o lugar um pouco mais que a pessoa |
+
+- **Só onde precisa.** A cena mede o brilho da pele e do fundo. Com `only: 'up'` a pessoa só sobe: um rosto já
+  claro fica como está. Com `only: 'down'` o fundo só desce: um fundo já escuro fica. `limit` segura o quanto.
+- **Sem cara de filtro.** Nada de grão, vazamento de luz ou preto esmagado, e nenhuma parte anda mais que um ponto
+  e meio. Um teste confere.
+- **Um toque.** O primeiro look com luz lê a cena, com o cartão "Lendo a luz da foto", e baixa os dois modelos se
+  ainda não vieram. Os outros looks não leem a cena.
+- **Luz do look.** Com o look aceso, um controle de 0 a 100 dá o quanto da luz aparece. O look continua aceso.
+- **Troca.** A luz entra e sai com o look, na mesma etapa do desfazer. Um look sem luz tira a luz do look
+  anterior e deixa uma luz de Luzes no lugar. Um look com luz toma o lugar de uma luz de Luzes.
+- **Sem o leitor de profundidade.** O look entra sem a luz, o aviso diz por quê, e outro toque tenta de novo.
+
+Para um look novo com luz: escreva a luz em `looklights.ts`, com um id que comece com `look-`, ponha na lista
+`LOOK_LIGHTS`, e aponte o look para ela. Depois olhe o look nas fotos reais, inteiro e de perto na borda do cabelo.
 
 ## Layout
 

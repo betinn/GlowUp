@@ -31,7 +31,7 @@ test.describe('APIs chamadas por código', () => {
        const { LOOKS } = await use('/src/presets/recipes.ts');
        return applyRecipe(LOOKS.find((p) => p.id === 'glow'));`,
     );
-    expect(outcome).toEqual({ filled: ['smooth', 'highlight', 'blush'], missed: [], failed: false, stopped: false });
+    expect(outcome).toEqual({ filled: ['smooth', 'highlight', 'blush'], missed: [], failed: false, unlit: false, stopped: false });
     await settle(page);
     const applied = await page.screenshot();
     expect(await meanDiff(page, plain, applied)).toBeGreaterThan(0.5);

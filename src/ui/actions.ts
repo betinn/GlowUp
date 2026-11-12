@@ -10,6 +10,7 @@ import { toolById, TOOLS, type ToolMeta } from '../tools/catalog';
 import { applyToolFills, clearWork, dropToolLimit, forgetFreedTools, hasWork, limitTool, prepareToolFills, refillRegion, resetLockState, toolLimit } from './facepick.svelte';
 import { dropShapeTool, forgetShapeFaces, openShapeTool, sectionHeld, setSectionOn } from './shapepick.svelte';
 import { forgetFunFaces } from './funpick.svelte';
+import { ensureScene } from './lights.svelte';
 import { regionShow } from './regionshow.svelte';
 import { bump, engine, toast, ui } from './state.svelte';
 
@@ -154,6 +155,8 @@ export interface RecipeOutcome {
   missed: string[];
   /** The detector did not load. The settings of the recipe were applied, with no mask. */
   failed: boolean;
+  /** The recipe has a light, and the models that read the scene did not load. It went on without its light. */
+  unlit: boolean;
   /** Another search or another photo took over, and nothing was applied. */
   stopped: boolean;
 }
@@ -168,9 +171,9 @@ export interface RecipeOptions {
 
 /**
  * Applies a recipe and fills the masks of its tools from the detector, all as one undo step, so one undo
- * takes the look off. The open tool closes first. A mask holding work keeps it, unless `refill`. The
- * search shows on `facePick.task`, for whoever wants a progress card. Throws when the code of a tool does
- * not load, with the photo as it was.
+ * takes the look off. The open tool closes first. A mask holding work keeps it, unless `refill`. A recipe
+ * with a light reads the scene of the photo first, once per photo. The search shows on `facePick.task`, for
+ * whoever wants a progress card. Throws when the code of a tool does not load, with the photo as it was.
  */
 export async function applyRecipe(preset: RetouchPreset, { refill = false, fadeMs, clear = [] }: RecipeOptions = {}): Promise<RecipeOutcome> {
   const e = engine();
@@ -178,13 +181,18 @@ export async function applyRecipe(preset: RetouchPreset, { refill = false, fadeM
   const layers = Object.keys(preset.tools) as LayerId[];
   const tools = layers.flatMap((layer) => TOOLS.find((t) => t.layer === layer)?.id ?? []);
   const { fills, missed, failed, stopped } = await prepareToolFills(e, tools, { refill });
-  if (stopped) return { filled: [], missed: [], failed: false, stopped: true };
+  const none = { filled: [], missed: [], failed: false, unlit: false };
+  if (stopped) return { ...none, stopped: true };
+  // A detector that failed leaves the scene for the next try: it needs the same detector.
+  const scene = preset.light && !failed ? await ensureScene(e) : 'ready';
+  if (scene === 'stopped') return { ...none, stopped: true };
+  const lit = scene === 'ready' && !failed;
   await e.history.group('Look', async () => {
     // The settings first: when the code of a tool does not load, nothing was cleared yet.
-    await applyPreset(e, preset);
+    await applyPreset(e, preset, lit);
     if (clear.length) await e.resetParts('Look', { layers: clear });
     await applyToolFills(e, fills, { label: 'Look', fadeMs });
   });
   bump();
-  return { filled: [...fills.keys()], missed, failed, stopped: false };
+  return { filled: [...fills.keys()], missed, failed, unlit: !!preset.light && !lit && !failed, stopped: false };
 }

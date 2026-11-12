@@ -2,6 +2,7 @@
   import { onDestroy, onMount, tick, untrack, type Component } from 'svelte';
   import { scale } from 'svelte/transition';
   import { Engine, type EngineEvents } from '../core/engine';
+  import { keptLight } from '../core/light/lights';
   import { unpackScene } from '../core/light/scene';
   import { Autosave, InvalidProjectError, loadOriginal, loadProject, unpack, validProject } from '../core/project';
   import { nextPaint } from '../core/progress';
@@ -116,6 +117,10 @@
         throw new InvalidProjectError('the document is of another photo');
       }
       await stage('upload');
+      // A light that left the menu is dropped: the photo opens with its own light.
+      const light = keptLight(record.doc.light);
+      if (light) record.doc.light = light;
+      else delete record.doc.light;
       await e.open(source, record.doc);
       await stage('retouch');
       await ensureDocTools(e);

@@ -1,30 +1,26 @@
 <script lang="ts">
   /**
-   * The menu of Glow na Hora, in two shelves. Looks: one tap puts a look on the whole face. Luzes: one tap
-   * makes the light of the whole photo again. One of each can be on at the same time.
+   * The menu of Glow na Hora: one tap puts a look on the whole face. Some looks also work on the light of the
+   * face and on what is behind the person: those read the depth of the photo the first time one is used.
    */
   import { onDestroy, onMount } from 'svelte';
   import { lutById } from '../presets/luts';
   import { appliedLook, LOOKS, type RetouchPreset } from '../presets/recipes';
   import { ThumbRenderer } from '../presets/thumbs';
   import { facePick } from './facepick.svelte';
-  import LightsShelf from './LightsShelf.svelte';
+  import { commitLight, lightPick, setLightIntensity } from './lights.svelte';
   import { tapLook } from './looks';
   import ProgressCard from './ProgressCard.svelte';
-  import Segment from './Segment.svelte';
+  import Slider from './Slider.svelte';
   import { engine, ui } from './state.svelte';
 
   const e = engine();
   /** On a phone the wait floats over the photo and the words stay. On a desktop it takes their place. */
   const desktop = matchMedia('(min-width: 900px)').matches;
-  const active = $derived((ui.rev, appliedLook(e.doc)?.id ?? null));
-
-  const SHELVES = [
-    { value: 'looks', label: 'Looks' },
-    { value: 'lights', label: 'Luzes' },
-  ];
-  /** A photo that wears a light and no look opens on the lights. */
-  let shelf = $state(e.doc.light && !appliedLook(e.doc) ? 'lights' : 'looks');
+  const worn = $derived((ui.rev, appliedLook(e.doc)));
+  const active = $derived(worn?.id ?? null);
+  /** How much of the light of the look shows, when the look on the photo has one. */
+  const light = $derived((ui.rev, worn?.light && e.doc.light ? Math.round(e.doc.light.intensity * 100) : null));
 
   /** The look on its way, until it lands. */
   let wearing = $state<string | null>(null);
@@ -60,16 +56,10 @@
   });
 </script>
 
-<div class="looks" data-testid="looks" data-state={wearing ? 'wearing' : 'idle'} data-shelf={shelf}>
-  <div class="shelves">
-    <Segment label="Prateleira" value={shelf} options={SHELVES} onchange={(v) => (shelf = v)} />
-  </div>
-  {#if shelf === 'lights'}
-    <LightsShelf />
-  {:else}
+<div class="looks" data-testid="looks" data-state={wearing ? 'wearing' : 'idle'}>
   {#if facePick.task && wearing}
     <div class="wait">
-      <ProgressCard task={facePick.task} title="Procurando o rosto" note={facePick.download} />
+      <ProgressCard task={facePick.task} title={lightPick.task ? 'Lendo a luz da foto' : 'Procurando o rosto'} note={facePick.download} />
     </div>
   {/if}
   {#if !(facePick.task && wearing && desktop)}
@@ -78,12 +68,16 @@
   <div class="list scroll-x" role="toolbar" aria-label="Looks">
     {#each LOOKS as look (look.id)}
       <button type="button" class="look" class:on={active === look.id} class:wearing={wearing === look.id} aria-pressed={active === look.id}
-        data-look={look.id} title={active === look.id ? `${look.name}: toque de novo para tirar` : look.note} onclick={() => tap(look)}>
+        data-look={look.id} data-lit={look.light ? '' : undefined} title={active === look.id ? `${look.name}: toque de novo para tirar` : look.note} onclick={() => tap(look)}>
         <canvas use:thumb={look} class:ready={rendered[look.id]} width="104" height="104"></canvas>
         <span class="name">{look.name}</span>
       </button>
     {/each}
   </div>
+  {#if light !== null && worn?.light}
+    <div class="strength">
+      <Slider label="Luz do look" value={light} resetTo={Math.round(worn.light.intensity * 100)} oninput={setLightIntensity} onchange={commitLight} />
+    </div>
   {/if}
 </div>
 
@@ -94,10 +88,6 @@
     flex-direction: column;
     min-height: 0;
     padding: 10px 0 6px;
-  }
-
-  .shelves {
-    padding: 0 16px 6px;
   }
 
   .hint {
@@ -130,8 +120,10 @@
     flex: none;
     display: grid;
     justify-items: center;
+    /* One column as wide as the tile, so a long name never widens its picture. */
+    grid-template-columns: minmax(0, 1fr);
     gap: 5px;
-    width: 76px;
+    width: 88px;
     padding: 4px;
     border-radius: 14px;
     font-size: 12.5px;
@@ -180,7 +172,14 @@
   }
 
   .name {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .strength {
+    padding: 8px 16px 0;
   }
 
   @keyframes breathe {
@@ -213,17 +212,22 @@
       border: 0;
     }
 
+    /* Three across, so the ten looks are in sight without scrolling. */
     .list {
       display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 10px;
-      padding: 0 14px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px 6px;
+      padding: 0 12px;
       overflow: auto;
     }
 
     .look {
       width: auto;
-      font-size: 14px;
+      font-size: 13px;
+    }
+
+    .strength {
+      padding: 12px 18px 0;
     }
   }
 </style>

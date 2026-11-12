@@ -3,8 +3,8 @@
  * from the camera, so it needs the depth of the photo, and it treats the person, their skin and their hair
  * apart, so it needs to know where they are. See "Luzes" in `docs/DESIGN.md`.
  *
- * A light is plain data: the numbers of a recipe. To add one, write it in a file of its own in `lights/` and
- * add one line to `lights/index.ts`.
+ * A light is plain data: the numbers of a recipe. The lights of the menu are in `lights/`, one file each and one
+ * line in `lights/index.ts`. The lights that come with a look of Glow na Hora are in `looklights.ts`.
  */
 
 /** A color in linear light, each channel from 0 up. */
@@ -19,16 +19,26 @@ export interface FallRecipe {
   hi?: number;
 }
 
-/** What is far from the camera: the background. Every number left out leaves that part alone. */
-export interface FarRecipe {
-  /** Exposure, in stops. */
-  ev?: number;
-  /**
-   * The mean brightness the background had in the photo the recipe was made on, in linear light, and how much
-   * the recipe follows a photo that differs: a background that is already dark is then not darkened as much.
-   */
+/**
+ * How a recipe follows a photo that differs from the one it was made on. `level` is the mean brightness that part
+ * had on that photo, in linear light, and `adapt` the share of the difference the recipe makes up for.
+ */
+export interface Follow {
   level?: number;
   adapt?: number;
+  /**
+   * Follow the photo one way only. `up` lights a part that is darker than `level` and leaves a brighter one
+   * alone, and `down` is the other way round. It is how a look does only what the photo needs.
+   */
+  only?: 'up' | 'down';
+  /** The most stops the recipe follows the photo by. Left out, three. */
+  limit?: number;
+}
+
+/** What is far from the camera: the background. Every number left out leaves that part alone. */
+export interface FarRecipe extends Follow {
+  /** Exposure, in stops. */
+  ev?: number;
   /** How much lamps and windows keep their own brightness, 0 to 1. */
   keep?: number;
   /** Saturation, where 1 leaves it as it is. */
@@ -39,18 +49,12 @@ export interface FarRecipe {
 }
 
 /** What is at the depth of the subject: the person, clothes and hair included, and whatever is beside them. */
-export interface NearRecipe {
+export interface NearRecipe extends Follow {
   ev?: number;
   /** Stops added per unit of depth nearer than the subject, as a flash burns a hand held out to the camera. */
   close?: number;
   /** Stops added to the hair alone. */
   hair?: number;
-  /**
-   * The mean brightness the skin had in the photo the recipe was made on, in linear light, and how much the
-   * recipe follows a photo that differs, so a face ends as bright on a dark photo as on a bright one.
-   */
-  level?: number;
-  adapt?: number;
   sat?: number;
   tint?: Rgb;
 }
@@ -103,8 +107,6 @@ export interface FilmRecipe {
   grain?: number;
   /** Light that got into the camera from one side. The place is in shares of the frame. */
   leak?: { x: number; y: number; size: number; strength: number; color: Rgb; tall?: number };
-  /** The date in a corner, as cameras used to print it. */
-  stamp?: boolean;
 }
 
 export interface LightRecipe {
@@ -119,11 +121,15 @@ export interface LightRecipe {
 export interface LightDef {
   /** Goes into saved projects: never rename one that shipped. */
   id: string;
+  recipe: LightRecipe;
+}
+
+/** A light with a tile of its own in the menu. */
+export interface MenuLight extends LightDef {
   label: string;
   note: string;
   /** Two CSS colors for the tile of the menu, before the photo has its scene. */
   swatch: readonly [string, string];
-  recipe: LightRecipe;
 }
 
 /** What the photo says about itself, measured once with the scene. */

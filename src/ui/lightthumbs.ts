@@ -56,9 +56,8 @@ export class LightThumbs {
       uOutSize: [SIZE, SIZE],
       // The square is too small a photo to have strands to read.
       uStrandLod: 0,
-      ...lightUniforms(light.recipe, scene.stats, doc, 1, '01/01/2000'),
-      // A date and grain at this size are only noise.
-      uStampOn: false,
+      ...lightUniforms(light.recipe, scene.stats, doc, 1),
+      // Grain at this size is only noise.
       uGrain: 0,
     });
     const { data } = await glc.readAsync(this.target, { x: 0, y: 0, w: SIZE, h: SIZE });

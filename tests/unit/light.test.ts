@@ -1,8 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { LIGHTS, lightById } from '../../src/core/light/lights';
+import { isLookLight, keptLight, LIGHTS, lightById, menuLightById } from '../../src/core/light/lights';
+import { LOOK_LIGHTS } from '../../src/core/light/looklights';
 import { DEPTH_NORM, depthSize, MATTE_NORM, matteSize, resample, toPlanes } from '../../src/core/light/models';
-import { adaptedEv, lightUniforms, readsStrands, stampDigits, stampOf } from '../../src/core/light/resolve';
+import { adaptedEv, lightUniforms, readsStrands } from '../../src/core/light/resolve';
 import { buildScene, guidedByColor, packScene, sceneSize, unpackScene, type SceneSeen } from '../../src/core/light/scene';
 import type { LightRecipe, SceneStats } from '../../src/core/light/types';
 
@@ -52,8 +53,8 @@ function photo(w: number, h: number, somebody = true) {
 }
 
 describe('registro das luzes', () => {
-  it('tem as dez luzes dos pares, cada uma com nome, nota e números que fazem sentido', () => {
-    expect(LIGHTS).toHaveLength(10);
+  it('tem as quatro luzes que ficaram, cada uma com nome, nota e números que fazem sentido', () => {
+    expect(LIGHTS.map((l) => l.label)).toEqual(['Néon', 'Contraluz Dourado', 'Brasa', 'Flash Analógico']);
     const ids = LIGHTS.map((l) => l.id);
     expect(new Set(ids).size).toBe(ids.length);
     for (const light of LIGHTS) {
@@ -63,27 +64,38 @@ describe('registro das luzes', () => {
       expect(light.swatch).toHaveLength(2);
       for (const v of numbers(light.recipe)) expect(Number.isFinite(v)).toBe(true);
       expect(lightById(light.id)).toBe(light);
+      expect(menuLightById(light.id)).toBe(light);
     }
     expect(lightById('nao-existe')).toBeUndefined();
     expect(lightById(null)).toBeUndefined();
   });
 
-  it('nenhum id que já saiu muda de nome', () => {
-    expect(LIGHTS.map((l) => l.id).sort()).toEqual(
-      ['analogica', 'contraluz', 'contraluz-dourado', 'entardecer', 'flash-analogico', 'flash-direto', 'luz-de-estudio', 'neon', 'noite-de-festa', 'silhueta'].sort(),
-    );
+  it('nenhum id que já saiu muda de nome: Brasa segue como noite-de-festa no projeto salvo', () => {
+    expect(LIGHTS.map((l) => l.id).sort()).toEqual(['contraluz-dourado', 'flash-analogico', 'neon', 'noite-de-festa']);
+    expect(menuLightById('noite-de-festa')?.label).toBe('Brasa');
+  });
+
+  it('as seis luzes que saíram não existem mais, e um projeto que tinha uma abre sem luz', () => {
+    for (const id of ['luz-de-estudio', 'flash-direto', 'analogica', 'entardecer', 'contraluz', 'silhueta']) {
+      expect(lightById(id)).toBeUndefined();
+      expect(keptLight({ id, intensity: 1 })).toBeUndefined();
+    }
+    expect(keptLight(undefined)).toBeUndefined();
+    // What an older light kept besides its strength, as the date it printed, is left behind.
+    const old = { id: 'neon', intensity: 0.6, stamp: '31/07/2026' };
+    expect(keptLight(old)).toEqual({ id: 'neon', intensity: 0.6 });
+    expect(keptLight({ id: 'look-retrato', intensity: 4 })).toEqual({ id: 'look-retrato', intensity: 1 });
   });
 
   it('cada luz vira números que o shader lê, sem nada de fora', () => {
-    for (const light of LIGHTS) {
-      const u = lightUniforms(light.recipe, STATS, SIZE, 1, '31/07/2026');
+    for (const light of [...LIGHTS, ...LOOK_LIGHTS]) {
+      const u = lightUniforms(light.recipe, STATS, SIZE, 1);
       for (const v of numbers(u)) expect(Number.isFinite(v)).toBe(true);
       expect(u.uMix).toBe(1);
-      expect(u.uStamp).toHaveLength(8);
     }
   });
 
-  it('toda luz diz o brilho que a foto da receita tinha, para seguir outra foto', () => {
+  it('toda luz do menu diz o brilho que a foto da receita tinha, para seguir outra foto', () => {
     for (const light of LIGHTS) {
       const { far, near } = light.recipe;
       expect(far?.level).toBeGreaterThan(0);
@@ -93,31 +105,93 @@ describe('registro das luzes', () => {
     }
   });
 
-  it('nenhuma luz tem poeira nem pontos de brilho soltos na foto', () => {
+  it('nenhuma luz tem poeira, pontos de brilho soltos nem data impressa na foto', () => {
     const light = readFileSync('src/core/shaders/light.frag', 'utf8');
-    expect(light).not.toMatch(/uDust|uGlows/);
+    expect(light).not.toMatch(/uDust|uGlows|uStamp/);
+  });
+});
+
+describe('luzes dos looks', () => {
+  it('ficam fora do menu, com id próprio, e o documento acha cada uma', () => {
+    const ids = LOOK_LIGHTS.map((l) => l.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const light of LOOK_LIGHTS) {
+      expect(light.id).toMatch(/^look-[a-z]+$/);
+      expect(lightById(light.id)).toBe(light);
+      expect(menuLightById(light.id)).toBeUndefined();
+      expect(isLookLight(light.id)).toBe(true);
+    }
+    for (const light of LIGHTS) expect(isLookLight(light.id)).toBe(false);
+    expect(isLookLight(undefined)).toBe(false);
+  });
+
+  it('são retoque: nada de grão, vazamento ou preto esmagado, e nenhuma parte anda mais que um ponto e meio', () => {
+    for (const { recipe } of LOOK_LIGHTS) {
+      expect(recipe.film?.grain).toBeUndefined();
+      expect(recipe.film?.leak).toBeUndefined();
+      expect(recipe.film?.black).toBeUndefined();
+      for (const part of [recipe.far, recipe.near]) {
+        if (!part) continue;
+        expect(Math.abs(part.ev ?? 0) + (part.adapt ? (part.limit ?? 3) : 0)).toBeLessThanOrEqual(1.5);
+      }
+    }
+  });
+
+  it('só mexem no que a foto pede: o rosto escuro sobe e o claro fica, o fundo claro recua e o escuro fica', () => {
+    for (const { id, recipe } of LOOK_LIGHTS) {
+      const { far, near } = recipe;
+      if (near?.adapt) {
+        expect(near.only, id).toBe('up');
+        const dark = lightUniforms(recipe, { ...STATS, skinY: 0.004 }, SIZE, 1) as { uEv: number[] };
+        const bright = lightUniforms(recipe, { ...STATS, skinY: 0.6 }, SIZE, 1) as { uEv: number[] };
+        expect(bright.uEv[1]).toBe(near.ev ?? 0);
+        expect(dark.uEv[1]).toBeCloseTo((near.ev ?? 0) + near.limit!, 5);
+      }
+      if (far?.adapt) {
+        expect(far.only, id).toBe('down');
+        const dark = lightUniforms(recipe, { ...STATS, backY: 0.01 }, SIZE, 1) as { uEv: number[] };
+        const bright = lightUniforms(recipe, { ...STATS, backY: 1 }, SIZE, 1) as { uEv: number[] };
+        expect(dark.uEv[0]).toBe(far.ev ?? 0);
+        expect(bright.uEv[0]).toBeCloseTo((far.ev ?? 0) - far.limit!, 5);
+      }
+    }
   });
 });
 
 describe('receita ajustada à foto', () => {
   it('sem o brilho da foto da receita, a exposição é a da receita', () => {
-    expect(adaptedEv(-2, undefined, undefined, 0.3)).toBe(-2);
-    expect(adaptedEv(-2, 0.05, 0, 0.3)).toBe(-2);
+    expect(adaptedEv(-2, {}, 0.3)).toBe(-2);
+    expect(adaptedEv(-2, { level: 0.05, adapt: 0 }, 0.3)).toBe(-2);
   });
 
   it('na foto da receita nada muda, e um fundo claro escurece mais que um fundo já escuro', () => {
-    expect(adaptedEv(-2, 0.1, 0.8, 0.1)).toBeCloseTo(-2, 5);
-    const bright = adaptedEv(-2, 0.1, 0.8, 0.5);
-    const dark = adaptedEv(-2, 0.1, 0.8, 0.03);
+    expect(adaptedEv(-2, { level: 0.1, adapt: 0.8 }, 0.1)).toBeCloseTo(-2, 5);
+    const bright = adaptedEv(-2, { level: 0.1, adapt: 0.8 }, 0.5);
+    const dark = adaptedEv(-2, { level: 0.1, adapt: 0.8 }, 0.03);
     expect(bright).toBeLessThan(-2);
     expect(dark).toBeGreaterThan(-2);
     // Following all the way, a part two stops brighter than on the photo of the recipe takes two stops less.
-    expect(adaptedEv(-2, 0.1, 1, 0.4)).toBeCloseTo(-4, 5);
+    expect(adaptedEv(-2, { level: 0.1, adapt: 1 }, 0.4)).toBeCloseTo(-4, 5);
   });
 
   it('nunca segue a foto por mais que três pontos', () => {
-    expect(adaptedEv(0, 0.0001, 1, 0.9)).toBe(-3);
-    expect(adaptedEv(0, 1, 1, 0.004)).toBe(3);
+    expect(adaptedEv(0, { level: 0.0001, adapt: 1 }, 0.9)).toBe(-3);
+    expect(adaptedEv(0, { level: 1, adapt: 1 }, 0.004)).toBe(3);
+  });
+
+  it('com um só sentido, segue a foto para cima ou para baixo e nunca para o outro lado', () => {
+    const up = { level: 0.2, adapt: 1, only: 'up' } as const;
+    expect(adaptedEv(0, up, 0.05)).toBeCloseTo(2, 5);
+    expect(adaptedEv(0, up, 0.8)).toBe(0);
+    const down = { level: 0.2, adapt: 1, only: 'down' } as const;
+    expect(adaptedEv(-0.3, down, 0.8)).toBeCloseTo(-2.3, 5);
+    expect(adaptedEv(-0.3, down, 0.05)).toBe(-0.3);
+  });
+
+  it('o limite da receita segura o quanto ela segue a foto', () => {
+    expect(adaptedEv(0, { level: 0.2, adapt: 1, limit: 0.5 }, 0.01)).toBe(0.5);
+    expect(adaptedEv(0, { level: 0.2, adapt: 1, limit: 0.5 }, 0.9)).toBe(-0.5);
+    expect(adaptedEv(0, { level: 0.2, adapt: 0.5, limit: 0.5 }, 0.15)).toBeCloseTo(Math.log2(0.2 / 0.15) / 2, 5);
   });
 
   it('o fundo segue o brilho do fundo, e a pessoa o brilho da pele', () => {
@@ -143,7 +217,6 @@ describe('receita ajustada à foto', () => {
     expect(u.uCurve).toEqual([1, 0.18, 0, 1]);
     expect(u.uLift).toEqual([0, 0, 0]);
     expect(u.uGrain).toBe(0);
-    expect(u.uStampOn).toBe(false);
   });
 
   it('a lâmpada atrás da pessoa é medida a partir do rosto, em tamanhos de rosto', () => {
@@ -173,18 +246,6 @@ describe('receita ajustada à foto', () => {
     expect(readsStrands({ lamp: { at: [0, 0], reach: 1, strands: 0.5 } })).toBe(true);
     expect(readsStrands({ lamp: { at: [0, 0], reach: 1, glow: 1 } })).toBe(false);
     expect(readsStrands({})).toBe(false);
-  });
-});
-
-describe('carimbo de data', () => {
-  it('a data vira oito algarismos', () => {
-    expect(stampDigits('31/07/2026')).toEqual([3, 1, 0, 7, 2, 0, 2, 6]);
-    expect(stampDigits(undefined)).toEqual([0, 0, 0, 0, 0, 0, 0, 0]);
-    expect(stampDigits('1/2')).toEqual([1, 2, 0, 0, 0, 0, 0, 0]);
-  });
-
-  it('o dia de hoje sai como dia, mês e ano', () => {
-    expect(stampOf(new Date(2026, 10, 9))).toBe('09/11/2026');
   });
 });
 

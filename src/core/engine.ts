@@ -1174,13 +1174,10 @@ export class Engine {
     this.emit('change');
   }
 
-  /**
-   * Puts a light of Luzes on the photo, or takes it off with null. Live: call `commit` when the gesture ends.
-   * A light that prints the date keeps the date it went on with.
-   */
-  setLight(id: string | null, intensity = 1, stamp?: string): void {
+  /** Puts a light on the photo, or takes it off with null. Live: call `commit` when the gesture ends. */
+  setLight(id: string | null, intensity = 1): void {
     this.track('Luz');
-    if (id) this.doc.light = { id, intensity, ...(stamp ? { stamp } : {}) };
+    if (id) this.doc.light = { id, intensity };
     else delete this.doc.light;
     this.ctx?.invalidate('global');
     this.dropRoi();
