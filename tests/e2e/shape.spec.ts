@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { DEV_ORIGIN } from '../../playwright.config';
-import { expectNoErrors, meanDiff, openEditor, PORTRAIT, setSlider, settle, showSettled, imageRect, limitSettled, findShapeFaces } from './helpers';
+import { expectNoErrors, meanDiff, openEditor, openTab, PORTRAIT, setSlider, settle, showSettled, imageRect, limitSettled, findShapeFaces } from './helpers';
 
 /** The dev server serves each module by address, so a test can read the document and the pixels. */
 test.use({ baseURL: DEV_ORIGIN });
@@ -117,11 +117,15 @@ interface Compared {
 }
 
 test.describe('o menu Formato do rosto', () => {
-  test('tem nome inteiro na barra e quatro ferramentas', async ({ page }) => {
+  test('tem uma palavra na fileira de menus, o nome inteiro para quem pergunta, e quatro ferramentas', async ({ page }) => {
     await openEditor(page);
     const group = page.locator('[data-group=shape]');
-    await expect(group).toHaveText('Formato do rosto');
+    // The row of menus has room for one word, and the whole name stays for the pointer and the screen reader.
+    await expect(group).toHaveText('Formato');
+    await expect(group).toHaveAttribute('title', 'Formato do rosto');
+    await expect(group).toHaveAccessibleName('Formato do rosto');
     await group.click();
+    await expect(group).toHaveAttribute('aria-pressed', 'true');
     for (const [tool, label] of [['faceshape', 'Rosto'], ['eyeshape', 'Olhos'], ['noseshape', 'Nariz e boca'], ['liquify', 'Liquify']]) {
       await expect(page.locator(`[data-tool=${tool}]`)).toHaveText(label);
     }
@@ -425,7 +429,7 @@ test.describe('a troca de ferramenta', () => {
     await page.mouse.move(r.x + r.w / 2 + 40, r.y + r.h / 2, { steps: 8 });
     await page.mouse.up();
     await reached;
-    await page.locator('[data-group=light]').click();
+    await openTab(page, 'photo');
     await page.locator('[data-tool=adjust]').click();
     await page.locator('[data-limit]').waitFor();
     await page.getByRole('radiogroup', { name: 'Modo' }).getByRole('radio', { name: 'Automático' }).click();

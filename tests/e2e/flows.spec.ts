@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { expectNoErrors, facePoint, imageRect, openEditor, paint, pickTool, scribble, setSlider, settle, limitSettled } from './helpers';
+import { expectNoErrors, facePoint, imageRect, openEditor, openTab, paint, pickTool, scribble, setSlider, settle, limitSettled } from './helpers';
 
 /** Reads width and height from PNG or JPEG bytes. */
 function imageSize(b: Buffer): { w: number; h: number; type: string } {
@@ -116,13 +116,22 @@ test.describe('fluxos', () => {
   });
 
   test('onboarding aparece uma vez', async ({ page }) => {
+    // On the tab with a brush, the first visit owes the three cards at once.
+    await page.addInitScript(() => localStorage.setItem('glowup.startPath', '"manual"'));
     await page.goto('/');
     await page.setInputFiles('[data-testid=file-input]', 'tests/fixtures/gradient.png');
-    await page.locator('[data-path=manual]').click();
-    await expect(page.getByRole('dialog', { name: 'Como usar' })).toBeVisible();
+    await expect(page.getByRole('dialog', { name: 'Como usar' })).toBeVisible({ timeout: 90_000 });
+    await expect(page.locator('[data-path=manual]')).toHaveAttribute('aria-pressed', 'true');
     for (let i = 0; i < 3; i++) await page.getByTestId('onboarding-next').click();
     await expect(page.getByRole('dialog', { name: 'Como usar' })).toBeHidden();
     expect(await page.evaluate(() => localStorage.getItem('glowup.onboarded'))).toBe('true');
+    // No other tab brings them back, nor the way back to this one.
+    await openTab(page, 'glow');
+    await page.getByTestId('looks').waitFor();
+    await expect(page.getByRole('dialog', { name: 'Como usar' })).toHaveCount(0);
+    await openTab(page, 'manual');
+    await page.locator('[data-group=skin]').waitFor();
+    await expect(page.getByRole('dialog', { name: 'Como usar' })).toHaveCount(0);
   });
 
   test('desfazer e refazer restauram os pixels exatos', async ({ page }) => {
@@ -203,7 +212,7 @@ test.describe('fluxos', () => {
     await page.getByRole('slider', { name: 'Exposição' }).fill('30');
     await page.mouse.move(2, 2);
     await settle(page, 400);
-    await page.locator('[data-group=light]').click();
+    await page.locator('[data-path=photo]').click();
     await page.mouse.move(2, 2);
     await settle(page, 300);
     const edited = await canvasShot(page);
@@ -301,6 +310,26 @@ test.describe('celular', () => {
     await page.screenshot({ path: 'docs/visual-checks/ui-celular-ferramenta.png' });
     const noOverflow = await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth);
     expect(noOverflow).toBe(true);
+
+    // From the top: the photo, the sheet of the tool, its row of tools, the row of menus and the tabs.
+    const sheet = (await page.locator('.panel').boundingBox())!;
+    const tools = (await page.locator('[data-tool=whiten]').locator('..').boundingBox())!;
+    const menus = (await page.locator('[data-group=makeup]').locator('..').boundingBox())!;
+    const tabs = (await page.getByTestId('tabs').boundingBox())!;
+    expect(sheet.y).toBeGreaterThan(844 * 0.3);
+    expect(sheet.y + sheet.height).toBeLessThanOrEqual(tools.y + 0.5);
+    expect(tools.y + tools.height).toBeLessThanOrEqual(menus.y + 0.5);
+    expect(menus.y + menus.height).toBeLessThanOrEqual(tabs.y + 0.5);
+    expect(tabs.y + tabs.height).toBeLessThanOrEqual(844);
+    expect(menus.height).toBeGreaterThanOrEqual(44);
+    expect(tabs.height).toBeGreaterThanOrEqual(50);
+
+    // The sheet folds away, and a tap on the tab in sight brings it back.
+    await page.getByRole('button', { name: 'Recolher controles' }).tap();
+    await expect(page.locator('.panel')).toHaveCount(0);
+    await page.locator('[data-path=manual]').tap();
+    await expect(page.getByRole('slider', { name: 'Tirar o amarelo' })).toBeAttached();
+    await expect(page.locator('[data-tool=whiten]')).toHaveAttribute('aria-pressed', 'true');
     expectNoErrors(errors);
   });
 });

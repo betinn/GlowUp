@@ -316,7 +316,7 @@ test.describe('resposta ao usuário, celular', () => {
 
   test('a divisão do filtro fica sobre a foto, fora do painel', async ({ page }) => {
     await openEditor(page);
-    await page.locator('[data-group=filters]').tap();
+    await page.locator('[data-path=filters]').tap();
     await page.locator('[data-filter=prata]').tap();
     await page.getByTestId('compare-filter').tap();
     await settle(page, 1300);

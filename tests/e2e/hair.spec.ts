@@ -123,12 +123,25 @@ test.describe('cabelo', () => {
 test.describe('cabelo, celular', () => {
   test.use({ viewport: { width: 375, height: 812 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
 
-  test('os oito grupos cabem na barra sem rolar, e Cabelo aplica no Automático', async ({ page }) => {
+  test('os cinco menus de retoque aparecem inteiros sobre as cinco abas, e Cabelo aplica no Automático', async ({ page }) => {
     const errors = watch(page);
     await openEditor(page);
-    const bar = page.getByRole('navigation', { name: 'Categorias' });
-    const [scroll, width] = await bar.evaluate((el) => [el.scrollWidth, el.clientWidth]);
+    // The tabs never scroll. The row of menus sits over them, with every word whole on the screen and a
+    // target a thumb can hit.
+    const tabs = page.getByTestId('tabs');
+    const [scroll, width] = await tabs.evaluate((el) => [el.scrollWidth, el.clientWidth]);
     expect(scroll).toBeLessThanOrEqual(width);
+    const top = (await tabs.boundingBox())!.y;
+    const bar = page.getByRole('navigation', { name: 'Categorias' });
+    await expect(bar.locator('[data-group]')).toHaveCount(5);
+    for (const chip of await bar.locator('[data-group]').all()) {
+      const box = (await chip.boundingBox())!;
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(375);
+      expect(box.height).toBeGreaterThanOrEqual(44);
+      expect(box.y + box.height).toBeLessThanOrEqual(top + 0.5);
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.locator('[data-group=hair]').tap();
     await page.locator('[data-tool=haircolor]').tap();
     await chooseMode(page, 'Automático');

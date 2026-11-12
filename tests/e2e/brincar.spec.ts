@@ -22,7 +22,7 @@ function watch(page: Page): string[] {
   return errors;
 }
 
-/** Opens the portrait straight on the Brincar path, with its faces found. */
+/** Opens the portrait straight on the Brincar tab, with its faces found. */
 async function openBrincar(page: Page): Promise<void> {
   await skipIntro(page);
   await page.addInitScript(() => localStorage.setItem('glowup.startPath', '"fun"'));
@@ -53,18 +53,19 @@ const SHOT = `
 
 const doc = (page: Page) => inPage<{ fun?: { faces?: { values: Record<string, number> }[]; stickers?: { id: number; x: number; y: number; size: number; angle: number }[] } }>(page, 'return JSON.parse(JSON.stringify(e.doc));');
 
-test.describe('o caminho Brincar', () => {
-  test('fica ao lado de Filtros, e o menu traz caretas, adesivos e nada do retoque', async ({ page }) => {
+test.describe('a aba Brincar', () => {
+  test('fica no fim das abas, depois de Filtros e de Foto, e o menu traz caretas, adesivos e nada do retoque', async ({ page }) => {
     const errors = watch(page);
     await skipIntro(page);
     await page.addInitScript(() => localStorage.removeItem('glowup.startPath'));
     await page.goto('/');
     await page.setInputFiles('[data-testid=file-input]', 'tests/fixtures/portrait.png');
-    const choice = page.getByTestId('path-choice');
-    await expect(choice).toBeVisible({ timeout: 90_000 });
-    const names = await choice.locator('[data-path]').evaluateAll((list) => list.map((el) => el.getAttribute('data-path')));
-    expect(names.slice(-2)).toEqual(['filters', 'fun']);
-    await choice.locator('[data-path=fun]').click();
+    const tabs = page.getByTestId('tabs');
+    await expect(tabs).toBeVisible({ timeout: 90_000 });
+    const names = await tabs.locator('[data-path]').evaluateAll((list) => list.map((el) => el.getAttribute('data-path')));
+    expect(names.slice(-3)).toEqual(['filters', 'photo', 'fun']);
+    await tabs.locator('[data-path=fun]').click();
+    await expect(tabs.locator('[data-path=fun]')).toHaveAttribute('aria-pressed', 'true');
     await findFunFaces(page);
     await expect(page.getByRole('slider', { name: 'Olhão' })).toBeVisible();
     await expect(page.getByRole('slider', { name: 'Cabeção' })).toBeVisible();

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { expectNoErrors, imageRect, meanDiff, openEditor, paint, pickTool, scribble, setSlider, settle, limitSettled } from './helpers';
+import { expectNoErrors, imageRect, meanDiff, openEditor, openGroup, paint, pickTool, scribble, setSlider, settle, limitSettled } from './helpers';
 
 /** Only the photo, below the notes that show over its top: the panels around it change with the menu. */
 async function photo(page: Page): Promise<Buffer> {
@@ -24,30 +24,55 @@ test.describe('voltar ao original', () => {
 
     await pickTool(page, 'skin', 'smooth');
     await expect(page.getByTestId('reset-group')).toHaveCount(0);
+    await expect(page.locator('[data-group=skin]')).toHaveAccessibleName('Pele');
     await paint(page, scribble(-0.15, 0.12, 0.11, 0.1, 10));
     await expect(page.getByTestId('reset-group')).toBeVisible();
+    // The name of the menu says there is something of it on the photo, and only that one.
+    await expect(page.locator('[data-group=skin]')).toHaveAccessibleName('Pele, com retoque na foto');
+    await expect(page.locator('[data-group=eyes]')).toHaveAccessibleName('Olhos');
     await pickTool(page, 'light', 'adjust');
     await limitSettled(page);
+    await expect(page.getByTestId('reset-group')).toHaveCount(0);
     await setSlider(page, 'Contraste', 40);
     await settle(page, 300);
     const edited = await photo(page);
     expect(await meanDiff(page, plain, edited)).toBeGreaterThan(1);
+    // The blur is a tool of the same tab, so it goes with the adjustments.
+    await pickTool(page, 'light', 'blur');
+    await limitSettled(page);
+    await page.getByRole('radio', { name: 'Radial' }).click();
+    await settle(page, 300);
+    await expect(page.locator('[data-tool=adjust]')).toHaveAttribute('data-effect', 'on');
+    await expect(page.locator('[data-tool=blur]')).toHaveAttribute('data-effect', 'on');
 
-    // Light only loses the adjustments; the skin keeps its smoothing.
+    // Foto loses the adjustments and the blur together, in one step; the skin keeps its smoothing.
+    await page.getByTestId('reset-group').click();
+    await expect(page.getByText('Foto voltou ao original. Desfazer traz de volta.')).toBeVisible();
+    await settle(page, 300);
+    await expect(undo(page)).toHaveAttribute('title', 'Desfazer: Zerar Foto');
+    await expect(page.getByTestId('reset-group')).toHaveCount(0);
+    await expect(page.locator('[data-tool=adjust]')).toHaveAttribute('data-effect', 'off');
+    await expect(page.locator('[data-tool=blur]')).toHaveAttribute('data-effect', 'off');
+    await undo(page).click();
+    await settle(page, 300);
+    await expect(page.locator('[data-tool=adjust]')).toHaveAttribute('data-effect', 'on');
+    await expect(page.locator('[data-tool=blur]')).toHaveAttribute('data-effect', 'on');
     await page.getByTestId('reset-group').click();
     await settle(page, 300);
-    await expect(undo(page)).toHaveAttribute('title', 'Desfazer: Zerar Luz');
     await expect(page.getByTestId('reset-group')).toHaveCount(0);
-    await page.locator('[data-group=skin]').click();
+
+    await openGroup(page, 'skin');
     await expect(page.getByTestId('reset-group')).toBeVisible();
     await page.getByTestId('reset-group').click();
     await settle(page, 300);
+    await expect(page.locator('[data-group=skin]')).toHaveAccessibleName('Pele');
     expect(await meanDiff(page, plain, await photo(page))).toBeLessThan(0.3);
 
     // Undo brings the smoothing back.
     await undo(page).click();
     await settle(page, 300);
     await expect(page.getByTestId('reset-group')).toBeVisible();
+    await expect(page.locator('[data-group=skin]')).toHaveAccessibleName('Pele, com retoque na foto');
     expectNoErrors(errors);
   });
 

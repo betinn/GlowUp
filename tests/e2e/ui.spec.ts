@@ -7,8 +7,9 @@ test.describe('telas, desktop', () => {
   test('onboarding', async ({ page }) => {
     await page.goto('/');
     await page.setInputFiles('[data-testid=file-input]', 'tests/fixtures/portrait.png');
-    await page.locator('[data-path=manual]').click();
-    await page.getByRole('dialog', { name: 'Como usar' }).waitFor();
+    // A first photo opens on the tab of the looks, and the cards come over it with no tap.
+    await page.getByRole('dialog', { name: 'Como usar' }).waitFor({ timeout: 90_000 });
+    await expect(page.locator('[data-path=glow]')).toHaveAttribute('aria-pressed', 'true');
     await settle(page, 900);
     await page.screenshot({ path: shot('onboarding') });
   });
@@ -69,7 +70,8 @@ test.describe('telas, celular', () => {
 
   test('filtros', async ({ page }) => {
     await openEditor(page);
-    await page.locator('[data-group=filters]').tap();
+    await page.locator('[data-path=filters]').tap();
+    await page.getByTestId('filters-menu').waitFor();
     await settle(page, 2500);
     await page.screenshot({ path: shot('celular-filtros') });
   });

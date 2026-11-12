@@ -350,9 +350,7 @@ test.describe('Aumentar resolução com o Brincar', () => {
     expect(exportFun * 3).toBeLessThan(exportPlain);
     await page.getByRole('button', { name: 'Fechar' }).click();
 
-    // The tool, from the path with the tools. The bigger photo opens as a new one.
-    await page.getByTestId('path-switch').click();
-    await page.getByTestId('path-choice').locator('[data-path=manual]').click();
+    // The tool, from the Foto tab. The bigger photo opens as a new one.
     await pickTool(page, 'frame', 'upscale');
     await expect(page.getByTestId('upscale-size')).toHaveText(`Agora: ${SIDE} × ${SIDE} px. Fica: ${SIDE * 4} × ${SIDE * 4} px.`);
     await page.getByTestId('upscale-go').click();
