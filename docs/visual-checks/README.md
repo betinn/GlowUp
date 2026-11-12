@@ -30,6 +30,11 @@ de propósito manchas, olheiras, olho vermelho e dentes amarelados. Nenhuma pess
   procedural entra no repositório; lábios, fios, pálpebras e os lugares das maçãs e do contorno também foram
   conferidos numa selfie real de cabeça inclinada e virada, e o batom também numa foto de óculos escuros. As duas ficaram fora.
 
+- `ui-filtros-luzes`, `ui-celular-filtros-luzes`: a aba Luzes dos Filtros, com as quatro luzes e a Brasa ou o Néon
+  na foto. `ui-looks-luz` e `ui-celular-looks-luz`: os dez looks do Glow na Hora, com um look de luz aceso e o
+  controle "Luz do look". No retrato procedural a profundidade é quase plana, então a luz aqui mostra o
+  comportamento, não a aparência: os looks de luz foram conferidos nas sete fotos reais, que ficaram fora.
+
 Os anéis destas imagens vêm do detector real: o retrato procedural basta para ele. A borda e o pescoço
 foram ajustados em fotos reais de domínio público, que ficaram fora do repositório.
 

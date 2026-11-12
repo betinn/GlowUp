@@ -74,12 +74,15 @@ Cada adesivo entra no seu lugar no rosto escolhido, segue a inclinação e as ca
 tamanho com o dedo ou o mouse. Vários ficam juntos na foto, o último por cima, e qualquer um pode vir para a frente.
 Fica num caminho próprio, longe do retoque: nada daqui mexe nos controles do Formato do rosto.
 
-**Luzes:** dez filtros que refazem a luz da cena, numa prateleira do Glow na Hora ao lado dos looks: Luz de Estúdio,
-Flash Direto, Flash Analógico, Analógica, Entardecer, Noite de Festa, Contraluz, Contraluz Dourado, Silhueta e Néon.
-A luz cai pela profundidade da foto, como uma luz de verdade: o que está na distância da pessoa acende, o que está
-longe se apaga, e não há linha de recorte entre os dois. No primeiro toque numa luz o site baixa dois modelos, 59 MB,
-que leem a profundidade da foto e o recorte da pessoa no próprio aparelho. Um toque põe a luz, outro tira, e um
-controle dá a intensidade.
+**Luzes:** quatro filtros que refazem a luz da cena, numa aba dos Filtros: Néon, Contraluz Dourado, Brasa e Flash
+Analógico. A luz cai pela profundidade da foto, como uma luz de verdade: o que está na distância da pessoa acende,
+o que está longe se apaga, e não há linha de recorte entre os dois. No primeiro toque numa luz o site baixa dois
+modelos, 59 MB, que leem a profundidade da foto e o recorte da pessoa no próprio aparelho. Um toque põe a luz,
+outro tira, e um controle dá a intensidade.
+
+**Looks:** dez looks de um toque no Glow na Hora. Natural, Glow, Editorial, Domingo e Retrato P&B cuidam do rosto e
+da cor. Retrato, Luz de Janela, Luz de Vela e Fim de Tarde também leem a profundidade da foto: clareiam um rosto
+escuro, aliviam as sombras da pele e fazem o fundo recuar, só onde a foto pede. Olhar cuida só dos olhos.
 
 **Geral:** 11 ajustes, desfoque radial e tilt-shift, recorte com rotação, espelho, endireitar e proporções,
 antes/depois (segurar ou dividir, com a foto original ou só sem o filtro), exportação em JPG, PNG e WebP.
@@ -231,6 +234,6 @@ O detector usa `@mediapipe/tasks-vision` e os modelos `face_landmarker.task`, `h
 `selfie_multiclass.tflite`, todos sob Apache 2.0. O preenchimento usa `onnxruntime-web` e o modelo MI-GAN,
 `migan_inpaint.onnx`, os dois sob MIT. O aumento de resolução usa o Real-ESRGAN, `realesrgan_x4plus.onnx`, sob
 BSD de 3 cláusulas, convertido para ONNX por [`scripts/superres/convert.py`](scripts/superres/convert.py). As Luzes
-usam o Depth Anything V2 Small, `depth_anything_v2_small.onnx`, e o MODNet, `modnet.onnx`, os dois sob Apache 2.0.
+e os looks com luz usam o Depth Anything V2 Small, `depth_anything_v2_small.onnx`, e o MODNet, `modnet.onnx`, os dois sob Apache 2.0.
 Os avisos e os textos das licenças estão em
 [`public/third-party.txt`](public/third-party.txt) e seguem junto com o site.

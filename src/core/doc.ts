@@ -177,15 +177,13 @@ export interface FunDoc {
 }
 
 /**
- * A light of Luzes on the photo. `id` is its name in `core/light/lights`. The scene it reads comes from the
- * photo, as the mattes do, and is not part of the edit.
+ * A light on the photo: one of Luzes, or the light of a look of Glow na Hora. `id` is its name in `core/light`.
+ * The scene it reads comes from the photo, as the mattes do, and is not part of the edit.
  */
 export interface LightState {
   id: string;
   /** 0 to 1. */
   intensity: number;
-  /** The date a light prints on the photo, as DD/MM/YYYY: the day the light went on. */
-  stamp?: string;
 }
 
 /** One healing operation. Coordinates are image UV, radii are fractions of the long side. */
@@ -221,7 +219,7 @@ export interface EditDoc {
   unlocked?: boolean;
   /** Brincar. Older projects leave this out: nothing playful. */
   fun?: FunDoc;
-  /** Luzes. Older projects leave this out: the light of the photo as it is. */
+  /** The light of Luzes or of a look. Older projects leave this out: the light of the photo as it is. */
   light?: LightState;
 }
 

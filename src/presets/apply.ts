@@ -29,8 +29,9 @@ export async function setFilter(engine: Engine, id: string | null, intensity: nu
   await syncFilter(engine);
 }
 
-export async function applyPreset(engine: Engine, preset: RetouchPreset): Promise<void> {
+/** `lit` false leaves the light of the preset out, for a photo with no scene to light. */
+export async function applyPreset(engine: Engine, preset: RetouchPreset, lit = true): Promise<void> {
   await Promise.all((Object.keys(preset.tools) as LayerId[]).map((id) => ensureLayerTool(engine, id)));
-  engine.applyPatch('Receita', (doc) => applyPresetToDoc(doc, preset));
+  engine.applyPatch('Receita', (doc) => applyPresetToDoc(doc, preset, lit));
   await syncFilter(engine);
 }

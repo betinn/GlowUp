@@ -1,7 +1,7 @@
 /** Turns the recipe of a light into the numbers its shader reads, for one photo. No browser APIs. */
 
 import { SHADE_STOPS } from './scene';
-import type { LightRecipe, Rgb, SceneStats } from './types';
+import type { Follow, LightRecipe, Rgb, SceneStats } from './types';
 
 type Numbers = Record<string, number | boolean | readonly number[]>;
 
@@ -15,24 +15,15 @@ const EDGE_HIGH = 1;
 /**
  * The stops a part of the photo takes. A recipe was made on one photo, where that part had the brightness
  * `level`. On a photo where it measures otherwise, the recipe moves with it by the share `adapt`: the part then
- * ends about as bright as it did on the photo of the recipe.
+ * ends about as bright as it did on the photo of the recipe. With `only`, it moves one way and not the other.
  */
-export function adaptedEv(ev: number, level: number | undefined, adapt: number | undefined, measured: number): number {
+export function adaptedEv(ev: number, { level, adapt, only, limit }: Follow, measured: number): number {
   if (!adapt || !level) return ev;
-  const follow = Math.min(MAX_ADAPT, Math.max(-MAX_ADAPT, Math.log2(level / Math.max(measured, 0.004))));
-  return ev + follow * Math.min(1, Math.max(0, adapt));
-}
-
-/** The date as the eight figures of day, month and year. */
-export function stampDigits(date: string | undefined): number[] {
-  const digits = (date ?? '').replace(/\D/g, '');
-  return Array.from({ length: 8 }, (_, i) => Number(digits[i] ?? 0));
-}
-
-/** Today as `DD/MM/YYYY`, for a light that prints the date. */
-export function stampOf(day: Date): string {
-  const two = (v: number) => String(v).padStart(2, '0');
-  return `${two(day.getDate())}/${two(day.getMonth() + 1)}/${String(day.getFullYear()).padStart(4, '0')}`;
+  let follow = Math.min(MAX_ADAPT, Math.max(-MAX_ADAPT, Math.log2(level / Math.max(measured, 0.004)))) * Math.min(1, Math.max(0, adapt));
+  if (limit !== undefined) follow = Math.min(limit, Math.max(-limit, follow));
+  if (only === 'up') follow = Math.max(0, follow);
+  if (only === 'down') follow = Math.min(0, follow);
+  return ev + follow;
 }
 
 /**
@@ -53,7 +44,7 @@ function lampAt(at: readonly [number, number], stats: SceneStats, size: { width:
  * Everything the shader needs from the recipe. `size` is the photo, in pixels. `mix` is the intensity, 0 to 1.
  * The textures, the region and the frame come from whoever draws.
  */
-export function lightUniforms(recipe: LightRecipe, stats: SceneStats, size: { width: number; height: number }, mix: number, stamp?: string): Numbers {
+export function lightUniforms(recipe: LightRecipe, stats: SceneStats, size: { width: number; height: number }, mix: number): Numbers {
   const { fall = {}, far = {}, near = {}, skin = {}, lamp, film = {} } = recipe;
   const face = lampFace(stats);
   const lift = film.lift ?? 0;
@@ -61,7 +52,7 @@ export function lightUniforms(recipe: LightRecipe, stats: SceneStats, size: { wi
   return {
     uMix: Math.min(1, Math.max(0, mix)),
     uFall: [fall.lo ?? 0.35, fall.hi ?? 0.85, EDGE_LOW, EDGE_HIGH],
-    uEv: [adaptedEv(far.ev ?? 0, far.level, far.adapt, stats.backY), adaptedEv(near.ev ?? 0, near.level, near.adapt, stats.skinY), near.close ?? 0, far.keep ?? 0],
+    uEv: [adaptedEv(far.ev ?? 0, far, stats.backY), adaptedEv(near.ev ?? 0, near, stats.skinY), near.close ?? 0, far.keep ?? 0],
     uPart: [skin.ev ?? 0, near.hair ?? 0, (skin.fill ?? 0) * SHADE_STOPS, 0],
     uSat: [far.sat ?? 1, near.sat ?? 1, skin.sat ?? 1],
     uFarTint: far.tint ?? WHITE,
@@ -80,8 +71,6 @@ export function lightUniforms(recipe: LightRecipe, stats: SceneStats, size: { wi
     uGrain: film.grain ?? 0,
     uLeak: film.leak ? [film.leak.x, film.leak.y, film.leak.size, film.leak.strength] : [0, 0, 1, 0],
     uLeakColor: film.leak ? [...film.leak.color, film.leak.tall ?? 2.4] : [1, 1, 1, 2.4],
-    uStampOn: !!film.stamp,
-    uStamp: stampDigits(stamp),
   };
 }
 

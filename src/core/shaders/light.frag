@@ -5,7 +5,7 @@
 // person in red, their skin in green, their hair in blue and the shade of the skin in alpha. `uField` holds the
 // depth on the person's side of their edge in red, the depth on the other side in green, and the matte blurred a
 // little and blurred wide in blue and alpha. What belongs to the scene follows the photo, and what belongs to
-// the camera (vignette, leak, grain, date) follows the frame after the crop.
+// the camera (vignette, leak, grain) follows the frame after the crop.
 in vec2 vUv;
 out vec4 outColor;
 
@@ -54,8 +54,6 @@ uniform float uGrain;
 uniform vec4 uLeak;
 // rgb color, a how much taller than wide.
 uniform vec4 uLeakColor;
-uniform bool uStampOn;
-uniform float uStamp[8];
 
 // The byte of the shade of the skin, as a share of its range: -1 to 1.
 float shadeOf(float a) {
@@ -67,43 +65,6 @@ float valueNoise(vec2 p) {
   vec2 f = p - i;
   f = f * f * (3.0 - 2.0 * f);
   return mix(mix(hash12(i), hash12(i + vec2(1.0, 0.0)), f.x), mix(hash12(i + vec2(0.0, 1.0)), hash12(i + vec2(1.0, 1.0)), f.x), f.y);
-}
-
-float sdSegment(vec2 p, vec2 a, vec2 b) {
-  vec2 pa = p - a;
-  vec2 ba = b - a;
-  return length(pa - ba * clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0));
-}
-
-// Distance to the lit bars of one figure of seven bars, in a box one wide and two tall.
-float sdDigit(vec2 p, int digit) {
-  const int BARS[10] = int[10](0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F, 0x6F);
-  int bars = BARS[clamp(digit, 0, 9)];
-  float d = 1e3;
-  if ((bars & 1) != 0) d = min(d, sdSegment(p, vec2(0.12, 2.0), vec2(0.88, 2.0)));
-  if ((bars & 2) != 0) d = min(d, sdSegment(p, vec2(1.0, 1.88), vec2(1.0, 1.12)));
-  if ((bars & 4) != 0) d = min(d, sdSegment(p, vec2(1.0, 0.88), vec2(1.0, 0.12)));
-  if ((bars & 8) != 0) d = min(d, sdSegment(p, vec2(0.12, 0.0), vec2(0.88, 0.0)));
-  if ((bars & 16) != 0) d = min(d, sdSegment(p, vec2(0.0, 0.88), vec2(0.0, 0.12)));
-  if ((bars & 32) != 0) d = min(d, sdSegment(p, vec2(0.0, 1.88), vec2(0.0, 1.12)));
-  if ((bars & 64) != 0) d = min(d, sdSegment(p, vec2(0.12, 1.0), vec2(0.88, 1.0)));
-  return d;
-}
-
-// The date as a camera prints it: day, month and year in figures of seven bars. `t` runs along the text, one
-// unit a figure, and up the figure from 0 to 1. Returns how lit the point is.
-float stamp(vec2 t) {
-  if (t.x < -0.5 || t.x > 10.5 || t.y < -0.5 || t.y > 1.5) return 0.0;
-  float d = 1e3;
-  for (int k = -1; k <= 1; k++) {
-    int i = int(floor(t.x)) + k;
-    if (i < 0 || i > 9) continue;
-    // Each figure takes six tenths of its place, and is twice as tall as wide.
-    vec2 p = vec2((t.x - float(i) - 0.2) / 0.6, t.y * 2.0);
-    if (i == 2 || i == 5) d = min(d, sdSegment(p, vec2(0.15, 0.0), vec2(0.85, 2.0)));
-    else d = min(d, sdDigit(p, int(uStamp[i < 2 ? i : i < 5 ? i - 1 : i - 2] + 0.5)));
-  }
-  return smoothstep(0.17, 0.09, d) + 0.35 * exp(-d * 3.5);
 }
 
 // The stops a point at this depth takes, and in y how much it is with the subject.
@@ -230,16 +191,6 @@ void main() {
     float n = valueNoise(p) * 0.6 + valueNoise(p * 2.13 + 17.0) * 0.4 - 0.5;
     float l = luma(o);
     o += n * uGrain * 0.28 * (0.4 + 0.6 * (1.0 - abs(l * 2.0 - 1.0)));
-  }
-  if (uStampOn) {
-    const float TALL = 0.024;
-    const float WIDE = 0.0175;
-    const float EDGE = 0.045;
-    // A tall frame is a camera held on its side: the date runs down the left edge. A wide one has it at the bottom right.
-    vec2 t = corner.y > corner.x
-      ? vec2((frame.y - (corner.y - EDGE * 1.6 - 10.0 * WIDE)) / WIDE, (frame.x - EDGE) / TALL)
-      : vec2((frame.x - (corner.x - EDGE - 10.0 * WIDE)) / WIDE, (corner.y - EDGE - frame.y) / TALL);
-    o = mix(o, vec3(1.0, 0.58, 0.16), clamp(stamp(t), 0.0, 1.0) * 0.92);
   }
 
   outColor = vec4(mix(src.rgb, clamp(o, 0.0, 1.0), uMix), src.a);

@@ -1,7 +1,7 @@
-import type { LightDef } from '../types';
+import type { MenuLight } from '../types';
 
 /** The flash of a film camera: a cold dark street, a burned subject, grain, and light that got into the camera. */
-export const flashAnalogico: LightDef = {
+export const flashAnalogico: MenuLight = {
   id: 'flash-analogico',
   label: 'Flash Analógico',
   note: 'Flash de câmera de filme, com vazamento de luz e grão.',

@@ -10,6 +10,7 @@
   import { comparePress } from '../compare';
   import { facePick, paintArea, searchFaces, stopFaceSearch } from '../facepick.svelte';
   import Icon from '../Icon.svelte';
+  import LightsPanel from './LightsPanel.svelte';
   import ProgressCard from '../ProgressCard.svelte';
   import Segment from '../Segment.svelte';
   import Slider from '../Slider.svelte';
@@ -19,8 +20,16 @@
   const filter = $derived((ui.rev, e.doc.filter));
   const FAV_KEY = 'glowup.favorites';
   let favorites = $state<string[]>(prefs.read(FAV_KEY, []));
-  let category = $state<string>('Todos');
-  const categories = $derived(favorites.length ? ['Todos', 'Favoritos', ...FILTER_CATEGORIES] : ['Todos', ...FILTER_CATEGORIES]);
+  /**
+   * Luzes sits among the categories: its filters make the light of the scene again, where the others change
+   * its color. A filter and a light can be on together.
+   */
+  const LIGHTS_TAB = 'Luzes';
+  /** A photo that wears a light and no filter opens on the lights. */
+  let category = $state<string>(e.doc.light && !e.doc.filter.id ? LIGHTS_TAB : 'Todos');
+  const categories = $derived(favorites.length ? ['Todos', LIGHTS_TAB, 'Favoritos', ...FILTER_CATEGORIES] : ['Todos', LIGHTS_TAB, ...FILTER_CATEGORIES]);
+  /** The dot on the tab: a light is on the photo, whichever tab shows. */
+  const lit = $derived((ui.rev, !!e.doc.light));
 
   const visible = $derived(
     FILTERS.filter((l) => (category === 'Todos' ? true : category === 'Favoritos' ? favorites.includes(l.id) : l.category === category)),
@@ -44,7 +53,8 @@
   /** With a chosen area the photo takes the brush, and the panel below controls it. */
   $effect(() => {
     if (!filter.id) untrack(stopFaceSearch);
-    const paint = !!filter.id && !!filter.masked && !ui.faceChoosing && !searching;
+    // The Luzes tab has no area to paint.
+    const paint = !!filter.id && !!filter.masked && !ui.faceChoosing && !searching && category !== LIGHTS_TAB;
     untrack(() => {
       if (paint && e.activeLayer !== FILTER_MASK) {
         e.brush = filterBrush();
@@ -163,10 +173,14 @@
 
 <div class="cats scroll-x" role="tablist" aria-label="Categorias">
   {#each categories as c (c)}
-    <button type="button" role="tab" aria-selected={category === c} class:on={category === c} onclick={() => (category = c)}>{c}</button>
+    <button type="button" role="tab" aria-selected={category === c} class:on={category === c} class:lit={c === LIGHTS_TAB && lit} data-category={c}
+      onclick={() => (category = c)}>{c}</button>
   {/each}
 </div>
 
+{#if category === LIGHTS_TAB}
+<LightsPanel />
+{:else}
 <div class="menu">
 {#if filter.id}
   <div class="controls">
@@ -244,6 +258,7 @@
   {/each}
 </div>
 </div>
+{/if}
 
 <style>
   .suggestion {
@@ -315,6 +330,18 @@
 
   .cats button.on {
     color: var(--safe);
+  }
+
+  /* A light is on the photo. */
+  .cats button.lit::after {
+    content: '';
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-left: 6px;
+    border-radius: 50%;
+    background: var(--safe);
+    vertical-align: middle;
   }
 
   .compare {

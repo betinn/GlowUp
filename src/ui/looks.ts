@@ -5,6 +5,7 @@ import { appliedLook, type RetouchPreset } from '../presets/recipes';
 import { TOOLS, toolById } from '../tools/catalog';
 import { applyRecipe, type RecipeOutcome } from './actions';
 import { handPainted } from './facepick.svelte';
+import { lookLightOn } from './lights.svelte';
 import { bump, engine, toast, ui } from './state.svelte';
 
 /** Long enough to read what was left out, with the look already on the photo. */
@@ -16,9 +17,10 @@ let latest = 0;
 let retry: string | null = null;
 
 /** What the person reads after a look lands. Nothing, when it all went as expected. */
-export function lookMessage(look: RetouchPreset, { filled, missed, failed, stopped }: RecipeOutcome): string | null {
+export function lookMessage(look: RetouchPreset, { filled, missed, failed, unlit, stopped }: RecipeOutcome): string | null {
   if (stopped) return 'Esse look não entrou. Toque nele de novo.';
   if (failed) return 'O detector não carregou, então entrou só a cor do look. Confere a conexão e toque nele de novo.';
+  if (unlit) return 'O leitor de profundidade não carregou, então o look entrou sem a luz dele. Confere a conexão e toque nele de novo.';
   if (!missed.length) return null;
   if (!filled.length && missed.length === Object.keys(look.tools).length) return 'Não achei rosto nesta foto, então entrou só a cor do look.';
   const names = missed.map((tool) => toolById(tool)?.label.toLowerCase() ?? tool);
@@ -30,9 +32,13 @@ function looseLayers(keep: readonly string[]): LayerId[] {
   return TOOLS.flatMap((t) => (t.layer && !keep.includes(t.layer) && !handPainted(t.id) ? [t.layer] : []));
 }
 
-/** Takes off the look and what the automatic mode put on the masks, as one undo step. Work by hand stays. */
+/**
+ * Takes off the look and what the automatic mode put on the masks, as one undo step. Work by hand stays, and
+ * so does a light of Luzes: only the light that came with a look leaves with it.
+ */
 async function takeOff(): Promise<void> {
-  await engine().resetParts('Tirar look', { layers: looseLayers([]), adjust: true, filter: true });
+  const e = engine();
+  await e.resetParts('Tirar look', { layers: looseLayers([]), adjust: true, filter: true, light: lookLightOn(e) });
   toast('Look fora. Desfazer traz de volta.');
   bump();
 }
