@@ -88,20 +88,6 @@
   const groupDirty = $derived((ui.rev, ready && groupChanged(ui.group)));
   const photoDirty = $derived((ui.rev, ready && photoChanged()));
 
-  /** The words under the light stay a little longer than the light, time enough to read them. */
-  let reachNote = $state(false);
-  let reachTimer: ReturnType<typeof setTimeout> | undefined;
-  $effect(() => {
-    if (regionShow.phase !== 'glow') return;
-    reachNote = true;
-    clearTimeout(reachTimer);
-    reachTimer = setTimeout(() => (reachNote = false), 2600);
-  });
-  $effect(() => {
-    void ui.tool;
-    reachNote = false;
-  });
-
   let off: (() => void) | null = null;
 
   /** Marks a stage and lets the screen show it before the next blocking step. */
@@ -549,10 +535,6 @@
     </div>
   {/if}
 
-  {#if reachNote && !marking}
-    <div class="reach" role="status" data-testid="reach-chip" in:reveal={{ duration: 200, y: -6 }}>O brilho mostra onde o pincel alcança</div>
-  {/if}
-
   {#if ready && ui.choosingPath}
     <PathChoice />
   {/if}
@@ -884,22 +866,6 @@
     font-size: 13px;
     white-space: nowrap;
     transition: opacity var(--t-mid) var(--ease-swift);
-  }
-
-  .reach {
-    position: absolute;
-    left: 50%;
-    top: calc(var(--bar-h) + var(--safe-top) + 10px);
-    translate: -50% 0;
-    z-index: 15;
-    padding: 9px 14px;
-    border-radius: 999px;
-    background: rgb(11 11 12 / 0.82);
-    border: 1px solid rgb(219 240 255 / 0.7);
-    color: rgb(225 242 255);
-    font-size: 13px;
-    white-space: nowrap;
-    pointer-events: none;
   }
 
   .marking button {

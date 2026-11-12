@@ -64,7 +64,6 @@ test.describe('cabelo', () => {
     await expect(page.getByText(/Aplicado no cabelo que achei/)).toBeVisible({ timeout: 15_000 });
     await expect(undoButton(page)).toHaveAttribute('title', 'Desfazer: Automático');
     await expect(page.getByRole('button', { name: 'Borracha' })).toHaveCount(0);
-    await expect(page.getByTestId('reach-chip')).toHaveCount(0, { timeout: 10_000 });
     await page.keyboard.press('0');
     await settle(page, 400);
     await page.screenshot({ path: shot('ui-cabelo-auto') });

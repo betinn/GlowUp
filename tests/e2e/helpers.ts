@@ -85,8 +85,6 @@ export async function limitSettled(page: Page, { auto = false, free = false }: R
   }
   await expect(page.locator('[data-limit=searching]')).toHaveCount(0, { timeout: 60_000 });
   await showSettled(page);
-  // The words over the photo outlast the light by a little.
-  await expect(page.getByTestId('reach-chip')).toHaveCount(0, { timeout: 10_000 });
   if (!auto && (await page.locator('[data-testid=tool-mode][data-mode=auto]').count())) {
     await chooseMode(page, 'Manual');
     const undo = page.getByRole('button', { name: 'Desfazer' });

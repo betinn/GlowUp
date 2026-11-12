@@ -225,8 +225,7 @@ rostos achados.
 - **Vista.** Quando a região fica pronta, a vista fica onde a pessoa deixou: sem zoom e sem arrastar a foto.
   Pinça, roda, teclas e enquadrar seguem com ela.
 - **Brilho.** Uma luz fria acende sobre o que o pincel alcança, com borda clara e uma faixa que
-  atravessa a tela, e apaga em pouco mais de um segundo. O aviso "O brilho mostra onde o pincel alcança"
-  fica um pouco mais. A luz é fria para nunca ser confundida com a marca laranja, que é o que se pintou, e
+  atravessa a tela, e apaga em pouco mais de um segundo. Nenhum aviso aparece por cima da foto. A luz é fria para nunca ser confundida com a marca laranja, que é o que se pintou, e
   não aparece na exportação. Volta a tocar quando o interruptor liga.
 - **Automático e Manual.** Seletor no topo do painel. O Automático vem ligado: depois do brilho, a
   ferramenta já aplica em todos os olhos ou dentes achados, numa etapa só, e os controles ajustam o efeito.

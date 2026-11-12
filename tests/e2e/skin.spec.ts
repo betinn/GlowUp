@@ -65,7 +65,6 @@ test.describe('pele', () => {
     await expect(page.getByText(/Aplicado na pele que achei/)).toBeVisible({ timeout: 15_000 });
     await expect(undoButton(page)).toHaveAttribute('title', 'Desfazer: Automático');
     await expect(page.getByRole('button', { name: 'Borracha' })).toHaveCount(0);
-    await expect(page.getByTestId('reach-chip')).toHaveCount(0, { timeout: 10_000 });
     const after = await fitted(page);
     await page.screenshot({ path: shot('ui-pele-auto') });
 
