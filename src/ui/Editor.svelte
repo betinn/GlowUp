@@ -15,6 +15,7 @@
   import Icon from './Icon.svelte';
   import Onboarding from './Onboarding.svelte';
   import Stage from './Stage.svelte';
+  import StageWait from './StageWait.svelte';
   import { changeBrushSize, resetToolMemory, selectTool, switchable, toggleEffect, toggleMark } from './actions';
   import { comparePress, holdCompare, toggleCompare } from './compare';
   import { autoHint, dropToolLimit, hasWork, strokeOutside, toolLimit } from './facepick.svelte';
@@ -26,6 +27,7 @@
   import { choosePath, pathById, PATHS, startPaths } from './paths';
   import HealPanel from './panels/HealPanel.svelte';
   import MaskPanel from './panels/MaskPanel.svelte';
+  import { during } from './wait.svelte';
   import { autosave, bump, clearEditorCloser, closeEditor, engine, hasEngine, setAutosave, setEditorCloser, setEngine, toast, ui } from './state.svelte';
 
   /** Panels and overlays of the non-brush tools load on demand. */
@@ -265,18 +267,17 @@
       return;
     }
     if (a.printFresh) return;
-    ui.busy = 'Guardando o retoque';
     try {
-      // A completion still running would leave its quick guess in the picture.
-      await fillSettled();
-      const canvas = await renderImage(engine(), { tile: () => {} });
-      const blob = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.97 });
-      a.setPrint({ blob, w: canvas.width, h: canvas.height });
+      await during('Guardando o retoque', async () => {
+        // A completion still running would leave its quick guess in the picture.
+        await fillSettled();
+        const canvas = await renderImage(engine(), { tile: () => {} });
+        const blob = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.97 });
+        a.setPrint({ blob, w: canvas.width, h: canvas.height });
+      });
     } catch (err) {
       // The post keeps the picture it had, and says that the retouch is newer than it.
       console.error(err);
-    } finally {
-      ui.busy = null;
     }
   }
 
@@ -345,6 +346,10 @@
     return lit.has(id) ? `${label}: toque de novo para tirar o efeito` : `${label}: toque de novo para aplicar`;
   }
 
+  /** A step back or forward can redo a whole look, so it waits on the photo like any other tap. */
+  const undo = () => during('Desfazendo', () => engine().undo());
+  const redo = () => during('Refazendo', () => engine().redo());
+
   function keydown(ev: KeyboardEvent) {
     if (!ready) return;
     const t = ev.target as HTMLElement;
@@ -354,10 +359,10 @@
     const key = ev.key.toLowerCase();
     if (mod && key === 'z') {
       ev.preventDefault();
-      void (ev.shiftKey ? e.redo() : e.undo());
+      void (ev.shiftKey ? redo() : undo());
     } else if (mod && key === 'y') {
       ev.preventDefault();
-      void e.redo();
+      void redo();
     } else if (mod) {
       return;
     } else if (key === '[') {
@@ -445,6 +450,7 @@
         <StickerOverlay />
       {/await}
     {/if}
+    <StageWait />
   {/if}
 
   <header class="bar" bind:clientHeight={barH}>
@@ -460,9 +466,9 @@
     {/if}
     <div class="grow"></div>
     <button type="button" class="icon-btn" aria-label="Voltar ao original" title="Voltar ao original" data-testid="reset-photo"
-      disabled={!photoDirty} onclick={() => void resetPhoto()}><Icon name="reset" /></button>
-    <button type="button" class="icon-btn" aria-label="Desfazer" title={undoTitle} disabled={!canUndo} onclick={() => engine().undo()}><Icon name="undo" /></button>
-    <button type="button" class="icon-btn" aria-label="Refazer" title={redoTitle} disabled={!canRedo} onclick={() => engine().redo()}><Icon name="redo" /></button>
+      disabled={!photoDirty} onclick={() => void during('Voltando ao original', resetPhoto)}><Icon name="reset" /></button>
+    <button type="button" class="icon-btn" aria-label="Desfazer" title={undoTitle} disabled={!canUndo} onclick={undo}><Icon name="undo" /></button>
+    <button type="button" class="icon-btn" aria-label="Refazer" title={redoTitle} disabled={!canRedo} onclick={redo}><Icon name="redo" /></button>
     <button
       type="button"
       class="icon-btn"
@@ -523,7 +529,7 @@
             {/each}
             {#if groupDirty}
               <button type="button" class="tool zero" aria-label="Zerar tudo de {groupLabel}" title="Zerar tudo de {groupLabel}"
-                data-testid="reset-group" in:reveal={{ duration: 200, y: 4 }} onclick={() => resetGroups(shownGroups, groupLabel)}>
+                data-testid="reset-group" in:reveal={{ duration: 200, y: 4 }} onclick={() => during(`Zerando ${groupLabel}`, () => resetGroups(shownGroups, groupLabel))}>
                 <Icon name="reset" size={22} />
                 <span>Zerar</span>
               </button>
@@ -579,20 +585,6 @@
     <div class="marking" data-testid="mark-chip" in:reveal={{ duration: 200, y: -6 }}>
       <span>Marca do pincel ligada</span>
       <button type="button" onclick={toggleMark}>Ver o resultado</button>
-    </div>
-  {/if}
-
-  {#if (ui.shaping || ui.funShaping) && ready}
-    <!-- Only while the finished field is on its way. It shows a moment late, so a quick one never blinks. -->
-    <div class="shaping" role="status" aria-label="Terminando o ajuste do rosto" data-testid="shape-pending" in:reveal={{ duration: 160, delay: 140, y: 4 }}>
-      <span class="filament"></span>
-    </div>
-  {/if}
-
-  {#if ui.busy}
-    <div class="busy" role="status" in:reveal={{ duration: 200, delay: 220, y: -6 }}>
-      <p class="serif">{ui.busy}</p>
-      <span class="filament"></span>
     </div>
   {/if}
 
@@ -1052,60 +1044,6 @@
   .painting .marking {
     opacity: 0.12;
     pointer-events: none;
-  }
-
-  /* Short jobs get a small note, and only if they last long enough to be noticed. */
-  .busy {
-    position: absolute;
-    left: 50%;
-    top: calc(var(--bar-h) + var(--safe-top) + 10px);
-    translate: -50% 0;
-    z-index: 20;
-    padding: 6px 16px 8px;
-    border-radius: 16px;
-    background: rgb(11 11 12 / 0.78);
-    text-align: center;
-    pointer-events: none;
-    font-size: 18px;
-    white-space: nowrap;
-  }
-
-  /* A thread of light over the top of the photo: the slider is free, the photo is catching up. */
-  .shaping {
-    position: absolute;
-    left: 50%;
-    top: calc(var(--bar-h) + var(--safe-top) + 14px);
-    translate: -50% 0;
-    z-index: 6;
-    width: 96px;
-    padding: 6px 10px;
-    border-radius: 999px;
-    background: rgb(11 11 12 / 0.62);
-    pointer-events: none;
-  }
-
-  .shaping .filament {
-    margin-top: 0;
-  }
-
-  .filament {
-    display: block;
-    width: 100%;
-    height: 1.5px;
-    margin-top: 4px;
-    background: linear-gradient(90deg, transparent, var(--safe), transparent);
-    background-size: 50% 100%;
-    background-repeat: no-repeat;
-    animation: filament 1.2s var(--ease-swift) infinite;
-  }
-
-  @keyframes filament {
-    from {
-      background-position: -60% 0;
-    }
-    to {
-      background-position: 160% 0;
-    }
   }
 
   .failed {

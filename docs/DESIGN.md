@@ -81,10 +81,27 @@ Quem espera precisa saber três coisas: que está andando, quanto falta e que a 
   selo âmbar carimba o canto, gira até o lugar, solta faíscas da luz de segurança e desenha um tique. Leva
   cerca de um segundo e se repete a cada "Baixar de novo". No celular, uma vibração curta. Com movimento
   reduzido, o selo aparece pronto, sem nada se mexer.
-- **Trabalhos curtos**, como remover uma mancha, não merecem tela: só um aviso pequeno, e só se
-  passarem de 220 ms. Miniaturas de filtro respiram até ficarem prontas, depois revelam.
-- **Foto alcançando o controle.** Num controle que não pode esperar, a foto mostra um rascunho e o fio de luz
-  âmbar corre no alto dela até o resultado completo entrar. Nada bloqueia o toque.
+- **Mosaico.** Um toque que muda a foto, como um filtro, um look, uma luz, abrir uma ferramenta, desfazer ou
+  zerar, mostra a espera na própria foto, e não só no painel. A foto se parte em peças, quatro no lado curto, e
+  o escuro aparece entre elas. Onda após onda, cada peça sai do lugar, gira um pouco e se encaixa de novo,
+  enquanto uma luz âmbar atravessa o mosaico. No meio, um cartão diz o que está sendo feito, em serifa grande:
+  "Aplicando Mel", "Vestindo o look Glow", "Procurando a pele". Uma busca mostra também a porcentagem e o passo.
+  Depois de 6 segundos sem contagem, a segunda linha vira "Demora um pouco neste aparelho. Nada travou."
+- **Fim do mosaico.** Quando o resultado chega, o escuro some e as peças fecham e saem, diagonal por diagonal,
+  em cerca de meio segundo. Embaixo delas já está a foto nova: a saída é a revelação do resultado.
+- **Nunca pisca, nunca para.** O mosaico só aparece se a espera passar de 140 ms. Esse atraso e tudo que se mexe
+  são animações de `transform` e `opacity` em CSS, que o navegador roda fora da página: um passo que segura a
+  página por um segundo deixa as peças andando. Por isso a espera é pintada um quadro antes de o trabalho começar
+  (`during`, em `src/ui/wait.svelte.ts`). Nada aqui pode ser animado por JavaScript, `background-position` ou
+  `border-radius`.
+- **Não bloqueia.** O mosaico deixa passar todo toque. Pinça, zoom e os painéis seguem funcionando.
+- **Trabalhos curtos**, como remover uma mancha, e a **foto alcançando o controle**, quando um controle não pode
+  esperar e a foto mostra um rascunho: a foto fica à vista e em uso. Uma luz âmbar corre em volta dela, por
+  dentro da borda, e uma pílula no alto diz o que falta, com três pontos que pulam: "Acertando a mancha…",
+  "Terminando o ajuste". Também só depois de 140 ms.
+- **Movimento reduzido.** Sem peças: um véu escurece a foto e o cartão diz o que está sendo feito. A luz em
+  volta fica parada.
+- **Miniaturas de filtro** respiram até ficarem prontas, depois revelam.
 
 ## Soltar a foto
 
@@ -165,8 +182,9 @@ Do Meu Jeito o nome aparece como "Formato", e inteiro no aviso do botão e para 
   etapa do desfazer por gesto, e os números ficam no projeto. Um toque duplo volta ao zero.
 - **Arrastar.** O controle segue o dedo o tempo todo, mesmo num celular fraco. A foto mostra na hora um rascunho
   do novo formato e, quando o dedo para, o resultado completo, que é o mesmo de sempre, sem perder qualidade.
-  Enquanto o completo não chegou, um fio de luz âmbar corre numa pílula pequena no alto da foto. Ele só aparece
-  se a espera passar de 140 ms, para não piscar num aparelho rápido, e some no instante em que o completo entra.
+  Enquanto o completo não chegou, uma luz âmbar corre em volta da foto e uma pílula no alto diz "Terminando o
+  ajuste". Elas só aparecem se a espera passar de 140 ms, para não piscar num aparelho rápido, e somem no instante
+  em que o completo entra.
   Exportar e salvar o projeto esperam o completo.
 - **Rosto.** Em três partes: Contorno (linha da mandíbula, forma do maxilar, queixo, maçãs e têmporas), Altura
   (testa e comprimento) e Cabeça (tamanho e papada). No fim, uma chave desenha em linhas finas o que foi detectado:
@@ -277,7 +295,7 @@ ocular.
 | Blush | Só na pele | As maçãs, subindo um pouco rumo à têmpora |
 | Sombra | Só nas pálpebras, por igual | A pálpebra, mais forte nos cílios e sumindo para cima |
 | Sobrancelha | Só nas sobrancelhas, com folga para engrossar ou alongar | Os fios, com as falhas preenchidas de leve |
-| Contorno | Só na pele | Sob as maçãs, nas laterais do rosto e do nariz |
+| Contorno | Só na pele | Sob as maçãs, nas laterais do rosto e nas duas bordas da ponte do nariz, lado a lado, dos olhos até acima da ponta |
 | Sardas | Só na pele | Nariz e alto das bochechas |
 
 - **Foto real.** O contorno dos lábios é ajustado à cor da própria foto, numa linha limpa, e os fios vêm do brilho, porque

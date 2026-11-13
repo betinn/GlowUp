@@ -256,6 +256,17 @@ Os exemplos servem os arquivos pré-comprimidos (`.br`, `.gz`), dão cache longo
 `no-cache` ao `index.html`, fazem o fallback de SPA e aplicam CSP sem origens externas. Em visitas
 repetidas, o service worker responde pelos assets e a VM quase não é tocada.
 
+### Esteira
+
+O site oficial é publicado pelo GitHub Actions ([.github/workflows/deploy.yml](.github/workflows/deploy.yml)), e só
+num caso: quando um PR de um branch `deploy/…` deste repositório entra no `main`. A esteira gera o build e envia o
+pacote por SSH, sem rodar testes: eles rodam antes, na máquina de quem abre o PR (`npm run check` e `npm run e2e`).
+Um PR de qualquer outro branch entra no `main` sem publicar nada.
+
+Endereço, chave e impressão digital do servidor ficam em secrets do repositório. No servidor, a chave só consegue
+entregar o pacote: ele troca a pasta do site de uma vez, confere a página nova e volta a versão anterior se ela não
+responder. O arquivo `VERSAO` na raiz do site diz o commit e o PR que estão no ar.
+
 ## Compatibilidade
 
 Precisa de WebGL2. Funciona nas versões atuais de Chrome, Edge, Firefox e Safari. WebP depende do

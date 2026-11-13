@@ -12,6 +12,7 @@
   import ProgressCard from '../ProgressCard.svelte';
   import Slider from '../Slider.svelte';
   import { engine, ui } from '../state.svelte';
+  import { during } from '../wait.svelte';
 
   const e = engine();
   const active = $derived((ui.rev, appliedLight(e)?.id ?? null));
@@ -71,7 +72,7 @@
   <div class="grid" role="toolbar" aria-label="Luzes">
     {#each LIGHTS as light (light.id)}
       <button type="button" class="light" class:on={active === light.id} class:wearing={lightPick.wearing === light.id} aria-pressed={active === light.id}
-        data-light={light.id} title={active === light.id ? `${light.label}: toque de novo para tirar` : light.note} onclick={() => tapLight(light)}>
+        data-light={light.id} title={active === light.id ? `${light.label}: toque de novo para tirar` : light.note} onclick={() => during(active === light.id ? 'Apagando a luz' : `Acendendo ${light.label}`, () => tapLight(light))}>
         <span class="tile" style:--a={light.swatch[0]} style:--b={light.swatch[1]}>
           <canvas use:hold={light} class:ready={rendered[light.id]} width="104" height="104"></canvas>
         </span>
