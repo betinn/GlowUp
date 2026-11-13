@@ -317,7 +317,10 @@ test.describe('limite do pincel', () => {
 
     await pickTool(page, 'makeup', 'whiten');
     await expect(limit(page, 'no-region')).toBeVisible();
-    await expect(page.getByText('Não achei dentes à mostra nesta foto. O pincel está livre.')).toBeVisible();
+    const notice = page.getByText('Não achei dentes à mostra nesta foto. O pincel está livre.');
+    await expect(notice).toBeVisible();
+    // Turning the switch on scrolled the panel down to it, and the shot is of the notice.
+    await notice.scrollIntoViewIfNeeded();
     await page.screenshot({ path: shot('ui-limite-boca-fechada') });
     const plain = await page.screenshot({ clip });
     await paint(page, scribble(0, 0.245, 0.06, 0.02, 3));
