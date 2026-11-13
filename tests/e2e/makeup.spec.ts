@@ -27,6 +27,12 @@ const CHIN: Spot = [0, 0.37];
 const MIDDLE_CHEEK: Spot = [-0.1, 0.17];
 const HAIR: Spot = [-0.33, 0];
 const BACKGROUND: Spot = [-0.38, -0.44];
+/** The eyes of the portrait are 0.132 wide, with the outer corners at 0.221 from the middle. */
+const WING: Spot = [-0.234, -0.072];
+const WING_RIGHT: Spot = [0.234, -0.072];
+const FOX_WING: Spot = [-0.244, -0.078];
+const FOX_WING_RIGHT: Spot = [0.244, -0.078];
+const OUTER_LID: Spot = [-0.2, -0.098];
 
 function watch(page: Page) {
   const errors: string[] = [];
@@ -109,6 +115,26 @@ const CASES: Case[] = [
     faint: [WHITE],
     outside: [[-0.03, 0.15], [0.03, 0.15]],
     inside: [[-0.17, -0.104], [-0.14, -0.104]],
+  },
+  {
+    tool: 'liner',
+    name: 'Delineado cai rente aos cílios, com uma asa curta no canto de fora',
+    place: /Aplicado rente aos cílios que achei/,
+    limit: 'Só em volta dos olhos',
+    hits: [WING, WING_RIGHT],
+    misses: [IRIS, LID, BROW, APPLE, FOREHEAD, BRIDGE, HAIR],
+    outside: [[-0.03, 0.15], [0.03, 0.15]],
+    inside: [[-0.17, -0.1], [-0.14, -0.1]],
+  },
+  {
+    tool: 'foxeye',
+    name: 'Fox eye puxa uma asa longa para cima e esfuma o canto de fora',
+    place: /Aplicado no canto de fora dos olhos que achei/,
+    limit: 'Só em volta dos olhos',
+    hits: [FOX_WING, FOX_WING_RIGHT, OUTER_LID],
+    misses: [IRIS, APPLE, FOREHEAD, BRIDGE, UPPER_LIP, HAIR],
+    outside: [[-0.03, 0.15], [0.03, 0.15]],
+    inside: [[-0.17, -0.1], [-0.14, -0.1]],
   },
   {
     tool: 'brow',
@@ -328,7 +354,7 @@ test.describe('make', () => {
   test('todas juntas compõem a maquiagem, e o Manual parte do que o Automático fez', async ({ page }) => {
     const errors = watch(page);
     await openEditor(page);
-    for (const tool of ['lips', 'blush', 'eyeshadow', 'brow', 'contour', 'freckles', 'whiten']) await applied(page, tool);
+    for (const tool of ['lips', 'blush', 'eyeshadow', 'liner', 'foxeye', 'brow', 'contour', 'freckles', 'whiten']) await applied(page, tool);
     await settle(page, 300);
     await page.screenshot({ path: shot('ui-make-auto') });
     await pickTool(page, 'makeup', 'lips', { auto: true });
@@ -352,7 +378,7 @@ test.describe('make', () => {
   test('sem rosto, cada ferramenta cai no pincel livre e diz por quê', async ({ page }) => {
     const errors = watch(page);
     await openEditor(page, 'gradient.png');
-    for (const tool of ['lips', 'whiten', 'blush', 'eyeshadow', 'brow', 'contour', 'freckles']) {
+    for (const tool of ['lips', 'whiten', 'blush', 'eyeshadow', 'liner', 'foxeye', 'brow', 'contour', 'freckles']) {
       await page.locator('[data-group=makeup]').click();
       await toolButton(page, tool).click();
       await page.getByTestId('limit-toggle').click();

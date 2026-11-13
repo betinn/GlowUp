@@ -521,7 +521,7 @@ describe('the Make group in the catalog', () => {
   const make = TOOLS.filter((t) => t.group === 'makeup');
 
   it('holds every tool on a region, with words for the switch, the wait and the panel', () => {
-    expect(make.map((t) => t.id)).toEqual(['lips', 'whiten', 'blush', 'eyeshadow', 'brow', 'contour', 'freckles']);
+    expect(make.map((t) => t.id)).toEqual(['lips', 'whiten', 'blush', 'eyeshadow', 'liner', 'foxeye', 'brow', 'contour', 'freckles']);
     for (const tool of make) {
       expect(tool.region).toBeTruthy();
       expect(LIMIT_WORDS[tool.region!].name).toMatch(/^Só/);
@@ -538,6 +538,8 @@ describe('the Make group in the catalog', () => {
     expect(shape('whiten')).toEqual(['teeth', undefined]);
     expect(shape('blush')).toEqual(['skin', 'cheeks']);
     expect(shape('eyeshadow')).toEqual(['lids', 'shadow']);
+    expect(shape('liner')).toEqual(['eyeline', 'liner']);
+    expect(shape('foxeye')).toEqual(['eyeline', 'fox']);
     expect(shape('brow')).toEqual(['brows', 'browhair']);
     expect(shape('contour')).toEqual(['skin', 'sculpt']);
     expect(shape('freckles')).toEqual(['skin', 'sprinkle']);
