@@ -15,6 +15,8 @@ export type LayerId =
   | 'lips'
   | 'blush'
   | 'eyeshadow'
+  | 'foxeye'
+  | 'liner'
   | 'brow'
   | 'contour'
   | 'hair'
@@ -40,6 +42,9 @@ export const LAYER_ORDER: readonly LayerId[] = [
   'sparkle',
   'brow',
   'eyeshadow',
+  // The lines go over the shadow, as they are drawn after it.
+  'foxeye',
+  'liner',
   'lips',
   // Color first, then light and contrast on the new color, and sharpness on everything.
   'hair',

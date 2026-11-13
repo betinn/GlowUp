@@ -180,7 +180,7 @@ export function smoothLoop(points: readonly Point[], steps: number): Point[] {
 }
 
 /** The value of a map over `area` at a point on the grid, between pixels. */
-function sampleAt(map: Float32Array, area: Area, x: number, y: number): number {
+export function sampleAt(map: Float32Array, area: Area, x: number, y: number): number {
   const fx = Math.min(area.w - 1.001, Math.max(0, x - area.x - 0.5));
   const fy = Math.min(area.h - 1.001, Math.max(0, y - area.y - 0.5));
   const ix = Math.floor(fx);

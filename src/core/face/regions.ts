@@ -4,6 +4,7 @@
  * it lives in memory and never reaches the saved project.
  */
 
+import { buildLinerMask } from './liner';
 import { buildBrowMask, buildCheekMask, buildLidMask, buildLipMask, buildSculptMask, buildSprinkleMask, lipReach } from './makeup';
 import { bounds, guidedFilter, softBlur, type Area, type MaskTarget, type Point } from './mask';
 import type { Face, FaceParts } from './scan';
@@ -11,8 +12,9 @@ import { teethFromPhoto } from './teeth';
 import { areaAround, buildGlowMask, buildSkinMask, buildUnderEyeMask, cover, place, smooth, toGrid } from './skin';
 
 /**
- * Parts of the face drawn from the landmarks. `glow`, `browhair`, `shadow`, `cheeks`, `sculpt` and
- * `sprinkle` are not limits but shapes the automatic mode fills with: see `skin.ts` and `makeup.ts`.
+ * Parts of the face drawn from the landmarks. `glow`, `browhair`, `shadow`, `liner`, `fox`, `cheeks`, `sculpt`
+ * and `sprinkle` are not limits but shapes the automatic mode fills with: see `skin.ts`, `makeup.ts` and
+ * `liner.ts`.
  */
 export type LandmarkRegion =
   | 'iris'
@@ -26,6 +28,9 @@ export type LandmarkRegion =
   | 'browhair'
   | 'lids'
   | 'shadow'
+  | 'eyeline'
+  | 'liner'
+  | 'fox'
   | 'cheeks'
   | 'sculpt'
   | 'sprinkle';
@@ -411,6 +416,9 @@ export function buildRegionMask(faces: readonly Face[], region: LandmarkRegion, 
   if (region === 'lips') return buildLipMask(faces, target);
   if (region === 'brows' || region === 'browhair') return buildBrowMask(faces, target, region === 'browhair');
   if (region === 'lids' || region === 'shadow') return buildLidMask(faces, target, region === 'shadow');
+  if (region === 'eyeline') return buildLinerMask(faces, target, 'reach');
+  if (region === 'liner') return buildLinerMask(faces, target, 'line');
+  if (region === 'fox') return buildLinerMask(faces, target, 'fox');
   if (region === 'cheeks') return buildCheekMask(faces, target);
   if (region === 'sculpt') return buildSculptMask(faces, target);
   if (region === 'sprinkle') return buildSprinkleMask(faces, target);
