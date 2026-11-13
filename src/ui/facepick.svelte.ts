@@ -110,6 +110,7 @@ export const facePick = $state({
 const SKIN_WORDS = { name: 'Só na pele', finding: 'Procurando a pele', missing: 'Não achei pele de rosto nesta foto.' };
 const BROW_WORDS = { name: 'Só nas sobrancelhas', finding: 'Procurando as sobrancelhas', missing: 'Não achei sobrancelhas nesta foto.' };
 const LID_WORDS = { name: 'Só nas pálpebras', finding: 'Procurando os olhos', missing: 'Não achei olhos nesta foto.' };
+const LINER_WORDS = { name: 'Só em volta dos olhos', finding: 'Procurando os olhos', missing: 'Não achei olhos nesta foto.' };
 
 /** Words of each limit: the switch, the wait, and the note when the photo does not show that region. */
 export const LIMIT_WORDS: Record<FaceRegion, { name: string; finding: string; missing: string }> = {
@@ -125,6 +126,9 @@ export const LIMIT_WORDS: Record<FaceRegion, { name: string; finding: string; mi
   browhair: BROW_WORDS,
   lids: LID_WORDS,
   shadow: LID_WORDS,
+  eyeline: LINER_WORDS,
+  liner: LINER_WORDS,
+  fox: LINER_WORDS,
   cheeks: SKIN_WORDS,
   sculpt: SKIN_WORDS,
   sprinkle: SKIN_WORDS,
@@ -144,6 +148,9 @@ export const PLACES: Record<FaceRegion, string> = {
   browhair: 'nas sobrancelhas',
   lids: 'nas pálpebras',
   shadow: 'nas pálpebras',
+  eyeline: 'em volta dos olhos',
+  liner: 'rente aos cílios',
+  fox: 'no canto de fora dos olhos',
   cheeks: 'nas maçãs do rosto',
   sculpt: 'nas áreas de contorno do rosto',
   sprinkle: 'no nariz e nas bochechas',

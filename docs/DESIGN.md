@@ -275,12 +275,12 @@ palavras da pele.
 
 ## Make
 
-Batom, Dentes, Blush, Sombra, Sobrancelha, Contorno e Sardas seguem o mesmo caminho dos olhos e da pele, com as
-palavras de cada uma. Sobrancelha fica aqui porque preenche e colore, como maquiagem; o menu Olhos age no globo
-ocular.
+Batom, Dentes, Blush, Sombra, Delineado, Fox eye, Sobrancelha, Contorno e Sardas seguem o mesmo caminho dos olhos e da
+pele, com as palavras de cada uma. Sobrancelha fica aqui porque preenche e colore, como maquiagem; o menu Olhos age
+no globo ocular.
 
 - **Busca.** O cartão diz o que procura: "Procurando os lábios", "Procurando as sobrancelhas", "Procurando os
-  olhos" em Sombra, "Procurando a pele" em Blush, Contorno e Sardas.
+  olhos" em Sombra, Delineado e Fox eye, "Procurando a pele" em Blush, Contorno e Sardas.
 - **Foco e brilho.** A vista vai até a boca em Batom, até as sobrancelhas em Sobrancelha, até olhos e
   sobrancelhas em Sombra, e até o rosto nas ferramentas que ficam na pele. A luz fria acende onde o pincel alcança.
 - **Automático.** O efeito chega em meio segundo, no lugar de cada produto. O botão da ferramenta é o
@@ -294,12 +294,21 @@ ocular.
 | Dentes | Só nos dentes | Os dentes. Boca fechada não tem região, e o pincel fica livre |
 | Blush | Só na pele | As maçãs, subindo um pouco rumo à têmpora |
 | Sombra | Só nas pálpebras, por igual | A pálpebra, mais forte nos cílios e sumindo para cima |
+| Delineado | Só em volta dos olhos: pálpebra, além do canto de fora e logo abaixo do olho, sem o olho | Um traço nos cílios de cima, fino no canto de dentro e mais grosso para fora, com uma asa curta |
+| Fox eye | O mesmo de Delineado | Uma asa longa levantada rumo à ponta da sobrancelha, a linha de baixo no terço de fora, uma ponta no canto de dentro para baixo, e o canto de fora esfumado |
 | Sobrancelha | Só nas sobrancelhas, com folga para engrossar ou alongar | Os fios, com as falhas preenchidas de leve |
 | Contorno | Só na pele | Sob as maçãs, nas laterais do rosto e nas duas bordas da ponte do nariz, lado a lado, dos olhos até acima da ponta |
 | Sardas | Só na pele | Nariz e alto das bochechas |
 
 - **Foto real.** O contorno dos lábios é ajustado à cor da própria foto, numa linha limpa, e os fios vêm do brilho, porque
   o modelo escorrega em cabeça inclinada. Sem contraste, como batom da cor da pele, a forma volta a ser a do modelo.
+- **Delineado.** Cor, Opacidade e Mistura, como as outras maquiagens, com quase preto em Multiplicar de fábrica. O traço é
+  levado à linha escura dos cílios da foto, porque o modelo escorrega uns pixels e um traço fino mostra isso.
+- **Fox eye.** Traço e Esfumado, cada um com cor e força. Uma máscara só guarda os dois: o esfumado vai até a metade, o
+  traço por cima. No Manual uma passada esfuma e a segunda marca o traço. O esfumado fica só na pele. Para levantar o olho
+  de verdade, a dica aponta para Formato do rosto, Olhos, Ângulo.
+- **Olho coberto.** Atrás de óculos escuros a pálpebra não é pele, e o olho fica sem traço. Sem nenhum olho à vista, o aviso
+  diz que não achou olhos e o pincel fica livre.
 - **Sardas.** Tipo (Finas, Naturais, Marcantes), Quantidade, Tamanho, Variação e Opacidade. Os pontos caem soltos, juntando
   em umas partes e rareando em outras, e cada um tem forma, tamanho e cor próprios. A máscara diz quantos pontos cabem ali,
   não o quanto eles escurecem, então passar o pincel de novo traz mais pontos. O tamanho segue o rosto da foto.
