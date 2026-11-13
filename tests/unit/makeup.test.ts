@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { addBand, faceShare, fitContour, lidShape, lipsFromPhoto, reached, smoothLoop } from '../../src/core/face/makeup';
+import { addBand, faceShare, fitContour, lidShape, lipsFromPhoto, noseEdges, reached, smoothLoop } from '../../src/core/face/makeup';
 import type { MaskTarget, Point } from '../../src/core/face/mask';
 import { buildRegionMask } from '../../src/core/face/regions';
-import { CHEEK_TOPS, CHEEKS, FACE_OVAL, HOLLOWS, makeFace, NOSE_SIDES, readFace, type Face, type FaceParts } from '../../src/core/face/scan';
+import { CHEEK_TOPS, CHEEKS, FACE_OVAL, HOLLOWS, makeFace, MIDLINE, NOSE_SIDES, readFace, type Face, type FaceParts } from '../../src/core/face/scan';
 import { TOOLS } from '../../src/tools/catalog';
 import { LIMIT_WORDS, PLACES } from '../../src/ui/facepick.svelte';
 import { lens, oval, paintedPhoto, type Color } from './face-fixtures';
@@ -395,6 +395,67 @@ describe('blush, contour and freckles', () => {
     expect(shape[50 * 100 + 50]).toBeCloseTo(0.8, 1);
     expect(shape[50 * 100 + 20]).toBeCloseTo(0.8, 1);
     expect(shape[25 * 100 + 50]).toBeLessThan(0.01);
+  });
+});
+
+describe('the lines of a nose contour', () => {
+  /** How far the model puts each point of an edge of the bridge from the middle, from between the eyes down. */
+  const OFF = [0.018, 0.019, 0.02, 0.021, 0.022];
+  /** A nose as the model gives it: nine points down the middle, and five down each edge of the bridge. */
+  const nose = (middle: number): FaceParts => {
+    const midline = parts.midline!.map(([, v]): Point => [middle, v]);
+    const edge = (side: -1 | 1, share: number) => OFF.map((off, i): Point => [middle + side * off * share, midline[i + 1][1]]);
+    return { ...parts, midline, noseSides: [edge(-1, 1), edge(1, 1)] };
+  };
+  const plain = paintedPhoto(SIZE, (_, v) => (v < 0.18 ? [60, 40, 26] : [220, 168, 140]));
+  const mean = (mask: Uint8Array, u: number, v: number) => {
+    let sum = 0;
+    for (let y = -1; y <= 1; y++) for (let x = -1; x <= 1; x++) sum += at(mask, u + x / SIZE, v + y / SIZE);
+    return sum / 9;
+  };
+
+  it('are named from the points right beside the middle of the bridge, one per height', () => {
+    for (const list of NOSE_SIDES) expect(list.length).toBe(5);
+    expect(MIDLINE.slice(1, 6)).toEqual([168, 6, 197, 195, 5]);
+    // The points one step further out, which open toward the cheek, are not among them.
+    for (const index of [174, 198, 399, 420]) expect(NOSE_SIDES.flat()).not.toContain(index);
+  });
+
+  it('run side by side down the edges of the bridge, a little past the points of the model', () => {
+    const [left, right] = noseEdges(nose(0.5))!;
+    left.forEach((p, i) => {
+      expect(p[0]).toBeCloseTo(0.5 - OFF[i] * 1.4, 6);
+      expect(p[1]).toBeCloseTo(parts.midline![i + 1][1], 6);
+      expect(right[i][0]).toBeCloseTo(1 - p[0], 6);
+    });
+    // They never open toward the cheeks: the bottom is not much further from the middle than the top.
+    expect(0.5 - left[4][0]).toBeLessThan((0.5 - left[0][0]) * 1.4);
+  });
+
+  it('keep to the side of the middle the model puts them on, when the head turns', () => {
+    const turned = nose(0.44);
+    turned.noseSides = [turned.noseSides![0], turned.noseSides![1].map(([, v], i): Point => [0.44 + OFF[i] * 0.5, v])];
+    const [near, far] = noseEdges(turned)!;
+    near.forEach((p, i) => expect(0.44 - p[0]).toBeCloseTo(OFF[i] * 1.4, 6));
+    far.forEach((p, i) => expect(p[0] - 0.44).toBeCloseTo(OFF[i] * 0.5 * 1.4, 6));
+  });
+
+  it('leave lines of another kind as they are', () => {
+    expect(noseEdges(parts)).toEqual(parts.noseSides);
+    expect(noseEdges({ ...parts, noseSides: undefined })).toBeUndefined();
+    expect(noseEdges({ ...nose(0.5), midline: undefined })).toEqual(nose(0.5).noseSides);
+  });
+
+  it('shade both edges of the bridge, and leave its top and the cheek beside the nose clear', () => {
+    const mask = buildRegionMask([makeFace(oval(0.5, 0.5, 0.26, 0.36), nose(0.5))], 'sculpt', plain)!;
+    expect(mean(mask, 0.472, 0.46)).toBeGreaterThan(100);
+    expect(mean(mask, 0.528, 0.46)).toBeGreaterThan(100);
+    expect(mean(mask, 0.5, 0.46)).toBeLessThan(12);
+    // Where the old lines ended, beside the wing of the nose, and above and below the lines.
+    expect(mean(mask, 0.435, 0.53)).toBeLessThan(5);
+    expect(mean(mask, 0.565, 0.53)).toBeLessThan(5);
+    expect(mean(mask, 0.475, 0.32)).toBeLessThan(5);
+    expect(mean(mask, 0.5, 0.6)).toBeLessThan(5);
   });
 });
 

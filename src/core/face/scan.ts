@@ -90,10 +90,15 @@ export const HOLLOWS: readonly (readonly number[])[] = [
   [137, 147, 187, 207],
   [366, 376, 411, 427],
 ];
-/** Each side of the nose, from the inner corner of the eye down to the wing. */
+/**
+ * Each edge of the bridge of the nose, from between the eyes down to above the tip: the points of the mesh right
+ * beside those of `MIDLINE` from its second to its sixth, one per height. A contour runs along them, the two
+ * lines side by side. The points one step further out go down the side of the nose and open toward the cheek,
+ * and a shadow there falls beside the nose, not on it.
+ */
 export const NOSE_SIDES: readonly (readonly number[])[] = [
-  [122, 174, 198],
-  [351, 399, 420],
+  [193, 122, 196, 3, 51],
+  [417, 351, 419, 248, 281],
 ];
 /** The top of each cheek, from the temple side toward the nose, below the area of the dark circles. */
 export const CHEEK_TOPS: readonly (readonly number[])[] = [

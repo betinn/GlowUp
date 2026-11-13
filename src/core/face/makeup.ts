@@ -9,7 +9,7 @@
  */
 
 import { softBlur, type Area, type MaskTarget, type Point } from './mask';
-import { FACE_OVAL, type Face, type FaceParts } from './scan';
+import { FACE_OVAL, MIDLINE, NOSE_SIDES, type Face, type FaceParts } from './scan';
 import { addGlow, areaAround, buildOnSkin, cover, eyeFrame, mid, place, skinLikeness, smooth, toGrid } from './skin';
 
 /**
@@ -124,8 +124,14 @@ const HOLLOW_PEAK = 0.9;
 const SIDE_RADIUS = 0.3;
 const SIDE_PEAK = 0.7;
 const SIDE_INSET = 0.05;
-const NOSE_RADIUS = 0.13;
+const NOSE_RADIUS = 0.115;
 const NOSE_PEAK = 0.6;
+/**
+ * How far from the middle of the bridge the lines of the nose stand, with the points of the mesh beside the
+ * middle at 1. A little past them is the edge where the top of the nose turns into its side, which is where a
+ * contour goes, and the top stays clear.
+ */
+const NOSE_OUT = 1.4;
 const TOP_RADIUS = 0.36;
 /** Around them a few strays, since the mask of the freckles says how likely a dot is, not how dark. */
 const TOP_FRINGE = 0.72;
@@ -655,12 +661,27 @@ export function buildCheekMask(faces: readonly Face[], target: MaskTarget): Uint
   });
 }
 
+/**
+ * The two lines of a nose contour: down each edge of the bridge, from between the eyes to above the tip. Each
+ * point of a side is moved away from the point of the middle at its height, so on a turned head the far line
+ * stays as close to the middle as the nose shows it. A face with other lines, as one made by hand, keeps them.
+ */
+export function noseEdges(parts: FaceParts): readonly (readonly Point[])[] | undefined {
+  const { noseSides, midline } = parts;
+  if (!noseSides || midline?.length !== MIDLINE.length) return noseSides;
+  return noseSides.map((line) => {
+    if (line.length !== NOSE_SIDES[0].length) return line;
+    // The middle has the top of the forehead first, then one point per height of a side.
+    return line.map((p, i): Point => mid(midline[i + 1], p, NOSE_OUT));
+  });
+}
+
 /** Under the cheekbones and along the sides of the face and of the nose, on the skin. Null when no face shows them. */
 export function buildSculptMask(faces: readonly Face[], target: MaskTarget): Uint8Array | null {
   return buildOnSkin(faces, target, (face, shape, area) => {
     const { parts } = face;
     bandsOf(parts.hollows, target, parts, shape, area, HOLLOW_RADIUS, HOLLOW_PEAK);
-    bandsOf(parts.noseSides, target, parts, shape, area, NOSE_RADIUS, NOSE_PEAK);
+    bandsOf(noseEdges(parts), target, parts, shape, area, NOSE_RADIUS, NOSE_PEAK);
     if (!parts.hollows?.length || face.outline.length !== FACE_OVAL.length) return;
     // The outline runs on the very edge of the face: the band goes a little inside it.
     const grid = toGrid(face.outline, target);

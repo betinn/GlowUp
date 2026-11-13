@@ -277,7 +277,7 @@ ocular.
 | Blush | Só na pele | As maçãs, subindo um pouco rumo à têmpora |
 | Sombra | Só nas pálpebras, por igual | A pálpebra, mais forte nos cílios e sumindo para cima |
 | Sobrancelha | Só nas sobrancelhas, com folga para engrossar ou alongar | Os fios, com as falhas preenchidas de leve |
-| Contorno | Só na pele | Sob as maçãs, nas laterais do rosto e do nariz |
+| Contorno | Só na pele | Sob as maçãs, nas laterais do rosto e nas duas bordas da ponte do nariz, lado a lado, dos olhos até acima da ponta |
 | Sardas | Só na pele | Nariz e alto das bochechas |
 
 - **Foto real.** O contorno dos lábios é ajustado à cor da própria foto, numa linha limpa, e os fios vêm do brilho, porque
