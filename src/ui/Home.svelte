@@ -2,13 +2,17 @@
   import { onDestroy, onMount } from 'svelte';
   import Icon from './Icon.svelte';
   import { reveal } from './motion';
-  import { openFile, openProject } from './open';
+  import { openFile, openPost, openProject, startPost } from './open';
 
+  /** A photo edited on its own, or a post of several. */
   interface Recent {
     id: string;
     name: string;
     url: string;
-    thumb: Blob;
+    thumb: Blob | null;
+    updated: number;
+    /** Photos of a post. Left out for a photo on its own. */
+    count?: number;
   }
 
   let recents = $state<Recent[]>([]);
@@ -16,10 +20,16 @@
 
   onMount(async () => {
     try {
-      const { listProjects } = await import('../core/project');
-      const list = await listProjects();
+      const [{ listProjects }, { listPosts, sweepOrphans }] = await Promise.all([import('../core/project'), import('../core/post/store')]);
+      // A photo left behind by a post goes back to the list, or off the device, before the list is read.
+      await sweepOrphans().catch(() => {});
+      const [photos, posts] = await Promise.all([listProjects(), listPosts()]);
       // A damaged project may have no picture, and it must not take the rest of the list with it.
-      recents = list.map((p) => ({ id: p.id, name: p.name, thumb: p.thumb, url: p.thumb instanceof Blob ? URL.createObjectURL(p.thumb) : '' }));
+      const url = (thumb: unknown) => (thumb instanceof Blob ? URL.createObjectURL(thumb) : '');
+      recents = [
+        ...photos.map((p) => ({ id: p.id, name: p.name, thumb: p.thumb, url: url(p.thumb), updated: p.updated })),
+        ...posts.map((p) => ({ id: p.id, name: p.name, thumb: p.thumb, url: url(p.thumb), updated: p.updated, count: p.count })),
+      ].sort((a, b) => b.updated - a.updated);
     } catch {
       recents = [];
     }
@@ -27,10 +37,17 @@
 
   onDestroy(() => recents.forEach((r) => URL.revokeObjectURL(r.url)));
 
-  async function forget(id: string) {
-    const { deleteProject } = await import('../core/project');
-    await deleteProject(id);
-    recents = recents.filter((r) => r.id !== id);
+  async function forget(recent: Recent) {
+    if (recent.count === undefined) await (await import('../core/project')).deleteProject(recent.id);
+    else await (await import('../core/post/store')).deletePost(recent.id);
+    recents = recents.filter((r) => r !== recent);
+  }
+
+  function picked(input: HTMLInputElement) {
+    const files = [...(input.files ?? [])];
+    input.value = '';
+    // Whoever asked for several photos gets the table, even with one photo: more can join it there.
+    if (files.length) void startPost(files);
   }
 </script>
 
@@ -63,7 +80,12 @@
         <Icon name="camera" size={20} /> Tirar foto
         <input class="sr-only" type="file" accept="image/*" capture="user" onchange={(e) => openFile(e.currentTarget.files?.[0])} />
       </label>
+      <label class="btn">
+        <Icon name="stack" size={20} /> Várias fotos
+        <input class="sr-only" data-testid="files-input" type="file" accept="image/*" multiple onchange={(e) => picked(e.currentTarget)} />
+      </label>
     </div>
+    <p class="several" in:reveal={{ delay: 900 }}>Várias fotos viram carrossel, colagem ou uma faixa que continua de um slide para o outro.</p>
   </section>
 
   {#if recents.length}
@@ -71,16 +93,21 @@
       <h2 class="serif">De onde parou</h2>
       <div class="row scroll-x">
         {#each recents as r (r.id)}
-          <div class="recent">
+          <div class="recent" class:post={r.count !== undefined} data-testid={r.count === undefined ? 'recent-photo' : 'recent-post'}>
             <button
               type="button"
               class="thumb"
-              aria-label="Continuar {r.name}"
-              onclick={() => openProject(r.id, r.thumb)}
+              aria-label={r.count === undefined ? `Continuar ${r.name}` : `Continuar a montagem ${r.name}, com ${r.count} ${r.count === 1 ? 'foto' : 'fotos'}`}
+              onclick={() => (r.count === undefined ? openProject(r.id, r.thumb as Blob) : openPost(r.id, r.thumb))}
             >
-              <img src={r.url} alt="" draggable="false" />
+              {#if r.url}
+                <img src={r.url} alt="" draggable="false" />
+              {/if}
             </button>
-            <button type="button" class="forget" aria-label="Esquecer {r.name}" onclick={() => forget(r.id)}>
+            {#if r.count !== undefined}
+              <span class="many" aria-hidden="true"><Icon name="stack" size={13} />{r.count}</span>
+            {/if}
+            <button type="button" class="forget" aria-label="Esquecer {r.name}" onclick={() => forget(r)}>
               <Icon name="close" size={14} />
             </button>
           </div>
@@ -300,6 +327,14 @@
     outline-offset: 2px;
   }
 
+  .several {
+    margin-top: 10px;
+    font-size: 13px;
+    color: var(--paper-2);
+    text-align: center;
+    text-wrap: balance;
+  }
+
   .recents {
     position: relative;
     width: min(620px, 100%);
@@ -342,6 +377,35 @@
     height: 100%;
     object-fit: cover;
     display: block;
+  }
+
+  /* A post shows as a pile: two more sheets peek from behind the first slide. */
+  .post .thumb {
+    box-shadow:
+      0 0 0 1.5px var(--ink),
+      5px -4px 0 -1px #34343a,
+      5px -4px 0 0.5px var(--ink),
+      10px -8px 0 -2px #26262b;
+    margin-right: 10px;
+  }
+
+  .many {
+    position: absolute;
+    left: 5px;
+    bottom: 5px;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 1px 7px 1px 5px;
+    border-radius: 999px;
+    background: rgb(11 11 12 / 0.74);
+    font-size: 11.5px;
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+  }
+
+  .post .forget {
+    right: 13px;
   }
 
   .forget {

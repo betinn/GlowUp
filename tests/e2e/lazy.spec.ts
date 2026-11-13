@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { TOOLS } from '../../src/tools/catalog';
-import { chooseMode, expectNoErrors, openEditor, setSlider, settle, tap } from './helpers';
+import { chooseMode, expectNoErrors, openEditor, openGroup, openTab, setSlider, settle, tap } from './helpers';
 
 /**
  * Tools open in Manual and download nothing: a model comes only when the person asks for it. And in Manchas the
@@ -41,10 +41,9 @@ async function openHeal(page: Page): Promise<void> {
   await settle(page, 300);
 }
 
-const switchPath = async (page: Page, id: string) => {
-  await page.getByTestId('path-switch').click();
-  await page.locator(`[data-path=${id}]`).click();
-  await expect(page.getByTestId('path-choice')).toHaveCount(0);
+const goTab = async (page: Page, id: string) => {
+  await openTab(page, id);
+  await expect(page.locator(`[data-path=${id}]`)).toHaveAttribute('aria-pressed', 'true');
   await settle(page, 300);
 };
 
@@ -55,7 +54,7 @@ test.describe('ferramentas sem download', () => {
     const asked = models(page);
 
     for (const tool of TOOLS) {
-      await page.locator(`[data-group=${tool.group}]`).click();
+      await openGroup(page, tool.group);
       const button = page.locator(`[data-tool=${tool.id}]`);
       if (!(await button.count())) continue;
       if ((await button.getAttribute('aria-pressed')) !== 'true') await button.click();
@@ -67,16 +66,16 @@ test.describe('ferramentas sem download', () => {
       if (tool.kind === 'shape') await expect(page.locator('[data-shape]'), tool.id).toHaveAttribute('data-shape', 'idle');
     }
     // A slider of the face menu waits for its face, with no download until it moves.
-    await page.locator('[data-group=shape]').click();
+    await openGroup(page, 'shape');
     await page.locator('[data-tool=faceshape]').click();
     await expect(page.getByTestId('shape-idle')).toBeVisible();
 
-    // The menus of the other paths, Luzes included, read nothing either.
-    await switchPath(page, 'glow');
+    // The menus of the other tabs, Luzes included, read nothing either.
+    await goTab(page, 'glow');
     await page.getByTestId('looks').waitFor();
-    await switchPath(page, 'fun');
+    await goTab(page, 'fun');
     await expect(page.locator('[data-fun=idle]')).toHaveCount(1);
-    await switchPath(page, 'filters');
+    await goTab(page, 'filters');
     await settle(page, 600);
     await page.getByRole('tab', { name: 'Luzes' }).click();
     await expect(page.locator('[data-light]')).toHaveCount(4);

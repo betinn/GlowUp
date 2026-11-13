@@ -10,6 +10,8 @@ import { packScene } from './light/scene';
 const DB_NAME = 'glowup';
 const STORE = 'projects';
 const ORIGINALS = 'originals';
+/** Posts of several photos. Each photo of a post is a project like any other, which names its post. */
+export const POSTS = 'posts';
 const MAX_PROJECTS = 6;
 
 export interface ProjectSummary {
@@ -34,6 +36,19 @@ export interface ProjectRecord extends ProjectSummary {
   fun?: Blob | null;
   /** The scene of the photo for Luzes, so a project opens with its light and no detector. Older projects leave this out. */
   scene?: Blob | null;
+  /** The post this photo is part of. Such a project stays off the list of the home screen: its post is there. */
+  post?: string;
+  /** The photo as it leaves the editor, for its post. Null or left out: the original, with no retouch on it. */
+  print?: PhotoPrint | null;
+  /** The retouch changed after `print` was made, and the editor closed before making another. */
+  printStale?: boolean;
+}
+
+/** The photo with every retouch, at full size, as a file. */
+export interface PhotoPrint {
+  blob: Blob;
+  w: number;
+  h: number;
 }
 
 /**
@@ -94,22 +109,28 @@ export function validProject(record: unknown, original: unknown): { record: Proj
   if (!(record.fun === undefined || record.fun === null || record.fun instanceof Blob)) throw new InvalidProjectError('fun');
   if (!(record.scene === undefined || record.scene === null || record.scene instanceof Blob)) throw new InvalidProjectError('scene');
   if (!(thumb instanceof Blob)) throw new InvalidProjectError('thumb');
+  if (!(record.post === undefined || typeof record.post === 'string')) throw new InvalidProjectError('post');
+  const { print } = record;
+  if (!(print === undefined || print === null || (isObject(print) && print.blob instanceof Blob && allNumbers(print, ['w', 'h'])))) throw new InvalidProjectError('print');
   return { record: record as unknown as ProjectRecord, original };
 }
 
 function open(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 1);
+    // Version 2 added the posts. A store that is already there stays as it is, with what it holds.
+    const req = indexedDB.open(DB_NAME, 2);
     req.onupgradeneeded = () => {
-      req.result.createObjectStore(STORE, { keyPath: 'id' });
-      req.result.createObjectStore(ORIGINALS);
+      const names = req.result.objectStoreNames;
+      if (!names.contains(STORE)) req.result.createObjectStore(STORE, { keyPath: 'id' });
+      if (!names.contains(ORIGINALS)) req.result.createObjectStore(ORIGINALS);
+      if (!names.contains(POSTS)) req.result.createObjectStore(POSTS, { keyPath: 'id' });
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
   });
 }
 
-async function tx<T>(mode: IDBTransactionMode, run: (s: IDBObjectStore) => IDBRequest<T>, store = STORE): Promise<T> {
+export async function tx<T>(mode: IDBTransactionMode, run: (s: IDBObjectStore) => IDBRequest<T>, store = STORE): Promise<T> {
   const db = await open();
   return new Promise<T>((resolve, reject) => {
     const t = db.transaction(store, mode);
@@ -125,11 +146,25 @@ async function tx<T>(mode: IDBTransactionMode, run: (s: IDBObjectStore) => IDBRe
   });
 }
 
+/** The photos edited on their own, newest first. A photo of a post is not one of them: its post stands for it. */
 export async function listProjects(): Promise<ProjectSummary[]> {
   const all = await tx<ProjectRecord[]>('readonly', (s) => s.getAll());
   return all
+    .filter((p) => !p.post)
     .map(({ id, name, updated, width, height, thumb }) => ({ id, name, updated, width, height, thumb }))
     .sort((a, b) => b.updated - a.updated);
+}
+
+/** Writes a project made away from the editor: a photo that joins a post as it is. */
+export async function putProject(record: ProjectRecord, original: Blob): Promise<void> {
+  await tx('readwrite', (s) => s.put(original, record.id), ORIGINALS);
+  await tx('readwrite', (s) => s.put(record));
+}
+
+/** Changes what a saved project says of itself, as the post it is part of. Nothing happens to one that is gone. */
+export async function patchProject(id: string, patch: Partial<Omit<ProjectRecord, 'id'>>): Promise<void> {
+  const record = await loadProject(id);
+  if (record) await tx('readwrite', (s) => s.put({ ...record, ...patch }));
 }
 
 export const loadProject = (id: string) => tx<ProjectRecord | undefined>('readonly', (s) => s.get(id));
@@ -182,6 +217,11 @@ export class Autosave {
   private thumb: Blob | null = null;
   private originalSaved = false;
   private savedFieldRev = -1;
+  /** The post this photo is part of, if any. */
+  post: string | undefined;
+  private print: PhotoPrint | null = null;
+  /** Something changed since `print` was made. */
+  private printOld = false;
 
   constructor(
     private readonly engine: Engine,
@@ -198,6 +238,9 @@ export class Autosave {
       this.scene = restored.scene ?? null;
       this.savedSceneRev = engine.sceneRev;
       this.thumb = restored.thumb;
+      this.post = restored.post;
+      this.print = restored.print ?? null;
+      this.printOld = !!restored.printStale;
       this.originalSaved = true;
       this.savedFieldRev = engine.fieldRev;
       for (const key of Object.keys(restored.masks) as LayerId[]) {
@@ -207,8 +250,20 @@ export class Autosave {
   }
 
   schedule(): void {
+    this.printOld = true;
     if (this.timer) clearTimeout(this.timer);
     this.timer = setTimeout(() => void this.run(), 1500);
+  }
+
+  /** The photo has a print that shows it as it is now. */
+  get printFresh(): boolean {
+    return !!this.print && !this.printOld;
+  }
+
+  /** Keeps the photo as it leaves the editor, or null when it leaves as it came. The next save writes it. */
+  setPrint(print: PhotoPrint | null): void {
+    this.print = print;
+    this.printOld = false;
   }
 
   /** Waits for any save in progress, then writes the latest state. */
@@ -284,6 +339,10 @@ export class Autosave {
         shape: this.shape,
         fun: this.fun,
         scene: this.scene,
+        post: this.post,
+        // The picture is for the post: a photo on its own has no use for it.
+        print: this.post ? this.print : undefined,
+        printStale: !!this.post && this.printOld,
       };
       await tx('readwrite', (s) => s.put(structuredClone(record)));
       await this.prune();

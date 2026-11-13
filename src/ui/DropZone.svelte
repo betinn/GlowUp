@@ -6,7 +6,7 @@
    */
   import Icon from './Icon.svelte';
   import { reveal } from './motion';
-  import { isPhoto, openFile } from './open';
+  import { openFiles } from './open';
   import { ui } from './state.svelte';
 
   /** Browsers report no "drag ended" when the file leaves the window, so silence ends the drag. */
@@ -63,14 +63,25 @@
     ev.preventDefault();
     stop();
     if (blocked()) return;
-    const files = [...(ev.dataTransfer?.files ?? [])];
-    openFile(files.find(isPhoto) ?? files[0], { x: ev.clientX, y: ev.clientY });
+    openFiles([...(ev.dataTransfer?.files ?? [])], { x: ev.clientX, y: ev.clientY });
   }
 
   const editing = $derived(ui.screen === 'editor');
-  const title = $derived(over === 'other' ? 'Isso não é uma foto.' : editing ? 'Solta para trocar de foto.' : 'Pode soltar.');
+  /** A post is on the table, or the photo in the editor is part of one: what drops joins the post. */
+  const posting = $derived(ui.screen === 'post' || !!ui.post);
+  const title = $derived(
+    over === 'other' ? 'Isso não é uma foto.' : posting ? 'Solta para pôr na montagem.' : many ? 'Solta para montar.' : editing ? 'Solta para trocar de foto.' : 'Pode soltar.',
+  );
   const sub = $derived(
-    over === 'other' ? 'Funciona com JPG, PNG ou WebP.' : many ? 'Uma por vez: abro a primeira.' : editing ? 'A edição atual fica salva.' : 'Ela abre aqui mesmo. Nada sai do seu aparelho.',
+    over === 'other'
+      ? 'Funciona com JPG, PNG ou WebP.'
+      : posting
+        ? 'Entra depois das fotos que já estão lá.'
+        : many
+          ? 'Várias fotos viram carrossel, colagem ou uma faixa contínua.'
+          : editing
+            ? 'A edição atual fica salva.'
+            : 'Ela abre aqui mesmo. Nada sai do seu aparelho.',
   );
 </script>
 

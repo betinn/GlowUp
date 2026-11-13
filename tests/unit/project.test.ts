@@ -36,6 +36,9 @@ const BROKEN: [string, (r: ReturnType<typeof goodRecord>) => void][] = [
   ['a mask that is no file', (r) => (r.masks.smooth = 'x')],
   ['a field that is no file', (r) => (r.field = 'x')],
   ['no picture', (r) => ((r as { thumb: unknown }).thumb = undefined)],
+  ['a post that is no name', (r) => ((r as { post?: unknown }).post = 7)],
+  ['a print that is no file', (r) => ((r as { print?: unknown }).print = { blob: 'x', w: 40, h: 30 })],
+  ['a print with no size', (r) => ((r as { print?: unknown }).print = { blob: photo() })],
 ];
 
 describe('saved project validation', () => {
@@ -64,6 +67,17 @@ describe('saved project validation', () => {
     const record = goodRecord();
     breakIt(record);
     expect(() => validProject(record, photo())).toThrow(InvalidProjectError);
+  });
+
+  it('takes a photo of a post, with or without a picture of its retouch', () => {
+    const record: ReturnType<typeof goodRecord> & { post?: string; print?: unknown; printStale?: boolean } = goodRecord();
+    record.post = 'post-1';
+    expect(() => validProject(record, photo())).not.toThrow();
+    record.print = null;
+    expect(() => validProject(record, photo())).not.toThrow();
+    record.print = { blob: photo(), w: 40, h: 30 };
+    record.printStale = true;
+    expect(() => validProject(record, photo())).not.toThrow();
   });
 
   it('refuses a record or a photo that is not there', () => {

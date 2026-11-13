@@ -23,6 +23,15 @@ export interface Opening {
   from: Point | null;
 }
 
+/** The post a photo in the editor is part of: the way back from the editor is the post, and its other photos are a tap away. */
+export interface PostContext {
+  id: string;
+  /** The projects of its photos, in order. */
+  ids: string[];
+  /** Which of them is in the editor. */
+  index: number;
+}
+
 /** What the before side shows: the original photo, or the current edit without the filter. */
 export type CompareScope = 'all' | 'filter';
 
@@ -30,7 +39,13 @@ export type CompareScope = 'all' | 'filter';
 export type OnboardingCards = 'all' | 'paint' | 'view';
 
 export const ui = $state({
-  screen: 'home' as 'home' | 'editor',
+  screen: 'home' as 'home' | 'editor' | 'post',
+  /** The post on the table of the montage, once it is saved. Null while its photos are still being brought in. */
+  postId: null as string | null,
+  /** The post of the photo in the editor, when the photo is part of one. */
+  post: null as PostContext | null,
+  /** Photos dropped on the editor of a photo of a post: they join the post when its table comes back. */
+  postAdds: null as File[] | null,
   /** Incremented to open a new editor over the current one. */
   session: 0,
   pending: null as PendingOpen | null,
@@ -43,10 +58,8 @@ export const ui = $state({
   /** The same, for an effect of Brincar. */
   funShaping: false,
   toast: null as string | null,
-  /** The path the person is on, from the list in `paths.ts`. Null until one is chosen. */
+  /** The tab the person is on, from the list in `paths.ts`. Null until a photo is open. */
   path: null as string | null,
-  /** The screen of choice is up. */
-  choosingPath: false,
   /** The cards that teach the gestures, when they are due. */
   onboarding: null as OnboardingCards | null,
   group: 'skin' as GroupId,

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { DEV_ORIGIN } from '../../playwright.config';
-import { setSlider, settle } from './helpers';
+import { openTab, setSlider, settle } from './helpers';
 
 /** The dev server, so that the page can read the document of the editor it is running. */
 test.use({ baseURL: DEV_ORIGIN });
@@ -64,8 +64,8 @@ const shotDiff = (page: Page, a: number, b: number) =>
 
 const shot = (name: string) => `docs/visual-checks/${name}.png`;
 
-/** Opens a photo up to the screen of choice. */
-async function openToChoice(page: Page, fixture = 'portrait.png'): Promise<void> {
+/** Opens a new photo up to the tabs, where it lands on the first one, the looks. */
+async function openToTabs(page: Page, fixture = 'portrait.png'): Promise<void> {
   await page.addInitScript(() => {
     localStorage.setItem('glowup.onboarded', 'true');
     // The completion of what warps uncover has nothing to do here.
@@ -73,7 +73,7 @@ async function openToChoice(page: Page, fixture = 'portrait.png'): Promise<void>
   });
   await page.goto('/');
   await page.setInputFiles('[data-testid=file-input]', `tests/fixtures/${fixture}`);
-  await page.getByTestId('path-choice').waitFor({ timeout: 90_000 });
+  await page.getByTestId('tabs').waitFor({ timeout: 90_000 });
   await expect(page.getByTestId('opening')).toHaveCount(0);
 }
 
@@ -83,26 +83,25 @@ async function openLights(page: Page): Promise<void> {
   await page.getByTestId('lights').waitFor();
 }
 
-/** Opens a photo in the Filtros path, on the Luzes tab. */
+/** Opens a photo in the Filtros tab of the editor, on the Luzes tab of the filters. */
 async function openFilterLights(page: Page, fixture = 'portrait.png'): Promise<void> {
-  await openToChoice(page, fixture);
-  await page.locator('[data-path=filters]').click();
+  await openToTabs(page, fixture);
+  await openTab(page, 'filters');
   await page.getByTestId('filters-menu').waitFor();
   await settle(page, 300);
   await openLights(page);
 }
 
 async function openGlow(page: Page): Promise<void> {
-  await openToChoice(page);
-  await page.locator('[data-path=glow]').click();
+  await openToTabs(page);
+  await openTab(page, 'glow');
   await page.getByTestId('looks').waitFor();
   await settle(page, 300);
 }
 
-const switchPath = async (page: Page, id: string) => {
-  await page.getByTestId('path-switch').click();
-  await page.locator(`[data-path=${id}]`).click();
-  await expect(page.getByTestId('path-choice')).toHaveCount(0);
+const goTab = async (page: Page, id: string) => {
+  await openTab(page, id);
+  await expect(page.locator(`[data-path=${id}]`)).toHaveAttribute('aria-pressed', 'true');
 };
 
 async function tapLight(page: Page, id: string): Promise<void> {
@@ -135,7 +134,7 @@ test.describe('Luzes', () => {
     await expect(page.locator('[data-light]')).toHaveCount(0);
     await expect(page.getByRole('radiogroup', { name: 'Prateleira' })).toHaveCount(0);
 
-    await switchPath(page, 'filters');
+    await goTab(page, 'filters');
     await page.getByTestId('filters-menu').waitFor();
     await expect(page.locator('[data-filter]').first()).toBeVisible();
     await expect(page.locator('[data-light]')).toHaveCount(0);
@@ -152,9 +151,13 @@ test.describe('Luzes', () => {
     await expect(page.locator('[data-filter]').first()).toBeVisible();
     await expect(page.locator('[data-light]')).toHaveCount(0);
 
-    // The same tab is in the filters of Do Meu Jeito.
-    await switchPath(page, 'manual');
-    await page.locator('[data-group=filters]').click();
+    // The filters, and their lights, live only in this tab: the tab of the tools has no menu of them.
+    await goTab(page, 'manual');
+    await expect(page.locator('[data-group=skin]')).toBeVisible();
+    await expect(page.locator('[data-group=filters]')).toHaveCount(0);
+    await expect(page.getByRole('tab', { name: 'Luzes' })).toHaveCount(0);
+    // Back in Filtros, the menu opens again with its lights a tap away.
+    await goTab(page, 'filters');
     await openLights(page);
     await expect(page.locator('[data-light]')).toHaveCount(4);
   });
@@ -245,12 +248,12 @@ test.describe('Luzes', () => {
     await tapLook(page, 'natural');
     expect((await lightDoc(page)).look).toBe('natural');
 
-    await switchPath(page, 'filters');
+    await goTab(page, 'filters');
     await openLights(page);
     await tapLight(page, 'neon');
     expect(await lightDoc(page)).toMatchObject({ light: { id: 'neon' }, look: 'natural' });
 
-    await switchPath(page, 'glow');
+    await goTab(page, 'glow');
     await expect(page.locator('[data-look=natural]')).toHaveAttribute('aria-pressed', 'true');
     // The light is of Luzes, not of the look, so the look shows no slider for it.
     await expect(page.getByRole('slider', { name: 'Luz do look' })).toHaveCount(0);
@@ -282,7 +285,7 @@ test.describe('Luzes', () => {
     await page.getByTestId('lights').waitFor({ timeout: 90_000 });
     await settle(page, 500);
 
-    await expect(page.getByTestId('path-switch')).toContainText('Filtros');
+    await expect(page.locator('[data-path=filters]')).toHaveAttribute('aria-pressed', 'true');
     expect(await lightDoc(page)).toMatchObject({ light: { id: 'contraluz-dourado', intensity: 1 }, scene: true });
     await expect(page.locator('[data-light=contraluz-dourado]')).toHaveAttribute('aria-pressed', 'true');
     await expect(page.getByTestId('lights')).toHaveAttribute('data-scene', 'ready');
@@ -307,9 +310,10 @@ test.describe('Luzes', () => {
 
     await page.getByRole('button', { name: 'Voltar para o início' }).click();
     await page.getByRole('button', { name: /Continuar/ }).first().click();
-    // With the light gone the project holds no edit, so the photo asks how to go on, as a new one does.
-    await page.getByTestId('path-choice').waitFor({ timeout: 90_000 });
+    // With the light gone the project holds no edit, so it opens on the tab last used, as a new photo does.
+    await page.getByTestId('tabs').waitFor({ timeout: 90_000 });
     await expect(page.getByTestId('opening')).toHaveCount(0);
+    await expect(page.locator('[data-path=filters]')).toHaveAttribute('aria-pressed', 'true');
     await settle(page, 500);
     expect(await lightDoc(page)).toMatchObject({ light: null });
     const reopened = await measure(page);
@@ -483,7 +487,7 @@ test.describe('looks com luz', () => {
   test('nos Filtros, a aba Luzes diz que a luz é de um look, e deixa tirar ou trocar', async ({ page }) => {
     await openGlow(page);
     await tapLook(page, 'retrato');
-    await switchPath(page, 'filters');
+    await goTab(page, 'filters');
     await openLights(page);
     await expect(page.getByTestId('look-light')).toBeVisible();
     await expect(page.locator('[data-light][aria-pressed=true]')).toHaveCount(0);
@@ -513,7 +517,7 @@ test.describe('telas das luzes e dos looks', () => {
 
     await page.locator('[data-light=noite-de-festa]').click();
     await settle(page, 300);
-    await switchPath(page, 'glow');
+    await goTab(page, 'glow');
     await page.getByTestId('looks').waitFor();
     await tapLook(page, 'luz-de-vela');
     await expect(page.getByRole('slider', { name: 'Luz do look' })).toBeVisible();
@@ -536,7 +540,7 @@ test.describe('telas das luzes e dos looks', () => {
 
       await page.locator('[data-light=neon]').click();
       await settle(page, 300);
-      await switchPath(page, 'glow');
+      await goTab(page, 'glow');
       await page.getByTestId('looks').waitFor();
       await tapLook(page, 'retrato');
       await settle(page, 900);

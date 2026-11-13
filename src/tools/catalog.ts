@@ -25,12 +25,14 @@ export interface ToolMeta {
   hint: string;
 }
 
-export const GROUPS: { id: GroupId; label: string }[] = [
+/** The menus of tools. Which tab of the editor shows each one is in `ui/paths.ts`. */
+export const GROUPS: { id: GroupId; label: string; short?: string }[] = [
   { id: 'skin', label: 'Pele' },
   { id: 'eyes', label: 'Olhos' },
   { id: 'makeup', label: 'Make' },
   { id: 'hair', label: 'Cabelo' },
-  { id: 'shape', label: 'Formato do rosto' },
+  // The row of menus has room for one word.
+  { id: 'shape', label: 'Formato do rosto', short: 'Formato' },
   { id: 'filters', label: 'Filtros' },
   { id: 'light', label: 'Luz' },
   { id: 'frame', label: 'Quadro' },

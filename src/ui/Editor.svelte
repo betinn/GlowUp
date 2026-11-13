@@ -2,32 +2,28 @@
   import { onDestroy, onMount, tick, untrack, type Component } from 'svelte';
   import { scale } from 'svelte/transition';
   import { Engine, type EngineEvents } from '../core/engine';
-  import { keptLight } from '../core/light/lights';
-  import { unpackScene } from '../core/light/scene';
-  import { Autosave, InvalidProjectError, loadOriginal, loadProject, unpack, validProject } from '../core/project';
+  import { renderImage } from '../core/export';
+  import { Autosave, loadOriginal, loadProject, validProject } from '../core/project';
   import { nextPaint } from '../core/progress';
   import { readFile, SourceImage } from '../core/source';
-  import { FILTER_MASK, PHOTO_MASKS, type LayerId } from '../core/doc';
-  import { startFill } from './fill.svelte';
+  import { fillSettled, startFill } from './fill.svelte';
   import { forgetGrow } from './upscaletool.svelte';
   import { syncFilter } from '../presets/apply';
-  import { ensureDocTools } from '../tools/activate';
   import { GROUPS, TOOLS, toolById, type GroupId } from '../tools/catalog';
   import CompareOverlay from './CompareOverlay.svelte';
   import ExportSheet from './ExportSheet.svelte';
   import Icon from './Icon.svelte';
   import Onboarding from './Onboarding.svelte';
-  import PathChoice from './PathChoice.svelte';
-  import PathSwitch from './PathSwitch.svelte';
   import Stage from './Stage.svelte';
   import { changeBrushSize, resetToolMemory, selectTool, switchable, toggleEffect, toggleMark } from './actions';
   import { comparePress, holdCompare, toggleCompare } from './compare';
   import { autoHint, dropToolLimit, hasWork, strokeOutside, toolLimit } from './facepick.svelte';
   import { reveal, rise } from './motion';
   import { regionShow } from './regionshow.svelte';
-  import { groupChanged, photoChanged, resetGroup, resetPhoto } from './reset';
-  import { cancelOpening, finishOpening, reportOpenFailure } from './open';
-  import { pathById, startPaths } from './paths';
+  import { restoreProject } from './restore';
+  import { groupChanged, groupsChanged, photoChanged, resetGroups, resetPhoto } from './reset';
+  import { cancelOpening, finishOpening, openProject, reportOpenFailure } from './open';
+  import { choosePath, pathById, PATHS, startPaths } from './paths';
   import HealPanel from './panels/HealPanel.svelte';
   import MaskPanel from './panels/MaskPanel.svelte';
   import { autosave, bump, clearEditorCloser, closeEditor, engine, hasEngine, setAutosave, setEditorCloser, setEngine, toast, ui } from './state.svelte';
@@ -61,10 +57,15 @@
   let barH = $state(0);
 
   const desktop = $derived(w >= 900);
-  /** What the path shows in place of the groups and tools. */
-  const pathMenu = $derived(pathById(ui.path)?.menu);
+  const path = $derived(pathById(ui.path));
+  /** What the tab shows in place of tools. */
+  const pathMenu = $derived(path?.menu);
+  /** The menus of the tab, as a row to choose from. A tab of one menu, or of all side by side, has no row. */
+  const chips = $derived(path?.groups && !path.flat && path.groups.length > 1 ? GROUPS.filter((g) => path.groups!.includes(g.id)) : []);
+  /** The menus whose tools are in sight: the chosen one, or all of the tab. */
+  const shownGroups = $derived<GroupId[]>(path?.flat ? (path.groups ?? []) : [ui.group]);
   const meta = $derived(ui.tool ? toolById(ui.tool) : undefined);
-  const groupTools = $derived(TOOLS.filter((t) => t.group === ui.group));
+  const groupTools = $derived(TOOLS.filter((t) => shownGroups.includes(t.group)));
   /** Tools of the group with their effect on the photo. Their button shows a small switch, turned on. */
   const lit = $derived.by(() => {
     void ui.rev;
@@ -85,8 +86,14 @@
   /** For the tests, which cannot see the view itself. */
   const zoom = $derived((ui.rev, ready ? engine().view.zoom.toFixed(2) : '1.00'));
   const marking = $derived((ui.rev, ready && engine().showMask && engine().mode === 'mask'));
-  const groupLabel = $derived(GROUPS.find((g) => g.id === ui.group)?.label ?? '');
-  const groupDirty = $derived((ui.rev, ready && groupChanged(ui.group)));
+  /** The name over the tools in sight: the menu, or the tab when it shows all of its menus. */
+  const groupLabel = $derived(path?.flat ? path.label : (GROUPS.find((g) => g.id === ui.group)?.label ?? ''));
+  const groupDirty = $derived((ui.rev, ready && groupsChanged(shownGroups)));
+  /** Menus of the row with something of theirs on the photo. Their name shows a small dot. */
+  const dirtyGroups = $derived.by(() => {
+    void ui.rev;
+    return new Set(ready ? chips.filter((g) => groupChanged(g.id)).map((g) => g.id) : []);
+  });
   const photoDirty = $derived((ui.rev, ready && photoChanged()));
 
   let off: (() => void) | null = null;
@@ -112,54 +119,17 @@
       const { record, original } = validProject(await loadProject(pending.projectId), await loadOriginal(pending.projectId));
       await stage('decode');
       const source = await SourceImage.decode(original);
-      if (source.w !== record.doc.width || source.h !== record.doc.height) {
-        source.close();
-        throw new InvalidProjectError('the document is of another photo');
-      }
       await stage('upload');
-      // A light that left the menu is dropped: the photo opens with its own light.
-      const light = keptLight(record.doc.light);
-      if (light) record.doc.light = light;
-      else delete record.doc.light;
-      await e.open(source, record.doc);
-      await stage('retouch');
-      await ensureDocTools(e);
-      const masks = Object.entries(record.masks) as [LayerId, Blob][];
-      for (const [i, [id, blob]] of masks.entries()) {
-        const bytes = await unpack(blob);
-        const store = e.masks!;
-        // The mask of a tool that no longer exists stays out, so the next save drops it.
-        if (id !== FILTER_MASK && !PHOTO_MASKS.includes(id) && !e.doc.layers[id]) continue;
-        if (bytes.length === store.w * store.h) store.write(id, bytes);
-        // A mask made for another screen size is lost, and a filter with no mask would just vanish.
-        else if (id === FILTER_MASK) e.doc.filter = { ...e.doc.filter, masked: false, reach: undefined };
-        ui.opening?.task.report((i + 1) / masks.length, `${i + 1} de ${masks.length}`);
+      try {
+        await restoreProject(e, record, source, {
+          opened: () => stage('retouch'),
+          mask: (done, total) => ui.opening?.task.report(done / total, `${done} de ${total}`),
+        });
+      } catch (err) {
+        // A photo that never reached the engine is still open here.
+        if (e.source !== source) source.close();
+        throw err;
       }
-      if (record.field && e.field) {
-        const bytes = await unpack(record.field);
-        if (bytes.byteLength !== e.field.serialize().byteLength) throw new InvalidProjectError('field size');
-        e.field.restore(new Float32Array(bytes.buffer as ArrayBuffer, bytes.byteOffset, bytes.byteLength / 4));
-      }
-      if (record.shape && e.field) {
-        const bytes = await unpack(record.shape);
-        // The whole, and after it the shares of the lips and of the head, when the project has them.
-        if (![1, 2, 3].includes(bytes.byteLength / e.field.serialize().byteLength)) throw new InvalidProjectError('field size');
-        e.field.restoreShape(new Float32Array(bytes.buffer as ArrayBuffer, bytes.byteOffset, bytes.byteLength / 4));
-      }
-      if (record.fun && e.fun) {
-        const bytes = await unpack(record.fun);
-        // The whole, and after it the share of the head, when the project has one.
-        const size = e.fun.gridSize.w * e.fun.gridSize.h * 8;
-        if (![1, 2].includes(bytes.byteLength / size)) throw new InvalidProjectError('fun size');
-        e.fun.restore(new Float32Array(bytes.buffer as ArrayBuffer, bytes.byteOffset, bytes.byteLength / 4));
-      }
-      if (record.scene) {
-        // A scene that does not read is left out, and the light waits for the menu to look at the photo again.
-        e.setScene(unpackScene(await unpack(record.scene)));
-      }
-      // Before this field, the automatic mode was written into the strokes, so there is no strength to move.
-      if (record.shape === undefined) delete e.doc.shapeAmount;
-      await e.refreshLock();
       startFill(e, 'project');
       await syncFilter(e);
       e.ctx?.invalidate('healed');
@@ -254,7 +224,6 @@
     ui.painting = false;
     ui.faceChoosing = false;
     ui.path = null;
-    ui.choosingPath = false;
     ui.onboarding = null;
     ui.funShaping = false;
   });
@@ -264,7 +233,7 @@
     const e = engine();
     const top = barH;
     if (desktop) {
-      e.setViewport(w, h, { top: top + 8, right: sideW + 8, bottom: 12, left: (ui.path && !pathMenu ? railW : 0) + 8 });
+      e.setViewport(w, h, { top: top + 8, right: sideW + 8, bottom: 12, left: railW + 8 });
     } else {
       e.setViewport(w, h, { top: top + 2, right: 0, bottom: bottomH + 2, left: 0 });
     }
@@ -284,9 +253,37 @@
     e.setSplit(ui.compareHold ? 2 : ui.splitOn ? ui.splitX : -1);
   });
 
+  /**
+   * A photo of a post leaves the editor with a picture of itself as it is, at full size, which is what the post
+   * shows and what goes into its files. A photo with no retouch needs none: the original is that picture.
+   */
+  async function keepPrint() {
+    const a = autosave();
+    if (!a?.post) return;
+    if (!photoChanged()) {
+      a.setPrint(null);
+      return;
+    }
+    if (a.printFresh) return;
+    ui.busy = 'Guardando o retoque';
+    try {
+      // A completion still running would leave its quick guess in the picture.
+      await fillSettled();
+      const canvas = await renderImage(engine(), { tile: () => {} });
+      const blob = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.97 });
+      a.setPrint({ blob, w: canvas.width, h: canvas.height });
+    } catch (err) {
+      // The post keeps the picture it had, and says that the retouch is newer than it.
+      console.error(err);
+    } finally {
+      ui.busy = null;
+    }
+  }
+
   async function shutDown(next: () => void) {
     if (ready) {
       engine().commit();
+      await keepPrint();
       await autosave()?.flush();
     }
     if (hasEngine()) engine().destroy();
@@ -296,10 +293,27 @@
 
   setEditorCloser(shutDown);
 
+  /** The way back: the table of the post, for a photo of one, and the home screen for the others. */
   const leave = () =>
     closeEditor(() => {
-      ui.screen = 'home';
+      ui.screen = ui.post ? 'post' : 'home';
     });
+
+  /** Another photo of the same post takes the editor. This one is saved first, with its picture. */
+  async function openSibling(delta: number) {
+    const post = ui.post;
+    const index = (post?.index ?? 0) + delta;
+    const id = post?.ids[index];
+    if (!post || !id || ui.opening) return;
+    const project = await loadProject(id).catch(() => undefined);
+    openProject(id, project?.thumb as Blob, { ...post, index });
+  }
+
+  /** A tap on another tab goes there. On the tab in sight, it opens a folded panel again. */
+  function pickPath(id: string) {
+    if (ui.path === id) panelOpen = true;
+    else void choosePath(id);
+  }
 
   function pickGroup(id: GroupId) {
     ui.group = id;
@@ -332,7 +346,7 @@
   }
 
   function keydown(ev: KeyboardEvent) {
-    if (!ready || ui.choosingPath) return;
+    if (!ready) return;
     const t = ev.target as HTMLElement;
     if (t instanceof HTMLInputElement && t.type !== 'range') return;
     const e = engine();
@@ -426,7 +440,7 @@
         <ShapeOverlay />
       {/await}
     {/if}
-    {#if ui.path === 'fun' && !ui.splitOn && !ui.compareHold && !ui.choosingPath}
+    {#if ui.path === 'fun' && !ui.splitOn && !ui.compareHold}
       {#await loadStickerOverlay() then { default: StickerOverlay }}
         <StickerOverlay />
       {/await}
@@ -434,10 +448,15 @@
   {/if}
 
   <header class="bar" bind:clientHeight={barH}>
-    <button type="button" class="icon-btn" aria-label="Voltar para o início" onclick={leave}><Icon name="back" /></button>
+    <button type="button" class="icon-btn" aria-label={ui.post ? 'Voltar para a montagem' : 'Voltar para o início'} onclick={leave}><Icon name="back" /></button>
     <span class="brand serif">Glowup</span>
-    {#if ready && ui.path}
-      <PathSwitch />
+    {#if ui.post && ui.post.ids.length > 1}
+      <!-- The photo is one of a post: its neighbors are one tap away, with no trip to the table. -->
+      <div class="pager" role="group" aria-label="Fotos da montagem" data-testid="post-pager">
+        <button type="button" class="icon-btn" aria-label="Foto anterior da montagem" disabled={!ready || ui.post.index === 0} onclick={() => openSibling(-1)}><Icon name="back" size={18} /></button>
+        <span aria-label="Foto {ui.post.index + 1} de {ui.post.ids.length}">{ui.post.index + 1}/{ui.post.ids.length}</span>
+        <button type="button" class="icon-btn" aria-label="Próxima foto da montagem" disabled={!ready || ui.post.index >= ui.post.ids.length - 1} onclick={() => openSibling(1)}><Icon name="next" size={18} /></button>
+      </div>
     {/if}
     <div class="grow"></div>
     <button type="button" class="icon-btn" aria-label="Voltar ao original" title="Voltar ao original" data-testid="reset-photo"
@@ -454,79 +473,102 @@
       disabled={!ready}
       use:comparePress={'all'}><Icon name="compare" /></button
     >
-    <button type="button" class="btn primary export" data-testid="export-open" disabled={!ready} onclick={() => (ui.exportOpen = true)}>
-      <Icon name="export" size={20} /><span class="label">Exportar</span>
-    </button>
+    {#if ui.post}
+      <!-- The files are made at the table, from all the photos: here the photo just goes back to it. -->
+      <button type="button" class="btn primary export" data-testid="post-done" disabled={!ready} aria-label="Pronto: voltar para a montagem" onclick={leave}>
+        <Icon name="check" size={20} /><span class="label">Pronto</span>
+      </button>
+    {:else}
+      <button type="button" class="btn primary export" data-testid="export-open" disabled={!ready} onclick={() => (ui.exportOpen = true)}>
+        <Icon name="export" size={20} /><span class="label">Exportar</span>
+      </button>
+    {/if}
   </header>
 
-  {#if ready && pathMenu}
+  {#if ready && path}
     <div class="bottom" bind:clientHeight={bottomH}>
-      <aside class="side" bind:clientWidth={sideW} aria-label="Menu">
-        {#await pathMenu() then { default: Menu }}
-          <Menu />
-        {/await}
-      </aside>
-    </div>
-  {:else if ready && ui.path}
-    <div class="bottom" bind:clientHeight={bottomH}>
-      <aside class="side" bind:clientWidth={sideW} aria-label="Ferramenta">
-        <div class="tools scroll-x" role="toolbar" aria-label="Ferramentas">
-          {#each groupTools as t (t.id)}
-            <button type="button" class="tool" class:on={ui.tool === t.id} aria-pressed={ui.tool === t.id} data-tool={t.id}
-              data-effect={switchable(t.id) ? (lit.has(t.id) ? 'on' : 'off') : null} title={toolTitle(t.id, t.label)}
-              aria-label={lit.has(t.id) ? `${t.label}, efeito ligado` : undefined} onclick={() => pickTool(t.id)}>
-              <Icon name={t.id} size={22} />
-              <span>{t.label}</span>
-              {#if lit.has(t.id)}
-                <span class="effect" aria-hidden="true" transition:scale={{ duration: 160, start: 0.5 }}></span>
-              {/if}
-            </button>
-          {/each}
-          {#if groupDirty}
-            <button type="button" class="tool zero" aria-label="Zerar tudo de {groupLabel}" title="Zerar tudo de {groupLabel}"
-              data-testid="reset-group" in:reveal={{ duration: 200, y: 4 }} onclick={() => resetGroup(ui.group)}>
-              <Icon name="reset" size={22} />
-              <span>Zerar</span>
-            </button>
+      <aside class="side" bind:clientWidth={sideW} aria-label={pathMenu ? 'Menu' : 'Ferramenta'}>
+        {#if pathMenu}
+          {#key path.id}
+            {#await pathMenu() then { default: Menu }}
+              <Menu />
+            {/await}
+          {/key}
+        {:else}
+          {#if chips.length}
+            <nav class="groups scroll-x" aria-label="Categorias">
+              {#each chips as g (g.id)}
+                <button type="button" class="group" class:on={ui.group === g.id} aria-pressed={ui.group === g.id} data-group={g.id}
+                  aria-label={dirtyGroups.has(g.id) ? `${g.label}, com retoque na foto` : g.label} title={g.label} onclick={() => pickGroup(g.id)}>
+                  <span>{g.short ?? g.label}</span>
+                  {#if dirtyGroups.has(g.id)}
+                    <i class="dot" aria-hidden="true" transition:scale={{ duration: 160, start: 0.4 }}></i>
+                  {/if}
+                </button>
+              {/each}
+            </nav>
           {/if}
-        </div>
 
-        {#if !meta && desktop}
-          <p class="empty serif">Escolha uma ferramenta para começar.</p>
-        {/if}
+          <div class="tools scroll-x" role="toolbar" aria-label="Ferramentas">
+            {#each groupTools as t (t.id)}
+              <button type="button" class="tool" class:on={ui.tool === t.id} aria-pressed={ui.tool === t.id} data-tool={t.id}
+                data-effect={switchable(t.id) ? (lit.has(t.id) ? 'on' : 'off') : null} title={toolTitle(t.id, t.label)}
+                aria-label={lit.has(t.id) ? `${t.label}, efeito ligado` : undefined} onclick={() => pickTool(t.id)}>
+                <Icon name={t.id} size={22} />
+                <span>{t.label}</span>
+                {#if lit.has(t.id)}
+                  <span class="effect" aria-hidden="true" transition:scale={{ duration: 160, start: 0.5 }}></span>
+                {/if}
+              </button>
+            {/each}
+            {#if groupDirty}
+              <button type="button" class="tool zero" aria-label="Zerar tudo de {groupLabel}" title="Zerar tudo de {groupLabel}"
+                data-testid="reset-group" in:reveal={{ duration: 200, y: 4 }} onclick={() => resetGroups(shownGroups, groupLabel)}>
+                <Icon name="reset" size={22} />
+                <span>Zerar</span>
+              </button>
+            {/if}
+          </div>
 
-        {#if meta && panelOpen}
-          <div class="panel scroll" in:rise={{ duration: 240, y: 14 }}>
-            {#key meta.id}
-              <div in:reveal={{ duration: 340, y: 6 }}>
-                <div class="hint-row">
-                  <p class="hint">{autoHint() ?? meta.hint}</p>
-                  {#if !desktop}
-                    <button type="button" class="icon-btn fold" aria-label="Recolher controles" onclick={() => (panelOpen = false)}>
-                      <Icon name="close" size={18} />
-                    </button>
+          {#if !meta && desktop}
+            <p class="empty serif">Escolha uma ferramenta para começar.</p>
+          {/if}
+
+          {#if meta && panelOpen}
+            <div class="panel scroll" in:rise={{ duration: 240, y: 14 }}>
+              {#key meta.id}
+                <div in:reveal={{ duration: 340, y: 6 }}>
+                  <div class="hint-row">
+                    <p class="hint">{autoHint() ?? meta.hint}</p>
+                    {#if !desktop}
+                      <button type="button" class="icon-btn fold" aria-label="Recolher controles" onclick={() => (panelOpen = false)}>
+                        <Icon name="close" size={18} />
+                      </button>
+                    {/if}
+                  </div>
+                  {#if meta.kind === 'mask' && ui.toolModule && meta.layer}
+                    <MaskPanel layer={meta.layer} tool={ui.toolModule} />
+                  {:else if meta.kind === 'heal'}
+                    <HealPanel />
+                  {:else if PANELS[meta.kind]}
+                    {#await PANELS[meta.kind]() then { default: Panel }}
+                      <Panel />
+                    {/await}
                   {/if}
                 </div>
-                {#if meta.kind === 'mask' && ui.toolModule && meta.layer}
-                  <MaskPanel layer={meta.layer} tool={ui.toolModule} />
-                {:else if meta.kind === 'heal'}
-                  <HealPanel />
-                {:else if PANELS[meta.kind]}
-                  {#await PANELS[meta.kind]() then { default: Panel }}
-                    <Panel />
-                  {/await}
-                {/if}
-              </div>
-            {/key}
-          </div>
+              {/key}
+            </div>
+          {/if}
         {/if}
       </aside>
 
-      <nav class="groups" bind:clientWidth={railW} aria-label="Categorias">
-        {#each GROUPS as g (g.id)}
-          <button type="button" class="group" class:on={ui.group === g.id} aria-pressed={ui.group === g.id} data-group={g.id} onclick={() => pickGroup(g.id)}>
-            <Icon name={g.id} size={22} />
-            <span>{g.label}</span>
+      <!-- The tabs are always in sight: where the person is, and one tap to anywhere else. -->
+      <nav class="tabs" bind:clientWidth={railW} aria-label="Jeitos de editar" data-testid="tabs">
+        {#each PATHS as p (p.id)}
+          <button type="button" class="tab" class:on={ui.path === p.id} aria-pressed={ui.path === p.id} data-path={p.id} title={p.note}
+            onclick={() => pickPath(p.id)}>
+            <Icon name={p.icon} size={22} />
+            <span>{p.label}</span>
           </button>
         {/each}
       </nav>
@@ -538,10 +580,6 @@
       <span>Marca do pincel ligada</span>
       <button type="button" onclick={toggleMark}>Ver o resultado</button>
     </div>
-  {/if}
-
-  {#if ready && ui.choosingPath}
-    <PathChoice />
   {/if}
 
   {#if (ui.shaping || ui.funShaping) && ready}
@@ -604,6 +642,30 @@
 
   .grow {
     flex: 1;
+  }
+
+  .pager {
+    display: flex;
+    align-items: center;
+    margin-left: 2px;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    color: var(--paper-2);
+  }
+
+  .pager .icon-btn {
+    width: 34px;
+  }
+
+  /* A narrow phone has the whole bar in use: the buttons give up a little width, never height. */
+  @media (max-width: 420px) {
+    .bar .icon-btn {
+      width: 40px;
+    }
+
+    .pager .icon-btn {
+      width: 30px;
+    }
   }
 
   .export {
@@ -670,7 +732,7 @@
   .tools {
     display: flex;
     gap: 2px;
-    padding: 6px 8px;
+    padding: 6px 8px 2px;
   }
 
   .empty {
@@ -680,7 +742,7 @@
   }
 
   .tool,
-  .group {
+  .tab {
     flex: none;
     display: grid;
     justify-items: center;
@@ -698,11 +760,13 @@
   }
 
   .tool:hover,
+  .tab:hover,
   .group:hover {
     color: var(--paper);
   }
 
   .tool:active,
+  .tab:active,
   .group:active {
     transform: scale(0.95);
   }
@@ -739,32 +803,97 @@
     background: var(--ink);
   }
 
+  /* The menus of the tab, as words: under the tools on a phone, so each row sits on the one that owns it. */
   .groups {
+    order: 1;
     display: flex;
-    justify-content: space-between;
-    overflow-x: auto;
-    scrollbar-width: none;
-    border-top: 1px solid var(--line);
-    padding: 2px 4px;
+    padding: 0 6px;
   }
 
-  .groups::-webkit-scrollbar {
-    display: none;
-  }
-
-  /* Eight groups fit across a 375 px phone. A long name goes on two lines, with the others at the top. */
+  /* The word is a pill of 30 px inside a target of 44. */
   .group {
-    flex: 1;
-    align-content: start;
-    min-width: 44px;
-    min-height: 50px;
-    padding: 5px 0 3px;
-    line-height: 1.1;
-    text-align: center;
+    position: relative;
+    flex: 1 0 auto;
+    display: grid;
+    place-items: center;
+    min-height: 44px;
+    padding: 0 2px;
+    font-size: 13.5px;
+    color: var(--paper-2);
+    white-space: nowrap;
+    transition:
+      color var(--t-fast),
+      transform var(--t-fast) var(--ease-reveal);
+  }
+
+  /* Five names fit a phone of 360 px with this much room around each. */
+  .group > span {
+    display: grid;
+    place-items: center;
+    min-height: 30px;
+    padding: 0 10px;
+    border-radius: 999px;
+    transition: background var(--t-fast);
   }
 
   .group.on {
     color: var(--paper);
+  }
+
+  .group.on > span {
+    background: rgb(255 255 255 / 0.1);
+  }
+
+  /* Something of this menu is on the photo. */
+  .dot {
+    position: absolute;
+    top: 9px;
+    right: 8px;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--safe);
+  }
+
+  /* The tabs: always the last row, the same on every tab, so the thumb finds them without looking. */
+  .tabs {
+    display: flex;
+    border-top: 1px solid var(--line);
+    padding: 2px 4px;
+  }
+
+  /* Each tab is as wide as its name and shares what is left, so a long name never touches its neighbor. */
+  .tab {
+    position: relative;
+    flex: 1 0 auto;
+    min-width: 0;
+    min-height: 50px;
+    padding: 6px 4px 4px;
+    border-radius: 12px;
+    white-space: nowrap;
+  }
+
+  .tab.on {
+    color: var(--paper);
+  }
+
+  /* A short line of paper over the tab in sight. The amber is kept for the tool at work. */
+  .tab::before {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: 50%;
+    width: 22px;
+    height: 2px;
+    border-radius: 2px;
+    translate: -50% 0;
+    background: var(--paper);
+    scale: 0 1;
+    transition: scale var(--t-mid) var(--ease-reveal);
+  }
+
+  .tab.on::before {
+    scale: 1 1;
   }
 
   /* While painting the interface steps back. */
@@ -788,7 +917,7 @@
       display: contents;
     }
 
-    .groups {
+    .tabs {
       position: absolute;
       left: 0;
       top: var(--bar-h);
@@ -805,13 +934,44 @@
       transition: opacity var(--t-mid) var(--ease-swift);
     }
 
-    .group {
+    .tab {
       flex: none;
       min-height: 62px;
+      padding: 7px 2px 5px;
+      border-radius: 14px;
+      white-space: normal;
+      line-height: 1.15;
+      text-align: center;
     }
 
-    .group.on {
+    .tab.on {
       background: rgb(255 255 255 / 0.07);
+    }
+
+    .tab::before {
+      display: none;
+    }
+
+    .groups {
+      order: 0;
+      justify-content: space-between;
+      gap: 0;
+      padding: 10px 10px 0;
+    }
+
+    .group {
+      flex: 0 0 auto;
+      min-height: 36px;
+      padding: 0;
+      font-size: 13px;
+    }
+
+    .group > span {
+      padding: 0 10px;
+    }
+
+    .dot {
+      top: 5px;
     }
 
     .side {
@@ -829,7 +989,7 @@
     .tools {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
-      padding: 10px;
+      padding: 8px 10px 10px;
       border-bottom: 1px solid var(--line);
       overflow: visible;
     }
@@ -848,7 +1008,7 @@
     }
 
     .painting .side,
-    .painting .groups {
+    .painting .tabs {
       opacity: 0.25;
       pointer-events: none;
     }

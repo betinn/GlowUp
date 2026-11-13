@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import { DEV_ORIGIN } from '../../playwright.config';
-import { chooseMode, expectNoErrors, imageRect, meanDiff, openEditor, paint, setSlider, settle, showSettled, skipIntro } from './helpers';
+import { chooseMode, expectNoErrors, imageRect, meanDiff, openEditor, openGroup, paint, setSlider, settle, showSettled, skipIntro } from './helpers';
 
 /** The dev server serves each module by address, so a test can read the document itself. */
 test.use({ baseURL: DEV_ORIGIN });
@@ -25,7 +25,7 @@ function watch(page: Page): string[] {
 
 /** Opens a tool of its menu in Automático and waits until it is done, or the photo says it cannot be. */
 async function openTool(page: Page, group: string, tool: string, state = 'on'): Promise<void> {
-  await page.locator(`[data-group=${group}]`).click();
+  await openGroup(page, group);
   const button = page.locator(`[data-tool=${tool}]`);
   if ((await button.getAttribute('aria-pressed')) !== 'true') await button.click();
   // Tools open in Manual, and the automatic mode is a tap away.
@@ -235,7 +235,7 @@ test.describe('Ajustes no Automático', () => {
     await page.getByTestId('reset-group').click();
     await settle(page, 300);
     await expect(button).toHaveAttribute('data-effect', 'off');
-    await expect(undoButton(page)).toHaveAttribute('title', 'Desfazer: Zerar Luz');
+    await expect(undoButton(page)).toHaveAttribute('title', 'Desfazer: Zerar Foto');
     expect((await adjust(page)).exposure).toBe(0);
     await undo(page);
     expect(await adjust(page)).toEqual(tone);

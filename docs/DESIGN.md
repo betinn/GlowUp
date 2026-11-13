@@ -96,6 +96,8 @@ A tela inteira aceita a foto, na inicial e no editor. A bandeja da tela inicial 
 - **Soltou.** Um anel se abre no ponto exato da queda e a foto viaja de lá até o centro, onde começa a
   revelar. Não há tela vazia entre soltar e ver a foto.
 - **No editor.** O texto muda para "Solta para trocar de foto." e a edição atual é salva antes.
+- **Várias de uma vez.** O texto muda para "Solta para montar.", e as fotos abrem como montagem. Com uma montagem
+  na mesa, ou no editor de uma foto dela, o que cai entra na montagem: "Solta para pôr na montagem."
 
 ## Comparar
 
@@ -125,8 +127,8 @@ As outras ferramentas seguem recolhendo o painel no segundo toque.
 
 ## Formato do rosto
 
-O menu que era Forma. Quatro ferramentas na fila: Rosto, Olhos, Nariz e boca, e Liquify. Na barra, o nome ocupa
-duas linhas, em 84 px no computador e em 44 px no celular.
+O menu que era Forma. Quatro ferramentas na fila: Rosto, Olhos, Nariz e boca, e Liquify. Na fileira de menus do
+Do Meu Jeito o nome aparece como "Formato", e inteiro no aviso do botão e para o leitor de tela.
 
 - **Camadas.** A foto é lida em camadas: o fundo, o corpo, a cabeça e o interior da boca. Ao abrir a primeira
   ferramenta o app separa tudo no aparelho, e o painel avisa "Fundo travado: o rosto se mexe e o pescoço
@@ -412,19 +414,36 @@ Depois de escolher um filtro, o painel pergunta onde ele vale: "Foto toda" ou "E
 O detector erra de dois jeitos que a interface assume: pode pôr anel em uma mão, que a pessoa
 simplesmente não toca, e pode deixar passar rosto de perfil, que ela pinta.
 
-## Os caminhos
+## As abas
 
-Depois de abrir, a foto pergunta "Como vai ser?". Cada caminho é uma entrada em `src/ui/paths.ts`, e todos
-editam o mesmo documento, então trocar de caminho não perde nada. A pergunta aparece por cima da foto, que
-continua acesa, e o botão com o nome do caminho, na barra, traz a pergunta de volta. Um projeto com edição
-reabre sem perguntar: no Glow na Hora se está num look, nos Filtros se só tem uma luz, nas ferramentas se não. Os cartões de gesto vêm
-depois da escolha, e o caminho sem pincel não ensina a pintar.
+Cinco abas ficam sempre à vista: Glow na Hora, Do Meu Jeito, Filtros, Foto e Brincar. No celular são a última
+fileira da tela, onde o polegar alcança; no computador, o trilho da esquerda. Cada aba é uma entrada em
+`src/ui/paths.ts`, e todas editam o mesmo documento, então trocar de aba não perde nada. A foto não pergunta nada
+ao abrir: ela já abre numa aba, e as outras estão a um toque.
 
+- **Onde a foto abre.** Uma foto nova abre na última aba que a pessoa usou, e na primeira vez no Glow na Hora,
+  onde um toque já muda a foto. Um projeto com edição reabre na aba do que ele tem: Brincar se só tem Brincar,
+  Glow na Hora se está num look, Filtros se só tem filtro ou luz, Foto se só tem ajuste, desfoque ou recorte, e
+  Do Meu Jeito no resto.
 - **Glow na Hora.** O menu mostra looks, não ferramentas. Um toque aplica no rosto todo, numa etapa do
   desfazer, e tira as máscaras que o automático pôs para o look anterior. O que foi pintado à mão fica. Um
   segundo toque tira o look. O look aceso é lido do documento, então acompanha o desfazer. Se os ajustes do
   look mudarem à mão, ele deixa de aparecer aceso.
-- **Do Meu Jeito.** O menu de sempre, ferramenta por ferramenta.
+- **Do Meu Jeito.** O rosto, ferramenta por ferramenta: Pele, Olhos, Make, Cabelo e Formato do rosto. Os cinco
+  menus são uma fileira de nomes logo acima das abas, e um ponto âmbar no nome diz que aquele menu tem retoque na
+  foto. Na fileira, Formato do rosto aparece como "Formato".
+- **Filtros.** Cor e clima na foto toda. Entre as categorias fica a aba Luzes: quatro filtros que refazem a luz
+  da cena. Veja "Luzes" abaixo. Os filtros moram só aqui: o menu Filtros que repetia a aba dentro das
+  ferramentas saiu.
+- **Foto.** O que vale para a foto inteira: Ajustes, Desfoque, Recorte e Aumentar resolução, lado a lado, sem
+  fileira de menus. "Zerar" tira ajuste, desfoque e recorte numa etapa.
+- **Brincar.** Caretas e adesivos, longe do retoque. Veja abaixo.
+- **Uma fileira em cima da outra.** No celular, de baixo para cima: abas, menus, ferramentas, controles. Cada
+  fileira fica logo acima da que manda nela, então o caminho até um controle é uma linha reta para cima. No
+  computador, abas à esquerda, e menus, ferramentas e controles no painel da direita, nessa ordem.
+- **O que acende.** A aba e o menu à vista ficam em papel, com um traço sobre a aba no celular. O âmbar continua
+  só na ferramenta em uso, na chavinha de efeito e no ponto de um menu com retoque.
+- **Tocar na aba à vista.** Reabre o painel recolhido, e mais nada.
 - **Looks.** Natural, Glow, Editorial, Domingo, Retrato P&B, Retrato, Luz de Janela, Luz de Vela, Fim de Tarde e
   Olhar. Precisam cair bem em qualquer rosto, então nenhum põe cor na boca. A miniatura mostra a cor do look nesta
   foto, na intensidade certa.
@@ -432,13 +451,11 @@ depois da escolha, e o caminho sem pincel não ensina a pintar.
   está atrás da pessoa. Veja "Looks com luz" abaixo.
 - **Avisos.** Boca fechada deixa Dentes de fora, e o aviso diz isso. Sem rosto ou sem detector, entra só a
   cor do look e o aviso diz por quê. Sem detector, um segundo toque tenta de novo em vez de tirar o look.
-- **Filtros.** Cor e clima na foto toda. Entre as categorias fica a aba Luzes: quatro filtros que refazem a luz
-  da cena. Veja "Luzes" abaixo.
-- **Brincar.** Caretas e adesivos, ao lado de Filtros. Um projeto só com Brincar reabre no Brincar. Veja abaixo.
+- **Cartões de gesto.** Vêm ao entrar numa aba pela primeira vez, e a aba sem pincel não ensina a pintar.
 
 ## Brincar
 
-O caminho das brincadeiras: caretas no rosto e adesivos. Fica ao lado de Filtros e longe do retoque. Nada daqui
+A aba das brincadeiras: caretas no rosto e adesivos. Fica longe do retoque. Nada daqui
 entra nos números, no campo ou nos limites do Formato do rosto e do Liquify, e o menu não mostra ferramenta nenhuma
 do retoque.
 
@@ -570,7 +587,7 @@ export const coroa: StickerDef = {
 
 Filtros que mudam a luz da cena, não só a cor: um flash que acende a pessoa e apaga o fundo, uma lâmpada atrás
 dela, uma noite de néon. São quatro: Néon, Contraluz Dourado, Brasa e Flash Analógico. Ficam na aba Luzes dos
-Filtros, entre as categorias, no caminho Filtros e na ferramenta Filtros do Do Meu Jeito. O filtro cuida da cor e
+Filtros, entre as categorias. O filtro cuida da cor e
 a luz cuida da cena, e os dois podem estar na foto ao mesmo tempo, com um look por cima.
 
 - **Aba.** Luzes vem logo depois de Todos. Um ponto na aba diz que há uma luz na foto, mesmo com outra aba à vista.
@@ -698,15 +715,80 @@ intenção: é retoque, não uma cena nova. Por isso nenhum menu mostra essas lu
 Para um look novo com luz: escreva a luz em `looklights.ts`, com um id que comece com `look-`, ponha na lista
 `LOOK_LIGHTS`, e aponte o look para ela. Depois olhe o look nas fotos reais, inteiro e de perto na borda do cabelo.
 
+## Montagem
+
+Várias fotos que saem juntas: um carrossel, uma colagem ou uma faixa contínua. A montagem tem uma tela só dela, a
+mesa, com a mesma cara do editor: os slides no meio, e embaixo a fila de fotos, os controles, os nomes dos
+controles e três abas, uma para cada jeito de montar. Trocar de jeito não perde nada: são as mesmas fotos, na
+mesma ordem.
+
+- **Entrar.** "Várias fotos" na tela inicial, soltar mais de uma foto em qualquer lugar, ou "Montar carrossel ou
+  colagem com esta foto" na folha de exportar, que leva a foto do editor com o retoque. Até 10 fotos. Uma foto só
+  também monta: inteira num formato de feed, ou cortada em slides.
+- **Carrossel.** Uma foto por slide, lado a lado como no feed, com um pouco do slide vizinho à vista. Cada foto
+  preenche o slide ou aparece inteira; inteira, o fundo é a própria foto desfocada ou uma cor.
+- **Colagem.** Todas as fotos numa imagem. Os modelos saem do número de fotos e do formato: fileiras, colunas, e
+  uma foto maior ao lado das outras. Uma foto sozinha na fileira é a maior. Modelo que deixaria uma tira fina
+  não aparece.
+- **Contínuo.** Uma faixa só, cortada em slides, com uma linha tracejada âmbar em cada corte e o número de cada
+  slide. Os modelos Escada, Onda e Tijolos dão larguras diferentes às fotos, para o corte cair no meio de uma
+  foto e não entre duas: é isso que faz a foto continuar no próximo slide. "Slides" diz em quantos a faixa é
+  cortada. Uma foto só é cortada em quantos slides o formato dela enche, e nunca em menos de dois.
+- **Formato.** Retrato 4:5, Quadrado 1:1, Clássico 3:4, Story 9:16 e Paisagem 16:9. Vale para todos os slides.
+- **Moldura.** Na colagem e no contínuo: espaço entre as fotos, cantos e cor do fundo. O espaço entre duas fotos
+  é o mesmo que entre uma foto e a borda.
+- **Enquadrar.** A foto se arrasta dentro do lugar dela e para na borda: nunca sobra buraco. Dois dedos ou a
+  roda do mouse aproximam, em volta do ponto tocado, e "Aproximar" faz o mesmo sem gesto. Com o mouse e na
+  colagem, arrastar já move a foto. No carrossel e no contínuo, o dedo desliza os slides, como no feed, até um
+  toque segurar uma foto: ela ganha um contorno âmbar e o aviso "Arraste para enquadrar", e "Pronto" ou um toque
+  fora solta.
+- **A fila de fotos.** As fotos na ordem em que saem, com o número de cada uma. Um toque escolhe, e os botões da
+  foto escolhida são Retocar, mover para antes, mover para depois e tirar. O "+" no fim traz mais fotos.
+- **Retocar.** Abre a foto no editor, com tudo que o editor tem. A barra mostra "2/5" com setas para a foto
+  vizinha, e "Pronto" no lugar de Exportar: os arquivos saem da mesa, de todas as fotos. Ao sair, a foto guarda
+  uma cópia de si mesma com o retoque, em tamanho total, e é essa cópia que a montagem mostra e exporta.
+- **Um filtro em todas.** Com um filtro na foto escolhida, "Usar o filtro desta foto em todas" passa o mesmo
+  filtro, na mesma intensidade, para as outras, com o cartão de progresso contando as fotos. Cada uma fica com o
+  retoque que já tem. Foto com o formato do rosto mexido fica como estava, e o aviso diz quantas. "Desfazer o
+  filtro em todas" devolve a cada foto o que ela tinha. Sem filtro na foto, uma frase diz de onde ele vem.
+- **Tirar uma foto.** Ela sai da montagem e desfazer traz de volta. Ao fechar a mesa, a foto que saiu com
+  retoque volta para "De onde parou", e a que saiu sem retoque sai do aparelho.
+- **Desfazer.** Cada mudança é uma etapa: um arrasto, uma volta da roda, um controle solto, uma troca de modelo.
+- **Prévia.** Os slides como chegam no feed: um por vez, deslizando para o lado, com os pontos embaixo. Abre no
+  slide que estava à vista.
+- **Exportar.** Formato, qualidade e largura do slide: 1080 px, que é o que o feed mostra, 1440 ou 2160. Os
+  slides acendem um a um, como a miniatura da exportação de uma foto. Onde o aparelho compartilha arquivos, o
+  botão é "Compartilhar", com os slides em ordem; nos outros, um zip desce sozinho, com os arquivos numerados.
+  Um toque num slide baixa só ele. Uma colagem é um arquivo só, sem zip.
+- **Na tela inicial.** A montagem aparece em "De onde parou" como uma pilha, com o número de fotos. As fotos dela
+  não aparecem uma a uma.
+
+### Como a montagem é feita
+
+`src/core/post/layout.ts` é só número: onde cada foto fica e que parte dela aparece. Um lugar é um retângulo em
+slides de largura e alturas de slide, então um lugar do contínuo que cruza um corte aparece nos dois slides, cada
+um com a sua parte. `src/core/post/draw.ts` desenha um slide num canvas 2D, do mesmo jeito na mesa e no arquivo.
+O fundo desfocado é a foto encolhida a 36 pixels e esticada de volta em dois passos, sem filtro de canvas, que
+nem todo navegador tem.
+
+Cada foto da montagem é um projeto como os outros, que diz de qual montagem é (`post`) e guarda a cópia com o
+retoque (`print`). A montagem guarda a ordem, o enquadramento de cada foto e a moldura, no armazenamento `posts`
+do mesmo banco. A mesa desenha com fotos de até 1920 px, ou 1280 num celular; na exportação cada foto é decodificada
+no tamanho em que é desenhada, um slide por vez na memória.
+
+O filtro em todas é a única parte que usa o motor do editor fora do editor (`src/ui/post/spread.ts`): cada foto é
+aberta num motor próprio, sem tela, com o retoque dela, pelo mesmo `restoreProject` que abre um projeto, recebe o
+filtro e sai com uma cópia nova.
+
 ## Layout
 
 Mobile primeiro. A tela é a foto.
 
-- **Celular**: barra superior mínima (voltar, caminho, desfazer, refazer, comparar, exportar). Embaixo, uma
-  doca com categorias roláveis; ao escolher uma ferramenta, sobe uma folha curta com os controles
-  e a foto continua visível. Um dedo pinta, dois dedos movem e dão zoom.
-- **Desktop (≥ 900px)**: categorias em um trilho à esquerda, painel de controles à direita. A foto
-  fica no centro. Roda do mouse dá zoom, espaço arrasta, atalhos cobrem o restante.
+- **Celular**: barra superior mínima (voltar, voltar ao original, desfazer, refazer, comparar, exportar).
+  Embaixo, as abas; acima delas os menus da aba, as ferramentas e, ao escolher uma ferramenta, uma folha curta
+  com os controles. A foto continua visível. Um dedo pinta, dois dedos movem e dão zoom.
+- **Desktop (≥ 900px)**: abas em um trilho à esquerda, e menus, ferramentas e controles no painel da direita. A
+  foto fica no centro. Roda do mouse dá zoom, espaço arrasta, atalhos cobrem o restante.
 
 ## Voz
 

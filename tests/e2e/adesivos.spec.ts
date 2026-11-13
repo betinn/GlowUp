@@ -24,7 +24,7 @@ function watch(page: Page): string[] {
   return errors;
 }
 
-/** Opens a photo straight on the Brincar path, with its faces found. */
+/** Opens a photo straight on the Brincar tab, with its faces found. */
 async function openBrincar(page: Page, fixture = 'portrait.png'): Promise<void> {
   await skipIntro(page);
   await page.addInitScript(() => localStorage.setItem('glowup.startPath', '"fun"'));
@@ -323,8 +323,6 @@ test.describe('os adesivos do Brincar', () => {
     await page.getByRole('button', { name: 'Fechar' }).click();
 
     // The tool: the bigger photo opens as a new one, with the stickers in its pixels and none left to draw again.
-    await page.getByTestId('path-switch').click();
-    await page.getByTestId('path-choice').locator('[data-path=manual]').click();
     await pickTool(page, 'frame', 'upscale');
     await page.getByTestId('upscale-go').click();
     await expect(page.getByTestId('opening')).toHaveCount(1, { timeout: 300_000 });

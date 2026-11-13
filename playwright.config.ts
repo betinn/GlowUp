@@ -17,6 +17,9 @@ const args = gpu
   ? [`--use-angle=${ANGLE[process.platform] ?? 'default'}`, '--ignore-gpu-blocklist', '--enable-gpu']
   : ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--enable-webgl'];
 
+/** A Chromium already on the machine, for when the one this version of Playwright downloads is not there. */
+const executablePath = process.env.E2E_CHROME || undefined;
+
 export default defineConfig({
   testDir: 'tests/e2e',
   timeout: 180_000,
@@ -30,7 +33,7 @@ export default defineConfig({
   use: {
     baseURL: origin,
     viewport: { width: 1280, height: 800 },
-    launchOptions: { args },
+    launchOptions: { args, executablePath },
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: [

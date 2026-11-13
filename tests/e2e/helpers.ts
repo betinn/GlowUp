@@ -4,7 +4,7 @@ import { TOOLS } from '../../src/tools/catalog';
 /** Size of the fixture portrait. Coordinates below match scripts/make-fixtures.mjs. */
 export const PORTRAIT = { w: 1500, h: 1875 };
 
-/** No cards and no screen of choice: the photo opens straight on the tools. */
+/** No cards, and the photo opens on the tab of the tools (`manual`), whatever tab a first photo would start on. */
 export async function skipIntro(page: Page): Promise<void> {
   await page.addInitScript(() => {
     localStorage.setItem('glowup.onboarded', 'true');
@@ -30,7 +30,7 @@ export async function settle(page: Page, ms = 700): Promise<void> {
   await page.waitForTimeout(ms);
 }
 
-/** Free area on the desktop layout: rail on the left, panel on the right. */
+/** Free area on the desktop layout, the same on every tab: the tabs on the left, the panel on the right. */
 function area(page: Page) {
   const vp = page.viewportSize()!;
   const left = 92;
@@ -61,10 +61,30 @@ export interface RegionOptions {
   free?: boolean;
 }
 
+/** The tab that shows each menu of tools, when it is not `manual`. Those tabs have no row of menus. */
+const TAB_OF_GROUP: Record<string, string> = { filters: 'filters', light: 'photo', frame: 'photo' };
+
+/** Goes to a tab of the editor, unless it is the one in sight. */
+export async function openTab(page: Page, id: string): Promise<void> {
+  const tab = page.locator(`[data-path=${id}]`);
+  if ((await tab.getAttribute('aria-pressed')) !== 'true') await tab.click();
+}
+
+/** Brings the tools of a menu in sight: its tab, and its name on the row of menus when the tab has one. */
+export async function openGroup(page: Page, group: string): Promise<void> {
+  await openTab(page, TAB_OF_GROUP[group] ?? 'manual');
+  if (!TAB_OF_GROUP[group]) await page.locator(`[data-group=${group}]`).click();
+}
+
 export async function pickTool(page: Page, group: string, tool: string, options: RegionOptions = {}): Promise<void> {
-  await page.locator(`[data-group=${group}]`).click();
-  const button = page.locator(`[data-tool=${tool}]`);
-  if ((await button.getAttribute('aria-pressed')) !== 'true') await button.click();
+  await openGroup(page, group);
+  if (TAB_OF_GROUP[group] === 'filters') {
+    // The Filtros tab opens its tool by itself, with no button to press.
+    await page.getByTestId('filters-menu').waitFor();
+  } else {
+    const button = page.locator(`[data-tool=${tool}]`);
+    if ((await button.getAttribute('aria-pressed')) !== 'true') await button.click();
+  }
   if (TOOLS.find((t) => t.id === tool)?.region) await limitSettled(page, options);
   await settle(page, 300);
 }

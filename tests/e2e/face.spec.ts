@@ -397,7 +397,7 @@ test.describe('escolher rosto, celular', () => {
   test('toque escolhe, e o detalhe do zoom respeita a máscara', async ({ page }) => {
     const seen = watch(page);
     await openEditor(page, 'portrait.png');
-    await page.locator('[data-group=filters]').tap();
+    await page.locator('[data-path=filters]').tap();
     await page.locator('[data-filter=prata]').tap();
     await setSlider(page, 'Intensidade', 100);
     await settle(page, 400);

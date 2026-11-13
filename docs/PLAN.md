@@ -345,6 +345,53 @@ foto: pele, olheiras, olhos, dentes, a luz do rosto e o que está atrás da pess
 - [ ] Os looks novos não curam manchas (decisão 167) e não medem cada parte do rosto: olheiras, dentes e olhos entram com a mesma força em qualquer foto, e só a luz segue a foto
 - [ ] Celular não foi medido nos looks com luz: vale a conta do M24, de 7 a 20 s na primeira leitura da cena
 
+## M28. Abas no lugar da pergunta
+
+Os menus reformulados para ficarem mais fáceis de usar. A pergunta "Como vai ser?" e o botão de trocar de caminho
+saem, e cinco abas ficam sempre à vista.
+
+- [x] Abas Glow na Hora, Do Meu Jeito, Filtros, Foto e Brincar: embaixo no celular, num trilho no computador
+- [x] A foto abre sem pergunta: na última aba usada, ou no Glow na Hora na primeira vez
+- [x] Projeto reaberto na aba do que ele tem, com Filtros e Foto como casos novos
+- [x] Do Meu Jeito só com o rosto, em cinco menus numa fileira de nomes; Luz e Quadro na aba Foto, lado a lado
+- [x] Filtros num lugar só: saiu o menu que repetia a aba dentro das ferramentas
+- [x] Ponto âmbar no nome do menu que tem retoque na foto
+- [x] No celular, de baixo para cima: abas, menus, ferramentas, controles
+- [x] O trilho das abas em todas as abas no computador: a foto não pula ao trocar
+- [x] Os testes e2e seguem as abas
+- [ ] No celular, com uma ferramenta aberta no Do Meu Jeito, a pilha de baixo ficou 36 px mais alta que antes: é a fileira de menus, que antes dividia a fileira das abas
+- [ ] A barra de cima segue só com ícones: "Voltar ao original" e "Comparar" não têm nome à vista
+
+## M29. Montagem de várias fotos
+
+Várias fotos que saem juntas, como nos feeds: carrossel, colagem e uma faixa contínua cortada em slides. Cada foto
+continua sendo retocada no editor de sempre.
+
+- [x] Entrar por "Várias fotos", por soltar mais de uma foto, ou pela folha de exportar de uma foto
+- [x] A mesa: slides no meio, fila de fotos, controles e as abas Carrossel, Colagem e Contínuo
+- [x] Layout em números, com teste de unidade: modelos de colagem de 1 a 10 fotos em cinco formatos, modelos do contínuo com o corte dentro de uma foto, enquadramento que para na borda
+- [x] Formatos 4:5, 1:1, 3:4, 9:16 e 16:9
+- [x] Carrossel: preencher ou foto inteira, com fundo desfocado ou cor
+- [x] Colagem e contínuo: modelo, espaço, cantos e cor do fundo; no contínuo, o número de slides
+- [x] Arrastar a foto no lugar dela, aproximar com dois dedos, roda ou controle; no celular, um toque segura a foto
+- [x] Ordem: mover para antes e depois, tirar, adicionar; desfazer e refazer de tudo
+- [x] Retocar no editor, com a posição da foto na barra, setas para a vizinha e "Pronto"
+- [x] A foto sai do editor com uma cópia do retoque em tamanho total, e a montagem mostra e exporta essa cópia
+- [x] Prévia deslizando, como no feed
+- [x] Exportar em JPG, PNG ou WebP, em 1080, 1440 ou 2160 px: compartilhar onde o aparelho deixa, zip nos outros, e um slide só num toque
+- [x] Montagem salva no aparelho, na tela inicial como uma pilha, sem as fotos dela na lista
+- [x] Fotos sem dono recolhidas ao abrir a tela inicial
+- [x] O filtro de uma foto vai para todas as outras num toque, cada uma com o retoque que já tem, e dá para voltar atrás
+- [ ] Só o filtro vai para todas: look, luz e ajustes são de cada foto, no editor
+- [ ] Foto com formato do rosto mexido, liquify ou careta fica de fora do filtro em todas, porque o preenchimento do fundo só roda no editor
+- [ ] O filtro em todas roda na página, um motor por foto: a mesa não responde enquanto uma foto é desenhada
+- [ ] A ordem muda por botões, não arrastando a miniatura
+- [ ] Sem texto, adesivo ou desenho por cima da montagem
+- [ ] Reabrir a mesa decodifica todas as fotos de novo, também na volta do editor: cerca de 0,2 s por foto num computador
+- [ ] A cópia do retoque é JPG com qualidade 97, e o arquivo final comprime de novo: perda de segunda geração, não medida
+- [ ] Celular de verdade não foi medido: o limite de 10 fotos e as fotos de 1280 px na mesa vêm de conta, não de aparelho
+- [ ] A folha de compartilhar com vários arquivos depende do navegador e do sistema, e não foi conferida em aparelho
+
 ## Metas medidas
 
 Foto gerada de 12 MP (4000 x 3000), Chromium com aceleração, em uma placa dedicada (`node scripts/perf.mjs`):
@@ -362,6 +409,20 @@ Foto gerada de 12 MP (4000 x 3000), Chromium com aceleração, em uma placa dedi
 A primeira abertura é mais lenta porque compila os shaders. Pincel oscilou entre 57 e 60 fps entre medições.
 
 Notebook comum e celular médio não foram medidos: não havia esses aparelhos no ambiente de desenvolvimento.
+
+### Montagem
+
+Medido nesta máquina, sem GPU. A montagem é canvas 2D, então a placa não entra na conta, só na foto que recebe
+filtro.
+
+| O que foi medido | Resultado |
+| --- | --- |
+| JS da primeira visita em gzip | 11,4 KB: a montagem não entra nela |
+| Código da mesa em gzip, baixado ao abrir a primeira montagem | 12,0 KB da tela e 4,5 KB do estado |
+| Exportar 5 slides de 1080 x 1350 em JPG, de cinco fotos de 1 a 2,8 MP | 2,0 s, com o zip |
+| Emenda do contínuo: dois slides lado a lado contra a foto desenhada de uma vez | menos de 1 nível por canal na imagem toda e menos de 1,5 nas quatro colunas do corte |
+
+Celular de verdade, fotos de 12 MP e o tempo do filtro em todas não foram medidos.
 
 ### Luzes
 

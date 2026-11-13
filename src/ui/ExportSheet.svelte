@@ -14,7 +14,8 @@
   import { cancelUpscale, expectedMs, UPSCALE_DOWNLOAD_MB, upscaleCanvas, upscaleFailure, upscaleReady, type UpscaleFailure } from './upscale';
   import { grow as toolGrow } from './upscaletool.svelte';
   import { reveal, rise } from './motion';
-  import { engine, ui } from './state.svelte';
+  import { startPost } from './open';
+  import { autosave, engine, ui } from './state.svelte';
   import { Task } from './task.svelte';
 
   const e = engine();
@@ -188,6 +189,18 @@
     if (!running) ui.exportOpen = false;
   };
 
+  /**
+   * The photo becomes the first of a post, with its retouch: a carousel, a collage or a strip cut into slides.
+   * More photos join it there.
+   */
+  async function montage() {
+    const a = autosave();
+    if (!a || running) return;
+    const thumb = await e.source?.thumbnail(320).catch(() => null);
+    ui.exportOpen = false;
+    void startPost([], null, { id: a.id, name: a.name, thumb });
+  }
+
   /** What to say when saving failed: what happened, and what may work instead. */
   function failedWords(why: UpscaleFailure | 'file', was: ExportFormat): string {
     if (why === 'download') return 'Não deu para baixar o modelo que aumenta a resolução. Confere a internet e tenta de novo, ou desliga Aumentar resolução para salvar sem ele.';
@@ -280,6 +293,10 @@
       <p class="meta error" role="alert" data-testid="export-failed" data-failed={failed}>{failedWords(failed, failedFormat)}</p>
     {/if}
     <button type="button" class="btn primary wide" data-testid="export-go" onclick={start}>Salvar no aparelho</button>
+    <button type="button" class="montage" data-testid="export-post" onclick={montage}>
+      <Icon name="stack" size={18} />
+      <span>Montar carrossel ou colagem com esta foto</span>
+    </button>
   {/if}
 </div>
 
@@ -342,6 +359,28 @@
 
   .stop {
     margin-top: 12px;
+  }
+
+  /* A second way out of the editor, quieter than the first: the photo goes on to a post of several. */
+  .montage {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 46px;
+    margin-top: 6px;
+    border-radius: 999px;
+    font-size: 14px;
+    color: var(--paper-2);
+    transition:
+      color var(--t-fast),
+      background var(--t-fast);
+  }
+
+  .montage:hover {
+    color: var(--paper);
+    background: rgb(255 255 255 / 0.06);
   }
 
   .grow {

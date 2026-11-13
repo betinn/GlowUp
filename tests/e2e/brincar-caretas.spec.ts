@@ -14,7 +14,7 @@ function watch(page: Page): string[] {
   return errors;
 }
 
-/** Opens the portrait straight on the Brincar path, with its faces found. */
+/** Opens the portrait straight on the Brincar tab, with its faces found. */
 async function openBrincar(page: Page): Promise<void> {
   await skipIntro(page);
   await page.addInitScript(() => localStorage.setItem('glowup.startPath', '"fun"'));

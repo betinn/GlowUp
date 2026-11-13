@@ -121,7 +121,7 @@ test.describe('resposta ao usuário', () => {
 
     const many = await dragged(page, 'retrato.png', 'image/png', portrait(), 2);
     await page.dispatchEvent('html', 'dragover', { dataTransfer: many, clientX: 500, clientY: 300 });
-    await expect(page.getByText('Uma por vez: abro a primeira.')).toBeVisible();
+    await expect(page.getByText('Solta para montar.')).toBeVisible();
 
     await page.dispatchEvent('html', 'drop', { dataTransfer: photo, clientX: 860, clientY: 300 });
     await expect(page.getByTestId('drop-zone')).toHaveCount(0);
@@ -316,7 +316,7 @@ test.describe('resposta ao usuário, celular', () => {
 
   test('a divisão do filtro fica sobre a foto, fora do painel', async ({ page }) => {
     await openEditor(page);
-    await page.locator('[data-group=filters]').tap();
+    await page.locator('[data-path=filters]').tap();
     await page.locator('[data-filter=prata]').tap();
     await page.getByTestId('compare-filter').tap();
     await settle(page, 1300);
