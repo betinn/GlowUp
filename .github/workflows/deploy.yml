@@ -1,0 +1,65 @@
+# Publica o site quando um PR de um branch deploy/* entra no main.
+# Só gera o build e o envia por SSH; não roda testes.
+# Endereço, chave e impressão digital do servidor ficam em secrets do repositório (VM_HOST, VM_SSH_KEY, VM_KNOWN_HOSTS).
+# No servidor, a chave só consegue entregar o pacote: ele troca a pasta do site de uma vez, confere a página nova e,
+# se ela não responder, volta a versão anterior.
+name: deploy
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: >-
+      github.event.pull_request.merged == true &&
+      startsWith(github.event.pull_request.head.ref, 'deploy/') &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Dependências
+        run: npm ci
+
+      - name: Gerar pacote
+        run: |
+          set -euo pipefail
+          npm run build
+          echo "${GITHUB_SHA::7} (PR #${{ github.event.pull_request.number }})" > dist/VERSAO
+          # A pasta raiz do pacote some na extração: o conteúdo de dist/ vira a raiz do site.
+          tar -czf glowup.tar.gz dist
+          ls -lh glowup.tar.gz
+
+      - name: Enviar para o servidor
+        env:
+          VM_HOST: ${{ secrets.VM_HOST }}
+          VM_SSH_KEY: ${{ secrets.VM_SSH_KEY }}
+          VM_KNOWN_HOSTS: ${{ secrets.VM_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$VM_SSH_KEY" > ~/.ssh/deploy
+          chmod 600 ~/.ssh/deploy
+          printf '%s\n' "$VM_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          # A chave só aceita o pacote do site na entrada padrão.
+          ssh -i ~/.ssh/deploy -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            -o ServerAliveInterval=30 "deploy@$VM_HOST" < glowup.tar.gz
+          rm -f ~/.ssh/deploy
