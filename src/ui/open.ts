@@ -81,7 +81,7 @@ export function openFiles(files: readonly File[], from: Point | null = null): vo
 /** Photos join the post on the table. From the editor of one of its photos, the table comes back first. */
 async function addToPost(photos: File[]): Promise<void> {
   if (ui.screen === 'post') {
-    const { addPhotos } = await import('./post/studio.svelte');
+    const { addPhotos } = await import('./post/studiostate.svelte');
     await addPhotos(photos);
     return;
   }

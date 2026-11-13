@@ -4,7 +4,7 @@
   import { pageCount, ratioById, type PostDoc } from '../../core/post/layout';
   import Icon from '../Icon.svelte';
   import { rise } from '../motion';
-  import { doc, pictureOf, studio } from './studio.svelte';
+  import { doc, pictureOf, studio } from './studiostate.svelte';
 
   let { onclose }: { onclose: () => void } = $props();
 

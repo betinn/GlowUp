@@ -13,7 +13,7 @@
   import { reveal, rise } from '../motion';
   import { Task } from '../task.svelte';
   import { exportPost, POST_WIDTHS, zipFiles } from './export';
-  import { doc, save as savePost } from './studio.svelte';
+  import { doc, save as savePost } from './studiostate.svelte';
 
   let { onclose }: { onclose: () => void } = $props();
 

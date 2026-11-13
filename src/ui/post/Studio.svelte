@@ -52,7 +52,7 @@
     touched,
     undo,
     unspreadFilter,
-  } from './studio.svelte';
+  } from './studiostate.svelte';
 
   const KINDS: { id: PostKind; label: string; icon: string; note: string }[] = [
     { id: 'carousel', label: 'Carrossel', icon: 'carousel', note: 'Cada foto é um slide. Toque na foto para enquadrar.' },
