@@ -392,6 +392,19 @@ continua sendo retocada no editor de sempre.
 - [ ] Celular de verdade não foi medido: o limite de 10 fotos e as fotos de 1280 px na mesa vêm de conta, não de aparelho
 - [ ] A folha de compartilhar com vários arquivos depende do navegador e do sistema, e não foi conferida em aparelho
 
+## M30. Delineado e Fox eye
+
+- [x] Delineado em Make: traço nos cílios de cima com asa curta, levado à linha dos cílios da foto
+- [x] Fox eye em Make: asa longa levantada rumo à sobrancelha, linha de baixo no canto, ponta no canto de dentro e canto de fora esfumado
+- [x] Traço e esfumado numa máscara só, com cor e força para cada um
+- [x] Limite "Só em volta dos olhos", Automático e Manual, interruptor no botão, ícones
+- [x] Olho atrás de óculos escuros fica sem traço; esfumado só na pele
+- [x] Conferido nas oito fotos reais, com a borda da máscara em linha fina
+- [ ] O Fox eye não levanta o olho: isso é o Ângulo de Formato do rosto, e a dica só aponta para lá
+- [ ] A forma do Automático não muda por controle: espessura e tamanho da asa são de fábrica, e o pincel faz o resto
+- [ ] Um dedo encostado no canto do olho pode ganhar esfumado, porque tem cor de pele
+- [ ] Máscara na resolução da prévia: num JPG exportado muito maior que a tela, a borda do traço fica um pouco mais macia
+
 ## Metas medidas
 
 Foto gerada de 12 MP (4000 x 3000), Chromium com aceleração, em uma placa dedicada (`node scripts/perf.mjs`):
