@@ -13,6 +13,7 @@
   import ProgressCard from './ProgressCard.svelte';
   import Slider from './Slider.svelte';
   import { engine, ui } from './state.svelte';
+  import { during } from './wait.svelte';
 
   const e = engine();
   /** On a phone the wait floats over the photo and the words stay. On a desktop it takes their place. */
@@ -28,7 +29,7 @@
 
   async function tap(look: RetouchPreset) {
     wearing = look.id;
-    await tapLook(look);
+    await during(active === look.id ? `Tirando o look ${look.name}` : `Vestindo o look ${look.name}`, () => tapLook(look));
     if (wearing === look.id) wearing = null;
   }
 

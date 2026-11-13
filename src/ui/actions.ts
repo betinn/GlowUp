@@ -1,6 +1,7 @@
 /** UI actions that coordinate the engine, tool chunks and shared state. */
 
 import { DEFAULT_BRUSH, type BrushSettings } from '../core/brush';
+import type { Engine } from '../core/engine';
 import type { LayerId } from '../core/doc';
 import { applyPreset } from '../presets/apply';
 import type { RetouchPreset } from '../presets/recipes';
@@ -13,6 +14,7 @@ import { forgetFunFaces } from './funpick.svelte';
 import { ensureScene } from './lights.svelte';
 import { regionShow } from './regionshow.svelte';
 import { bump, engine, toast, ui } from './state.svelte';
+import { during } from './wait.svelte';
 
 /** Brush settings are remembered per tool during the session. */
 const brushes = new Map<string, BrushSettings>();
@@ -54,48 +56,60 @@ export async function selectTool(id: string | null): Promise<void> {
   ui.toolModule = null;
   ui.showHint = true;
   try {
-    switch (meta?.kind) {
-      case 'mask': {
-        const mod = await ensureLayerTool(e, meta.layer!);
-        if (ui.tool !== id) return;
-        e.brush = brushFor(meta.id, mod.brush);
-        e.setTool('mask', meta.layer!);
-        ui.toolModule = mod;
-        break;
-      }
-      case 'heal':
-        await ensureHeal(e);
-        if (ui.tool !== id) return;
-        e.brush = brushFor('heal', HEAL_BRUSH);
-        e.setTool('heal');
-        break;
-      case 'liquify':
-        await ensureField(e);
-        if (ui.tool !== id) return;
-        e.brush = brushFor('liquify', LIQUIFY_BRUSH);
-        e.setTool('liquify');
-        break;
-      case 'shape':
-        await ensureField(e);
-        if (ui.tool !== id) return;
-        e.setTool('none');
-        openShapeTool(e);
-        break;
-      case 'crop':
-        e.setTool('none');
-        e.setCropEditing(true);
-        break;
-      default:
-        e.setTool('none');
-    }
-    // Last, because opening a tool drops the limit of the one before.
-    if (meta && (meta.region || autoAction(meta.id))) void limitTool(e, meta.id, meta.region ?? null);
+    // The code of a tool comes on its first use, and its search starts before this wait ends, so the photo
+    // shows one wait from the tap to the result.
+    if (meta && LOADED_KINDS.has(meta.kind)) await during(`Abrindo ${meta.label}`, () => openTool(e, meta));
+    else await openTool(e, meta);
   } catch (err) {
     console.error(err);
     toast('Essa ferramenta não carregou. Confere a conexão e tenta de novo.');
     ui.tool = null;
   }
   bump();
+}
+
+/** The kinds of tool whose code loads on demand. */
+const LOADED_KINDS = new Set<string>(['mask', 'heal', 'liquify', 'shape']);
+
+/** Gives the engine the tool the person chose. Stops when another tool was chosen meanwhile. */
+async function openTool(e: Engine, meta: ToolMeta | undefined): Promise<void> {
+  const id = meta?.id ?? null;
+  switch (meta?.kind) {
+    case 'mask': {
+      const mod = await ensureLayerTool(e, meta.layer!);
+      if (ui.tool !== id) return;
+      e.brush = brushFor(meta.id, mod.brush);
+      e.setTool('mask', meta.layer!);
+      ui.toolModule = mod;
+      break;
+    }
+    case 'heal':
+      await ensureHeal(e);
+      if (ui.tool !== id) return;
+      e.brush = brushFor('heal', HEAL_BRUSH);
+      e.setTool('heal');
+      break;
+    case 'liquify':
+      await ensureField(e);
+      if (ui.tool !== id) return;
+      e.brush = brushFor('liquify', LIQUIFY_BRUSH);
+      e.setTool('liquify');
+      break;
+    case 'shape':
+      await ensureField(e);
+      if (ui.tool !== id) return;
+      e.setTool('none');
+      openShapeTool(e);
+      break;
+    case 'crop':
+      e.setTool('none');
+      e.setCropEditing(true);
+      break;
+    default:
+      e.setTool('none');
+  }
+  // Last, because opening a tool drops the limit of the one before.
+  if (meta && (meta.region || autoAction(meta.id))) void limitTool(e, meta.id, meta.region ?? null);
 }
 
 /** Turns the mark of the touched area on or off. Only a brush with a mask has one. */
@@ -140,7 +154,7 @@ export async function toggleEffect(id: string): Promise<void> {
     if (hasWork(e, id)) setSectionOn(e, meta.section, false);
     else if (sectionHeld(e, meta.section)) setSectionOn(e, meta.section, true);
   } else if (hasWork(e, id)) {
-    await clearWork(e, id);
+    await during(`Tirando ${meta.label}`, () => clearWork(e, id));
   } else if (toolLimit.tool === id && toolLimit.mode === 'auto' && toolLimit.state === 'on') {
     refillRegion(e);
   }

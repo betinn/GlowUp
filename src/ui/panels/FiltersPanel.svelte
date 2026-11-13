@@ -15,6 +15,7 @@
   import Segment from '../Segment.svelte';
   import Slider from '../Slider.svelte';
   import { bump, engine, prefs, ui } from '../state.svelte';
+  import { during } from '../wait.svelte';
 
   const e = engine();
   const filter = $derived((ui.rev, e.doc.filter));
@@ -147,10 +148,14 @@
     if (e.activeLayer === FILTER_MASK) e.setTool('none');
   });
 
+  /** A tap on a filter. The photo says so while the filter is on its way, which on a phone can take a moment. */
   async function pick(id: string) {
-    await setFilter(e, filter.id === id ? null : id, filter.id ? filter.intensity : 0.85);
-    e.commit();
-    bump();
+    const off = filter.id === id;
+    await during(off ? 'Tirando o filtro' : `Aplicando ${lutById(id)?.name ?? 'o filtro'}`, async () => {
+      await setFilter(e, off ? null : id, filter.id ? filter.intensity : 0.85);
+      e.commit();
+      bump();
+    });
   }
 
   function toggleFavorite(id: string) {
