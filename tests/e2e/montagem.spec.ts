@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { inflateRawSync } from 'node:zlib';
 import { readFileSync } from 'node:fs';
-import { settle } from './helpers';
+import { noPickers, settle } from './helpers';
 
 const FIXTURES = ['portrait.png', 'group.png', 'gradient.png'].map((f) => `tests/fixtures/${f}`);
 
@@ -11,6 +11,7 @@ const shot = (name: string) => `docs/visual-checks/ui-${name}.png`;
 const table = (page: Page) => page.locator('[data-testid=studio].ready[data-loading="0"]');
 
 async function quiet(page: Page): Promise<void> {
+  await noPickers(page);
   await page.addInitScript(() => {
     localStorage.setItem('glowup.onboarded', 'true');
     localStorage.setItem('glowup.onboardedView', 'true');

@@ -4,8 +4,19 @@ import { TOOLS } from '../../src/tools/catalog';
 /** Size of the fixture portrait. Coordinates below match scripts/make-fixtures.mjs. */
 export const PORTRAIT = { w: 1500, h: 1875 };
 
+/**
+ * The save dialogs would wait for a person: without them the export takes the download path, as on a browser
+ * that has none. A test of the dialogs puts stand-ins back after this.
+ */
+export async function noPickers(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    for (const name of ['showSaveFilePicker', 'showDirectoryPicker']) Object.defineProperty(window, name, { value: undefined, configurable: true, writable: true });
+  });
+}
+
 /** No cards, and the photo opens on the tab of the tools (`manual`), whatever tab a first photo would start on. */
 export async function skipIntro(page: Page): Promise<void> {
+  await noPickers(page);
   await page.addInitScript(() => {
     localStorage.setItem('glowup.onboarded', 'true');
     localStorage.setItem('glowup.startPath', '"manual"');

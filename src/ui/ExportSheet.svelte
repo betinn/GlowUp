@@ -4,6 +4,7 @@
   import { nextPaint, timeLeft } from '../core/progress';
   import { capFor, capNote, pickScale, scalesFor, type Scale } from '../core/superres/size';
   import { onPhone } from './device';
+  import { unlessCancelled, canPickFile, download, pickFile, writeFile, type FileTarget } from './savefile';
   import { fillSettled } from './fill.svelte';
   import { outputSize } from '../core/geometry';
   import Icon from './Icon.svelte';
@@ -45,7 +46,8 @@
   let quality = $state(92);
   let available = $state(FORMATS.slice(0, 2));
   let job = $state<Task | null>(null);
-  let done = $state<{ file: File; ms: number } | null>(null);
+  /** `where` is the name of the file the person chose in the save dialog, or null when it came down as a download. */
+  let done = $state<{ file: File; ms: number; where: string | null } | null>(null);
   /** What went wrong with the last try, so the note says what to do about it. */
   let failed = $state<UpscaleFailure | 'file' | null>(null);
   /** The format of the last try. */
@@ -71,14 +73,34 @@
     if (await canEncode('image/webp')) available = FORMATS;
   });
 
-  function save(file: File) {
-    const url = URL.createObjectURL(file);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = file.name;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  /** Puts the file where the person chose, or downloads it when there is no choice or the write failed. */
+  async function save(file: File, target: FileTarget | null): Promise<string | null> {
+    const where = target && (await writeFile(target, file)) ? target.name : null;
+    if (!where) download(file);
     void celebrate();
+    return where;
+  }
+
+  /** Saves the finished file again, from a tap: the dialog opens again where it can. */
+  async function saveAgain() {
+    if (!done) return;
+    const file = done.file;
+    const target = await pickFile(file.name, file.type).catch(unlessCancelled);
+    if (target === undefined) return;
+    done.where = await save(file, target);
+  }
+
+  /** Opens the share sheet. When it refuses the files (and the person did not just close it), they download instead. */
+  async function share() {
+    if (!done) return;
+    const files = [done.file];
+    try {
+      await navigator.share({ files });
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      console.warn(err);
+      download(done.file);
+    }
   }
 
   /** Plays the saved moment again from the start, for each save. */
@@ -105,6 +127,10 @@
 
   async function start() {
     const { label, ext } = FORMATS.find((f) => f.value === format)!;
+    const name = `glowup-${Date.now().toString(36)}.${ext}`;
+    // Where the file goes is asked first, while the tap still counts: after the export the browser would refuse.
+    const target = await pickFile(name, format).catch(unlessCancelled);
+    if (target === undefined) return;
     const megapixels = (outW * outH) / 1e6;
     const upscaling = enlarge;
     const task = new Task([
@@ -165,10 +191,10 @@
       task.stage('encode');
       await nextPaint();
       const blob = await encodeImage(canvas, { format, quality: quality / 100 });
-      const file = new File([blob], `glowup-${Date.now().toString(36)}.${ext}`, { type: format });
+      const file = new File([blob], name, { type: format });
       task.finish('Pronta');
-      done = { file, ms: performance.now() - started };
-      save(file);
+      const where = await save(file, target);
+      done = { file, ms: performance.now() - started, where };
     } catch (err) {
       console.error(err);
       task.stop();
@@ -251,14 +277,19 @@
   {:else if done}
     <div class="done" in:reveal>
       <p class="serif big">Prontinho. Tá na sua pasta.</p>
+      {#if done.where}
+        <p class="meta" data-testid="export-where">Salva como {done.where}, na pasta que você escolheu.</p>
+      {:else if onPhone()}
+        <p class="meta" data-testid="export-where">Fica em Downloads. Se não aparecer lá, toque em {canShare ? 'Compartilhar e escolha onde salvar' : 'Baixar de novo'}.</p>
+      {/if}
       <p class="meta">
         {outW} × {outH} px, {sizeLabel(done.file.size)}, em {(done.ms / 1000).toFixed(1)} s
       </p>
       <div class="actions">
         {#if canShare}
-          <button type="button" class="btn primary" onclick={() => navigator.share({ files: [done!.file] }).catch(() => {})}>Compartilhar</button>
+          <button type="button" class="btn primary" onclick={() => share()}>Compartilhar</button>
         {/if}
-        <button type="button" class="btn" onclick={() => save(done!.file)}>Baixar de novo</button>
+        <button type="button" class="btn" data-testid="export-again" onclick={saveAgain}>{canPickFile() ? 'Salvar em outro lugar' : 'Baixar de novo'}</button>
         <button type="button" class="btn" onclick={() => (ui.exportOpen = false)}>Voltar a editar</button>
       </div>
     </div>
