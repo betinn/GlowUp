@@ -25,8 +25,10 @@ export async function skipIntro(page: Page): Promise<void> {
   });
 }
 
-export async function openEditor(page: Page, fixture = 'portrait.png'): Promise<void> {
+/** `prepare` runs after the page setup, so what it puts in the page wins over it (a stand-in save dialog). */
+export async function openEditor(page: Page, fixture = 'portrait.png', prepare?: (page: Page) => Promise<void>): Promise<void> {
   await skipIntro(page);
+  await prepare?.(page);
   await page.goto('/');
   await page.setInputFiles('[data-testid=file-input]', `tests/fixtures/${fixture}`);
   await page.locator('[data-group=skin]').waitFor({ timeout: 90_000 });

@@ -44,9 +44,7 @@ const asked = (page: Page) => page.evaluate(() => (window as unknown as { __aske
 
 test.describe('escolher onde salvar', () => {
   test('a foto pergunta onde salvar antes de exportar, e vai para lá sem download', async ({ page }) => {
-    await noPickers(page);
-    await fakePickers(page);
-    await openEditor(page);
+    await openEditor(page, undefined, (p) => fakePickers(p));
     let downloads = 0;
     page.on('download', () => downloads++);
     await page.getByTestId('export-open').click();
@@ -62,9 +60,7 @@ test.describe('escolher onde salvar', () => {
   });
 
   test('fechar o diálogo não exporta nada e as opções ficam', async ({ page }) => {
-    await noPickers(page);
-    await fakePickers(page, { cancel: true });
-    await openEditor(page);
+    await openEditor(page, undefined, (p) => fakePickers(p, { cancel: true }));
     await page.getByTestId('export-open').click();
     await page.getByTestId('export-go').click();
     await settle(page, 500);
