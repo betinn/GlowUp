@@ -17,6 +17,8 @@ export interface PostExportOptions {
   quality: number;
   /** Width of a slide in pixels. The height follows the shape of the post. */
   width: number;
+  /** Start of the file names, so a name asked for in a save dialog before the export is the one it gets. */
+  stamp?: string;
 }
 
 export interface PostExportEvents {
@@ -24,7 +26,7 @@ export interface PostExportEvents {
   page(done: number, total: number, canvas: OffscreenCanvas): void;
 }
 
-const EXT: Record<ExportFormat, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+export const EXT: Record<ExportFormat, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
 
 /** Widths offered for a slide. The first is what the feeds show; the others keep more for a zoom or a print. */
 export const POST_WIDTHS = [1080, 1440, 2160] as const;
@@ -34,7 +36,7 @@ export async function exportPost(doc: PostDoc, options: PostExportOptions, event
   const total = pageCount(doc);
   const { w, h } = pageSize(ratioById(doc.ratio), options.width);
   const need = drawnWidths(doc, w, h);
-  const stamp = Date.now().toString(36);
+  const stamp = options.stamp ?? Date.now().toString(36);
   const held = new Map<number, ImageBitmap>();
   const files: File[] = [];
   try {

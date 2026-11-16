@@ -12,7 +12,9 @@
   import Slider from '../Slider.svelte';
   import { reveal, rise } from '../motion';
   import { Task } from '../task.svelte';
-  import { exportPost, POST_WIDTHS, zipFiles } from './export';
+  import { onPhone } from '../device';
+  import { unlessCancelled, canPickFile, canPickFolder, download, pickFile, pickFolder, writeFile, writeFiles, type FileTarget, type FolderTarget } from '../savefile';
+  import { EXT, exportPost, POST_WIDTHS, zipFiles } from './export';
   import { doc, save as savePost } from './studiostate.svelte';
 
   let { onclose }: { onclose: () => void } = $props();
@@ -35,7 +37,8 @@
   let width = $state<number>(POST_WIDTHS[0]);
   let available = $state(FORMATS.slice(0, 2));
   let job = $state<Task | null>(null);
-  let done = $state<{ files: File[]; bundle: File | null; ms: number; saved: boolean } | null>(null);
+  /** `where` is the folder or file the person chose in the save dialog, or null when the files came down as downloads. */
+  let done = $state<{ files: File[]; bundle: File | null; ms: number; saved: boolean; where: string | null } | null>(null);
   let failed = $state(false);
   /** Slides drawn so far. */
   let lit = $state(0);
@@ -52,20 +55,44 @@
 
   onDestroy(() => job?.stop());
 
-  function download(file: File) {
-    const url = URL.createObjectURL(file);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = file.name;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  /** Where the dialog can choose a folder, the slides go there one by one; a single image asks for its file. */
+  const asksFolder = () => total > 1 && canPickFolder();
+  const asks = () => asksFolder() || (total === 1 && canPickFile());
+
+  /** Asks where the files go. Null when this browser has no dialog for it. Throws `Cancelled` when closed. */
+  async function pickTarget(name: string, type: string): Promise<FolderTarget | FileTarget | null> {
+    return asksFolder() ? pickFolder() : total === 1 ? pickFile(name, type) : null;
   }
 
-  function saveAll() {
+  /** Puts the files where the person chose, or downloads them when there is no choice or the write failed. */
+  async function put(files: File[], bundle: File | null, target: FolderTarget | FileTarget | null): Promise<string | null> {
+    if (target?.kind === 'directory' && (await writeFiles(target, files))) return target.name;
+    if (target?.kind === 'file' && (await writeFile(target, files[0]))) return target.name;
+    download(bundle ?? files[0]);
+    return null;
+  }
+
+  async function saveAll() {
     if (!done) return;
-    download(done.bundle ?? done.files[0]);
+    const { files, bundle } = done;
+    const target = await pickTarget(files[0].name, files[0].type).catch(unlessCancelled);
+    if (target === undefined) return;
+    done.where = await put(files, bundle, target);
     done.saved = true;
     navigator.vibrate?.(18);
+  }
+
+  /** Opens the share sheet. When it refuses the files (and the person did not just close it), they download instead. */
+  async function share() {
+    if (!done) return;
+    const files = done.files;
+    try {
+      await navigator.share({ files });
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      console.warn(err);
+      download(done.bundle ?? done.files[0]);
+    }
   }
 
   async function start() {
@@ -74,6 +101,10 @@
       { id: 'pages', label: total > 1 ? 'Montando os slides' : 'Montando a imagem', weight: 88 },
       { id: 'pack', label: 'Juntando os arquivos', weight: 12, estimate: 200 + megapixels * total * 12 },
     ]);
+    const stamp = Date.now().toString(36);
+    // Where the files go is asked first, while the tap still counts: after the export the browser would refuse.
+    const target = await pickTarget(`glowup-${stamp}.${EXT[format]}`, format).catch(unlessCancelled);
+    if (target === undefined) return;
     failed = false;
     done = null;
     lit = 0;
@@ -84,7 +115,7 @@
     try {
       // The post on the device is the one that goes out.
       await savePost();
-      const files = await exportPost(d, { format, quality: quality / 100, width }, {
+      const files = await exportPost(d, { format, quality: quality / 100, width, stamp }, {
         page(n, all, canvas) {
           task.report(n / all, all > 1 ? `slide ${n} de ${all}` : '');
           minis[n - 1]?.getContext('2d')?.drawImage(canvas, 0, 0, mini.w * 2, mini.h * 2);
@@ -92,12 +123,18 @@
         },
       });
       task.stage('pack');
-      const bundle = files.length > 1 ? await zipFiles(files) : null;
+      // Slides written one by one into a chosen folder need no zip around them.
+      const bundle = files.length > 1 && target?.kind !== 'directory' ? await zipFiles(files) : null;
       task.finish('Pronta');
-      done = { files, bundle, ms: performance.now() - started, saved: false };
-      // Where the files can go straight to another app, the person chooses where. Elsewhere they come down now.
+      done = { files, bundle, ms: performance.now() - started, saved: false, where: null };
       await tick();
-      if (!canShare) saveAll();
+      // A place chosen before is where they go. With no dialog, where the files can go straight to another app the
+      // person chooses there; elsewhere they come down now.
+      if (target || !canShare) {
+        done.where = await put(files, bundle, target);
+        done.saved = true;
+        navigator.vibrate?.(18);
+      }
     } catch (err) {
       console.error(err);
       task.stop();
@@ -139,12 +176,17 @@
     <div class="done" in:reveal data-testid="post-exported" data-files={done.files.length}>
       <p class="serif big">{done.saved ? 'Prontinho. Tá na sua pasta.' : 'Prontinho. Para onde vai?'}</p>
       <p class="meta">{what} de {size.w} × {size.h} px, {sizeLabel(bytes)}, em {(done.ms / 1000).toFixed(1)} s</p>
+      {#if done.where}
+        <p class="meta" data-testid="post-where">{total > 1 ? `Salvos na pasta ${done.where}.` : `Salva como ${done.where}, na pasta que você escolheu.`}</p>
+      {:else if done.saved && onPhone()}
+        <p class="meta" data-testid="post-where">Fica em Downloads. Se não aparecer lá, toque em {canShare ? 'Compartilhar e escolha onde salvar' : 'Baixar de novo'}.</p>
+      {/if}
       <div class="actions">
         {#if canShare}
-          <button type="button" class="btn primary" data-testid="post-share" onclick={() => navigator.share({ files: done!.files }).catch(() => {})}>Compartilhar</button>
+          <button type="button" class="btn primary" data-testid="post-share" onclick={() => share()}>Compartilhar</button>
         {/if}
         <button type="button" class="btn" class:primary={!canShare} data-testid="post-download" onclick={saveAll}>
-          {done.bundle ? (done.saved ? 'Baixar o .zip de novo' : 'Baixar tudo em .zip') : done.saved ? 'Baixar de novo' : 'Baixar'}
+          {asks() ? (done.saved ? 'Salvar em outro lugar' : total > 1 ? 'Escolher a pasta' : 'Escolher onde salvar') : done.bundle ? (done.saved ? 'Baixar o .zip de novo' : 'Baixar tudo em .zip') : done.saved ? 'Baixar de novo' : 'Baixar'}
         </button>
         <button type="button" class="btn" onclick={onclose}>Voltar a montar</button>
       </div>
